@@ -182,6 +182,11 @@ const EXECUTOR_PROFILES = [
   { specialization: "Постобработка и покраска на заказ", materials: "PLA, Resin (SLA)", printer: "Elegoo Neptune 4, Mars 4" },
   { specialization: "Функциональные детали для авто/быта", materials: "ASA, Nylon, PETG", printer: "Bambu Lab P1S" },
   { specialization: "Архитектурные макеты", materials: "PLA, Resin (SLA)", printer: "Prusa MK4, Photon Mono" },
+  { specialization: "Композитные детали, стекловолокно и карбон", materials: "Carbon Fiber, Fiberglass (стекловолокно), PETG", printer: "Bambu Lab X1C, Raise3D E2" },
+  { specialization: "SLS-печать без поддержек, сложная геометрия", materials: "Nylon (SLS), Nylon", printer: "Sinterit Lisa X" },
+  { specialization: "Печать металлом на заказ", materials: "Metal (DMLS/SLM), Nylon (SLS)", printer: "Промышленный DMLS-центр (аутсорс)" },
+  { specialization: "Ювелирное литьё по восковым моделям", materials: "Wax (для литья), Resin (SLA)", printer: "Formlabs Form 3, восковой принтер" },
+  { specialization: "Декоративная печать под дерево и металл", materials: "Wood Fill (наполнитель — дерево), Metal Fill (наполнитель — металл), PLA", printer: "Prusa MK4" },
 ];
 
 const ORDER_TEMPLATES = [
@@ -209,6 +214,13 @@ const ORDER_TEMPLATES = [
   { title: "Прототип тактильной кнопки", material: "TPU" },
   { title: "Демонстрационный макет упаковки", material: "PLA" },
   { title: "Сменные насадки для пылесоса", material: "Nylon" },
+  { title: "Композитный кронштейн повышенной жёсткости", material: "Fiberglass (стекловолокно)" },
+  { title: "Промышленный прототип из поликарбоната", material: "PC (поликарбонат)" },
+  { title: "Сложная деталь без поддержек (SLS)", material: "Nylon (SLS)" },
+  { title: "Металлический прототип детали", material: "Metal (DMLS/SLM)" },
+  { title: "Восковая модель под ювелирное литьё", material: "Wax (для литья)" },
+  { title: "Декоративная фигурка под дерево", material: "Wood Fill (наполнитель — дерево)" },
+  { title: "Сувенир с эффектом бронзы", material: "Metal Fill (наполнитель — металл)" },
 ];
 
 const CUSTOMER_REVIEW_5 = [

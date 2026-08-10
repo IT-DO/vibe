@@ -61,6 +61,11 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                       Разместить заказ
                     </Link>
                   </li>
+                  <li>
+                    <Link href="/materials" className="hover:text-white">
+                      Материалы и технологии
+                    </Link>
+                  </li>
                 </ul>
               </div>
               <div>
