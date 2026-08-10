@@ -35,11 +35,7 @@ export function ResetPasswordForm({ token }: { token: string }) {
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
       )}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
-      >
+      <button type="submit" disabled={pending} className="btn-primary btn-block">
         {pending ? "Сохраняем..." : "Сохранить новый пароль"}
       </button>
     </form>

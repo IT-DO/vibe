@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { ResetPasswordForm } from "./ResetPasswordForm";
+import { AuthShell } from "@/components/AuthShell";
 
 export default async function ResetPasswordPage({
   searchParams,
@@ -9,7 +10,7 @@ export default async function ResetPasswordPage({
   const { token } = await searchParams;
 
   return (
-    <div className="mx-auto max-w-md px-4 py-12">
+    <AuthShell>
       <h1 className="text-2xl font-bold text-slate-900">Новый пароль</h1>
 
       {!token ? (
@@ -23,6 +24,6 @@ export default async function ResetPasswordPage({
       ) : (
         <ResetPasswordForm token={token} />
       )}
-    </div>
+    </AuthShell>
   );
 }

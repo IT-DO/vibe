@@ -41,7 +41,7 @@ export function ReviewForm({ orderId }: { orderId: string }) {
       <button
         type="submit"
         disabled={pending}
-        className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+        className="btn-primary"
       >
         {pending ? "Отправляем..." : "Отправить отзыв"}
       </button>

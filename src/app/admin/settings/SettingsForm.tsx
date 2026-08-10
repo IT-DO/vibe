@@ -151,7 +151,7 @@ export function SettingsForm({ initial }: { initial: AdminSettingsView }) {
         <button
           type="submit"
           disabled={pending}
-          className="rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
+          className="btn-primary"
         >
           {pending ? "Сохраняем..." : "Сохранить настройки"}
         </button>
@@ -161,7 +161,7 @@ export function SettingsForm({ initial }: { initial: AdminSettingsView }) {
         <button
           type="submit"
           disabled={generatingToken}
-          className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-700 hover:bg-slate-50 disabled:opacity-60"
+          className="btn-secondary"
         >
           {generatingToken ? "Генерируем..." : "Сгенерировать новый токен алертов"}
         </button>

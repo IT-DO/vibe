@@ -102,7 +102,7 @@ export function NewOrderForm() {
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white transition hover:bg-orange-700 disabled:opacity-60"
+        className="btn-primary btn-block"
       >
         {pending ? "Публикуем..." : "Опубликовать заказ"}
       </button>

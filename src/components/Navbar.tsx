@@ -47,10 +47,7 @@ export async function Navbar() {
                 {session.user.name} ({ROLE_LABELS[session.user.role]})
               </Link>
               {session.user.role === "CUSTOMER" && (
-                <Link
-                  href="/auctions/new"
-                  className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-700"
-                >
+                <Link href="/auctions/new" className="btn-primary btn-sm">
                   + Заказ
                 </Link>
               )}
@@ -61,10 +58,7 @@ export async function Navbar() {
               <Link href="/login" className="text-sm font-medium text-slate-600 hover:text-slate-900">
                 Войти
               </Link>
-              <Link
-                href="/register"
-                className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-700"
-              >
+              <Link href="/register" className="btn-primary btn-sm">
                 Регистрация
               </Link>
             </>

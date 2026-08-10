@@ -62,7 +62,7 @@ export function BidForm({
       <button
         type="submit"
         disabled={pending}
-        className="w-full rounded-lg bg-orange-600 px-4 py-2 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
+        className="btn-primary btn-block"
       >
         {pending ? "Отправляем..." : initial ? "Обновить ставку" : "Сделать ставку"}
       </button>

@@ -66,7 +66,7 @@ export default async function ExecutorsPage({
         </div>
       </div>
 
-      <form className="mb-8 rounded-xl border border-slate-200 bg-white p-4 shadow-sm" method="get">
+      <form className="card mb-8 p-4" method="get">
         <div className="flex flex-wrap gap-3">
           <select name="role" defaultValue={params.role ?? ""} className="input max-w-xs">
             <option value="">Все роли</option>
@@ -105,17 +105,11 @@ export default async function ExecutorsPage({
               </option>
             ))}
           </select>
-          <button
-            type="submit"
-            className="rounded-lg bg-orange-600 px-4 py-2 text-sm font-medium text-white hover:bg-orange-700"
-          >
+          <button type="submit" className="btn-primary">
             Найти
           </button>
           {hasActiveFilters && (
-            <Link
-              href="/executors"
-              className="rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-medium text-slate-600 hover:bg-slate-50"
-            >
+            <Link href="/executors" className="btn-secondary">
               Сбросить
             </Link>
           )}
@@ -132,11 +126,7 @@ export default async function ExecutorsPage({
             const labels = PROFILE_FIELD_LABELS[person.role === "DESIGNER" ? "DESIGNER" : "EXECUTOR"];
             const initial = person.name.trim().charAt(0).toUpperCase() || "?";
             return (
-              <Link
-                key={person.id}
-                href={`/u/${person.id}`}
-                className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-lg"
-              >
+              <Link key={person.id} href={`/u/${person.id}`} className="card-hover group flex flex-col">
                 <div className="mb-2 flex items-start gap-3">
                   <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100 font-bold text-orange-700">
                     {initial}

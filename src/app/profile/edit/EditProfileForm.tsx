@@ -18,7 +18,7 @@ export function EditProfileForm({ user }: { user: OwnProfile }) {
   const labels = isSpecialist ? PROFILE_FIELD_LABELS[role as "EXECUTOR" | "DESIGNER"] : null;
 
   return (
-    <form action={formAction} className="mt-8 space-y-5">
+    <form action={formAction} className="space-y-5">
       <label className="block text-sm font-medium text-slate-700">
         Имя
         <input name="name" required defaultValue={user.name} className="input mt-1" />
@@ -86,11 +86,7 @@ export function EditProfileForm({ user }: { user: OwnProfile }) {
         <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700">Профиль обновлён.</p>
       )}
 
-      <button
-        type="submit"
-        disabled={pending}
-        className="w-full rounded-lg bg-orange-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-orange-700 disabled:opacity-60"
-      >
+      <button type="submit" disabled={pending} className="btn-primary btn-block">
         {pending ? "Сохраняем..." : "Сохранить"}
       </button>
     </form>

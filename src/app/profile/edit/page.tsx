@@ -16,7 +16,9 @@ export default async function EditProfilePage() {
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">
       <h1 className="text-2xl font-bold text-slate-900">Редактирование профиля</h1>
-      <EditProfileForm user={user} />
+      <div className="card mt-6">
+        <EditProfileForm user={user} />
+      </div>
     </div>
   );
 }

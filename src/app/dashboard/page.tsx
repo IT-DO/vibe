@@ -22,17 +22,33 @@ export default async function DashboardPage() {
   );
 }
 
+function StatChip({ value, label }: { value: number; label: string }) {
+  return (
+    <div className="card px-4 py-3">
+      <div className="text-xl font-bold text-slate-900">{value}</div>
+      <div className="text-xs text-slate-500">{label}</div>
+    </div>
+  );
+}
+
 async function CustomerDashboard({ customerId }: { customerId: string }) {
   const orders = await getOrdersByCustomer(customerId);
+  const active = orders.filter((o) => ["OPEN", "AWARDED", "IN_PROGRESS"].includes(o.status)).length;
+  const completed = orders.filter((o) => o.status === "COMPLETED").length;
 
   return (
     <div>
+      {orders.length > 0 && (
+        <div className="mb-6 grid grid-cols-3 gap-3 sm:max-w-md">
+          <StatChip value={orders.length} label="Всего заказов" />
+          <StatChip value={active} label="В работе" />
+          <StatChip value={completed} label="Завершено" />
+        </div>
+      )}
+
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-semibold text-slate-900">Мои заказы</h2>
-        <Link
-          href="/auctions/new"
-          className="rounded-lg bg-orange-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-orange-700"
-        >
+        <Link href="/auctions/new" className="btn-primary btn-sm">
           + Новый заказ
         </Link>
       </div>
@@ -45,10 +61,7 @@ async function CustomerDashboard({ customerId }: { customerId: string }) {
         <ul className="space-y-3">
           {orders.map((order) => (
             <li key={order.id}>
-              <Link
-                href={`/auctions/${order.id}`}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-4 hover:border-orange-300"
-              >
+              <Link href={`/auctions/${order.id}`} className="card-hover flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="font-medium text-slate-900">{order.title}</p>
                   <p className="text-xs text-slate-400">
@@ -67,9 +80,19 @@ async function CustomerDashboard({ customerId }: { customerId: string }) {
 
 async function ExecutorDashboard({ executorId }: { executorId: string }) {
   const bids = await getBidsByExecutor(executorId);
+  const accepted = bids.filter((b) => b.status === "ACCEPTED").length;
+  const completed = bids.filter((b) => b.order.status === "COMPLETED").length;
 
   return (
     <div>
+      {bids.length > 0 && (
+        <div className="mb-6 grid grid-cols-3 gap-3 sm:max-w-md">
+          <StatChip value={bids.length} label="Всего ставок" />
+          <StatChip value={accepted} label="Принято" />
+          <StatChip value={completed} label="Завершено" />
+        </div>
+      )}
+
       <div className="mb-4 flex items-center justify-between">
         <h2 className="font-semibold text-slate-900">Мои ставки</h2>
         <Link href="/auctions" className="text-sm font-medium text-orange-600 hover:underline">
@@ -88,10 +111,7 @@ async function ExecutorDashboard({ executorId }: { executorId: string }) {
         <ul className="space-y-3">
           {bids.map((bid) => (
             <li key={bid.id}>
-              <Link
-                href={`/auctions/${bid.orderId}`}
-                className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-slate-200 bg-white p-4 hover:border-orange-300"
-              >
+              <Link href={`/auctions/${bid.orderId}`} className="card-hover flex flex-wrap items-center justify-between gap-2">
                 <div>
                   <p className="font-medium text-slate-900">{bid.order.title}</p>
                   <p className="text-xs text-slate-400">

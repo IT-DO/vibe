@@ -37,19 +37,19 @@ export default async function Home() {
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/auctions/new"
-              className="rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-orange-600/20 transition hover:-translate-y-0.5 hover:bg-orange-700 hover:shadow-md"
+              className="btn-primary"
             >
               Разместить заказ
             </Link>
             <Link
               href="/auctions"
-              className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50"
+              className="btn-secondary"
             >
               Смотреть аукционы
             </Link>
             <Link
               href="/executors"
-              className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50"
+              className="btn-secondary"
             >
               Найти специалиста
             </Link>
