@@ -36,6 +36,35 @@ export const BID_STATUS_LABELS: Record<BidStatus, string> = {
   WITHDRAWN: "Отозвана",
 };
 
+export const SUBSCRIPTION_STATUSES = ["INACTIVE", "ACTIVE", "PAST_DUE", "CANCELLED"] as const;
+export type SubscriptionStatus = (typeof SUBSCRIPTION_STATUSES)[number];
+
+export const SUBSCRIPTION_STATUS_LABELS: Record<SubscriptionStatus, string> = {
+  INACTIVE: "Не активна",
+  ACTIVE: "Активна",
+  PAST_DUE: "Просрочена",
+  CANCELLED: "Отменена",
+};
+
+export const PAYMENT_TYPES = ["SUBSCRIPTION", "COMMISSION"] as const;
+export type PaymentType = (typeof PAYMENT_TYPES)[number];
+
+export const PAYMENT_STATUSES = ["PENDING", "PAID", "FAILED", "CANCELLED"] as const;
+export type PaymentStatus = (typeof PAYMENT_STATUSES)[number];
+
+export const PAYMENT_STATUS_LABELS: Record<PaymentStatus, string> = {
+  PENDING: "Ожидает оплаты",
+  PAID: "Оплачено",
+  FAILED: "Не удалось",
+  CANCELLED: "Отменено",
+};
+
+// Тарифы площадки. Вынесены в константы, чтобы менять было в одном месте —
+// подробнее про модель начислений см. src/lib/billing.ts.
+export const SUBSCRIPTION_PRICE_RUB = 300;
+export const SUBSCRIPTION_PERIOD_DAYS = 30;
+export const COMMISSION_RATE = 0.01; // 1% с завершённых заказов
+
 export const ROLE_LABELS: Record<Role, string> = {
   CUSTOMER: "Заказчик",
   EXECUTOR: "Исполнитель (печать)",

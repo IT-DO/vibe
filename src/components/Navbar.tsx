@@ -21,9 +21,14 @@ export async function Navbar() {
             Специалисты
           </Link>
           {session?.user && (
-            <Link href="/dashboard" className="hover:text-slate-900">
-              Кабинет
-            </Link>
+            <>
+              <Link href="/dashboard" className="hover:text-slate-900">
+                Кабинет
+              </Link>
+              <Link href="/billing" className="hover:text-slate-900">
+                Оплата
+              </Link>
+            </>
           )}
         </nav>
 

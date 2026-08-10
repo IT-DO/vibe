@@ -9,6 +9,12 @@ services:
       AUTH_SECRET: ${AUTH_SECRET}
       AUTH_TRUST_HOST: "true"
       UPLOAD_DIR: "/app/data/uploads"
+      # Биллинг (см. README «Подписка и комиссия»). Без ключей ЮKassa ниже
+      # оплата работает в демо-режиме (платежи отмечаются оплаченными сразу).
+      # YOOKASSA_SHOP_ID: ${YOOKASSA_SHOP_ID}
+      # YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY}
+      # APP_URL: "https://your-domain.example"
+      # SUBSCRIPTION_ENFORCEMENT: "true"
     volumes:
       - db-data:/app/data
 

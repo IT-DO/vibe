@@ -8,6 +8,7 @@ import { prisma } from "@/lib/prisma";
 import type { ActionState } from "@/lib/actions/auth";
 import { BIDDER_ROLES } from "@/lib/constants";
 import { filesFromFormData, validateFiles, saveAttachments } from "@/lib/storage";
+import { requireActiveSubscription, recordCommissionForOrder } from "@/lib/billing";
 
 const createOrderSchema = z
   .object({
@@ -34,6 +35,9 @@ export async function createOrderAction(
   if (!session?.user || session.user.role !== "CUSTOMER") {
     return { error: "Только заказчики могут размещать заказы" };
   }
+
+  const subscriptionError = await requireActiveSubscription(session.user.id);
+  if (subscriptionError) return { error: subscriptionError };
 
   const parsed = createOrderSchema.safeParse({
     title: formData.get("title"),
@@ -97,6 +101,9 @@ export async function placeBidAction(
   if (!session?.user || !BIDDER_ROLES.includes(session.user.role as (typeof BIDDER_ROLES)[number])) {
     return { error: "Только исполнители и дизайнеры могут делать ставки" };
   }
+
+  const subscriptionError = await requireActiveSubscription(session.user.id);
+  if (subscriptionError) return { error: subscriptionError };
 
   const parsed = bidSchema.safeParse({
     orderId: formData.get("orderId"),
@@ -195,12 +202,17 @@ export async function startProgressAction(orderId: string): Promise<ActionState>
 }
 
 export async function completeOrderAction(orderId: string): Promise<ActionState> {
-  return transitionOrder(
+  const result = await transitionOrder(
     orderId,
     ["AWARDED", "IN_PROGRESS"],
     "COMPLETED",
     (order, userId) => order.customerId === userId
   );
+  if (!result.error) {
+    await recordCommissionForOrder(orderId);
+    revalidatePath("/billing");
+  }
+  return result;
 }
 
 export async function cancelOrderAction(orderId: string): Promise<ActionState> {

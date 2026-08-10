@@ -11,6 +11,9 @@ datasource db {
 // Role: CUSTOMER | EXECUTOR | DESIGNER | ADMIN
 // OrderStatus: OPEN | AWARDED | IN_PROGRESS | COMPLETED | CANCELLED
 // BidStatus: PENDING | ACCEPTED | REJECTED | WITHDRAWN
+// SubscriptionStatus: INACTIVE | ACTIVE | PAST_DUE | CANCELLED
+// PaymentType: SUBSCRIPTION | COMMISSION
+// PaymentStatus: PENDING | PAID | FAILED | CANCELLED
 
 model User {
   id           String   @id @default(cuid())
@@ -38,6 +41,8 @@ model User {
   reviewsWritten   Review[]     @relation("ReviewAuthor")
   reviewsReceived  Review[]     @relation("ReviewTarget")
   attachments      Attachment[]
+  subscription     Subscription?
+  payments         Payment[]
 }
 
 model Order {
@@ -62,6 +67,7 @@ model Order {
   bids        Bid[]
   reviews     Review[]
   attachments Attachment[]
+  payments    Payment[]
 }
 
 model Bid {
@@ -109,5 +115,44 @@ model Attachment {
   size       Int
   createdAt  DateTime @default(now())
 
+  @@index([orderId])
+}
+
+// Подписка площадки (300₽/мес, см. src/lib/billing.ts). Строка на пользователя;
+// создаётся лениво при первом обращении к разделу «Оплата».
+model Subscription {
+  id               String    @id @default(cuid())
+  user             User      @relation(fields: [userId], references: [id])
+  userId           String    @unique
+  status           String    @default("INACTIVE")
+  currentPeriodEnd DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  payments Payment[]
+}
+
+// Единая таблица для двух видов начислений: ежемесячная подписка (payerId —
+// сам подписчик) и комиссия площадки 1% с завершённого заказа (payerId —
+// исполнитель/дизайнер, выигравший заказ). providerPaymentId — id платежа на
+// стороне платёжного провайдера (ЮKassa и т.п.), используется для сверки по
+// вебхуку, см. src/lib/billing.ts и src/app/api/payments/yookassa/webhook.
+model Payment {
+  id                String        @id @default(cuid())
+  type              String
+  status            String        @default("PENDING")
+  amount            Int
+  subscription      Subscription? @relation(fields: [subscriptionId], references: [id])
+  subscriptionId    String?
+  order             Order?        @relation(fields: [orderId], references: [id])
+  orderId           String?
+  payer             User          @relation(fields: [payerId], references: [id])
+  payerId           String
+  provider          String?
+  providerPaymentId String?       @unique
+  createdAt         DateTime      @default(now())
+  paidAt            DateTime?
+
+  @@index([payerId])
   @@index([orderId])
 }
