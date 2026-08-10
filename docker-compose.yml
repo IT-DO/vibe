@@ -1,0 +1,14 @@
+services:
+  app:
+    build: .
+    restart: unless-stopped
+    ports:
+      - "3000:3000"
+    environment:
+      DATABASE_URL: "file:/app/data/prod.db"
+      AUTH_SECRET: ${AUTH_SECRET}
+    volumes:
+      - db-data:/app/data
+
+volumes:
+  db-data:
