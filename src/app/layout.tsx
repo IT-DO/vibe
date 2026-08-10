@@ -33,6 +33,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
           PrintAukcion — учебный проект, демонстрация портала 3D-печати ·{" "}
           <Link href="/privacy" className="hover:text-slate-600 hover:underline">
             Политика конфиденциальности
+          </Link>{" "}
+          ·{" "}
+          <Link href="/offer" className="hover:text-slate-600 hover:underline">
+            Публичная оферта
           </Link>
         </footer>
       </body>

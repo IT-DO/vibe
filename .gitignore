@@ -47,3 +47,6 @@ next-env.d.ts
 
 # uploaded attachments (local dev default UPLOAD_DIR)
 /uploads
+
+# database/upload backups (scripts/backup.sh)
+/backups

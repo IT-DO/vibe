@@ -1,6 +1,5 @@
 "use server";
 
-import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { auth } from "@/auth";
@@ -8,22 +7,8 @@ import { prisma } from "@/lib/prisma";
 import { getOrCreateSubscription, finalizePaidPayment } from "@/lib/billing";
 import { isYooKassaConfigured, createYooKassaPayment } from "@/lib/payments/yookassa";
 import { SUBSCRIPTION_PRICE_RUB } from "@/lib/constants";
+import { getAppOrigin } from "@/lib/origin";
 import type { ActionState } from "@/lib/actions/auth";
-
-// Куда ЮKassa вернёт плательщика после оплаты. Если задан APP_URL — используем
-// его: для боевого домена так надёжнее, потому что Host-заголовок запроса в
-// принципе можно подделать (в цепочке до неправильно настроенного прокси), а
-// это уже ссылка, которую реально показывают постороннему плательщику, а не
-// только внутренняя логика вроде AUTH_TRUST_HOST. Без APP_URL — как раньше,
-// подстраиваемся под заголовки запроса, чтобы всё работало сразу и на
-// localhost, и по LAN IP без дополнительной настройки.
-async function getAppOrigin(): Promise<string> {
-  if (process.env.APP_URL) return process.env.APP_URL.replace(/\/+$/, "");
-  const h = await headers();
-  const host = h.get("x-forwarded-host") ?? h.get("host") ?? "localhost:3000";
-  const proto = h.get("x-forwarded-proto") ?? "http";
-  return `${proto}://${host}`;
-}
 
 export async function startSubscriptionPaymentAction(): Promise<ActionState> {
   const session = await auth();

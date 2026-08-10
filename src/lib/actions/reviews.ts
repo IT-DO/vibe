@@ -5,6 +5,8 @@ import { revalidatePath } from "next/cache";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { recalculateRating } from "@/lib/users";
+import { sendMailSafe, sanitizeHeaderValue } from "@/lib/mail";
+import { getAppOrigin } from "@/lib/origin";
 import type { ActionState } from "@/lib/actions/auth";
 
 const reviewSchema = z.object({
@@ -62,6 +64,19 @@ export async function leaveReviewAction(
   });
 
   await recalculateRating(targetId);
+
+  const [target, author] = await Promise.all([
+    prisma.user.findUnique({ where: { id: targetId }, select: { email: true } }),
+    prisma.user.findUnique({ where: { id: userId }, select: { name: true } }),
+  ]);
+  if (target) {
+    const origin = await getAppOrigin();
+    await sendMailSafe({
+      to: target.email,
+      subject: `Новый отзыв от ${sanitizeHeaderValue(author?.name ?? "пользователя")}`,
+      text: `Вам поставили оценку ${rating}/5${comment ? `: «${comment}»` : ""}.\n\nПосмотреть профиль: ${origin}/u/${targetId}`,
+    });
+  }
 
   revalidatePath(`/auctions/${orderId}`);
   revalidatePath(`/u/${targetId}`);

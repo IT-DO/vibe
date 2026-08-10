@@ -1,0 +1,28 @@
+# Опциональный оверлей: HTTPS-домен через Caddy (автоматический Let's Encrypt).
+# Не заменяет базовый docker-compose.yml, а дополняет его — приложение
+# по-прежнему доступно напрямую на :3000 (LAN), Caddy на 80/443 — снаружи.
+#
+# Использование:
+#   echo "DOMAIN=your-domain.example" >> .env
+#   docker compose -f docker-compose.yml -f docker-compose.https.yml up -d
+#
+# См. DEPLOY.md «Доступ снаружи / домен / HTTPS».
+services:
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      DOMAIN: ${DOMAIN}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    depends_on:
+      - app
+
+volumes:
+  caddy-data:
+  caddy-config:

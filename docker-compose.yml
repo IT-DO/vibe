@@ -15,8 +15,27 @@ services:
       # YOOKASSA_SECRET_KEY: ${YOOKASSA_SECRET_KEY}
       # APP_URL: "https://your-domain.example"
       # SUBSCRIPTION_ENFORCEMENT: "true"
+      # Почта (см. README «Восстановление пароля»/.env.example) — без неё
+      # письма только логируются на сервере.
+      # SMTP_HOST: ${SMTP_HOST}
+      # SMTP_PORT: ${SMTP_PORT}
+      # SMTP_USER: ${SMTP_USER}
+      # SMTP_PASS: ${SMTP_PASS}
+      # MAIL_FROM: ${MAIL_FROM}
+      # Алерты от scripts/check-disk.sh (см. DEPLOY.md «Мониторинг»).
+      # ALERT_EMAIL: ${ALERT_EMAIL}
+      # INTERNAL_ALERT_TOKEN: ${INTERNAL_ALERT_TOKEN}
     volumes:
       - db-data:/app/data
+      # Бэкапы пишутся сюда (см. scripts/backup.sh) — намеренно отдельно от
+      # именованного тома db-data, чтобы не хранить все яйца в одной корзине.
+      - ./backups:/app/backups
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 20s
 
 volumes:
   db-data:

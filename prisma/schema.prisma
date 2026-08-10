@@ -43,6 +43,7 @@ model User {
   attachments      Attachment[]
   subscription     Subscription?
   payments         Payment[]
+  passwordResetTokens PasswordResetToken[]
 }
 
 model Order {
@@ -155,4 +156,20 @@ model Payment {
 
   @@index([payerId])
   @@index([orderId])
+}
+
+// Хранится только sha256-хэш токена, никогда сам токен — так же, как пароли
+// хранятся в виде bcrypt-хэша. Ссылка на сброс пароля содержит сырой токен,
+// сервер хэширует его и ищет совпадение по tokenHash. Одноразовый (usedAt) и
+// с коротким сроком жизни (expiresAt), см. src/lib/actions/password-reset.ts.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id])
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
 }

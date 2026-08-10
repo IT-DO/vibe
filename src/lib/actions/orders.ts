@@ -9,6 +9,8 @@ import type { ActionState } from "@/lib/actions/auth";
 import { BIDDER_ROLES } from "@/lib/constants";
 import { filesFromFormData, validateFiles, saveAttachments } from "@/lib/storage";
 import { requireActiveSubscription, recordCommissionForOrder } from "@/lib/billing";
+import { sendMailSafe, sanitizeHeaderValue } from "@/lib/mail";
+import { getAppOrigin } from "@/lib/origin";
 
 const createOrderSchema = z
   .object({
@@ -118,7 +120,10 @@ export async function placeBidAction(
 
   const { orderId, price, leadTimeDays, message } = parsed.data;
 
-  const order = await prisma.order.findUnique({ where: { id: orderId } });
+  const order = await prisma.order.findUnique({
+    where: { id: orderId },
+    include: { customer: { select: { email: true, name: true } } },
+  });
   if (!order) return { error: "Заказ не найден" };
   if (order.customerId === session.user.id) {
     return { error: "Нельзя делать ставку на собственный заказ" };
@@ -126,6 +131,11 @@ export async function placeBidAction(
   if (order.status !== "OPEN" || order.biddingEnds.getTime() < Date.now()) {
     return { error: "Приём ставок по этому заказу завершён" };
   }
+
+  const isNewBid = !(await prisma.bid.findUnique({
+    where: { orderId_executorId: { orderId, executorId: session.user.id } },
+    select: { id: true },
+  }));
 
   await prisma.bid.upsert({
     where: { orderId_executorId: { orderId, executorId: session.user.id } },
@@ -139,6 +149,15 @@ export async function placeBidAction(
     },
   });
 
+  if (isNewBid) {
+    const origin = await getAppOrigin();
+    await sendMailSafe({
+      to: order.customer.email,
+      subject: `Новая ставка на заказ «${sanitizeHeaderValue(order.title)}»`,
+      text: `${session.user.name} предложил(а) ${price} ₽ за ${leadTimeDays} дн.\n\nПосмотреть: ${origin}/auctions/${orderId}`,
+    });
+  }
+
   revalidatePath(`/auctions/${orderId}`);
   return {};
 }
@@ -147,7 +166,13 @@ export async function acceptBidAction(bidId: string): Promise<ActionState> {
   const session = await auth();
   if (!session?.user) return { error: "Требуется вход" };
 
-  const bid = await prisma.bid.findUnique({ where: { id: bidId }, include: { order: true } });
+  const bid = await prisma.bid.findUnique({
+    where: { id: bidId },
+    include: {
+      order: { select: { title: true, customerId: true, status: true } },
+      executor: { select: { email: true } },
+    },
+  });
   if (!bid) return { error: "Ставка не найдена" };
   if (bid.order.customerId !== session.user.id) {
     return { error: "Недостаточно прав" };
@@ -167,6 +192,13 @@ export async function acceptBidAction(bidId: string): Promise<ActionState> {
       data: { status: "AWARDED", winningBidId: bidId },
     }),
   ]);
+
+  const origin = await getAppOrigin();
+  await sendMailSafe({
+    to: bid.executor.email,
+    subject: `Вашу ставку выбрали: «${sanitizeHeaderValue(bid.order.title)}»`,
+    text: `Заказчик принял вашу ставку по заказу «${bid.order.title}».\n\nПосмотреть: ${origin}/auctions/${bid.orderId}`,
+  });
 
   revalidatePath(`/auctions/${bid.orderId}`);
   revalidatePath("/dashboard");
