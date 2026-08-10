@@ -224,6 +224,14 @@ const CUSTOMER_REVIEW_5 = [
   "Уже не первый заказ у этого исполнителя — качество стабильно высокое.",
   "Сделали даже больше, чем просили — досыпали пару запасных деталей.",
   "Отвечает быстро, печатает ещё быстрее. Спасибо!",
+  "Заказ выполнен точно по ТЗ, никаких сюрпризов.",
+  "Очень доволен(на) результатом, буду рекомендовать знакомым.",
+  "Сделали быстрее заявленного срока, приятно удивлена.",
+  "Профессиональный подход от первого сообщения до сдачи заказа.",
+  "Модель пришла ровно такой, как обсуждали, без переделок.",
+  "Сразу видно опыт — вопросов по итогу не возникло.",
+  "Внимательно отнеслись к моим пожеланиям по цвету и толщине стенок.",
+  "Пятая звезда заслуженно — качество на уровне мастерской.",
 ];
 const CUSTOMER_REVIEW_4 = [
   "Хорошее качество, но задержались на пару дней от обещанного срока.",
@@ -232,10 +240,18 @@ const CUSTOMER_REVIEW_4 = [
   "Результат хороший, упаковка могла быть и понадёжнее.",
   "Всё устроило, но пришлось напомнить о сроках.",
   "Неплохо, но одна деталь была с небольшим дефектом печати.",
+  "Работой доволен, но хотелось бы более частых апдейтов по статусу.",
+  "Печать хорошая, упаковали чуть небрежно, но всё доехало целым.",
+  "В целом хорошо, единственное — не сразу подтвердили получение оплаты.",
+  "Результат устроил, просто было пару дней тишины в переписке.",
 ];
 const CUSTOMER_REVIEW_3 = [
   "Нормально, но пришлось согласовывать доработки уже после печати.",
   "Средне — качество нормальное, но коммуникация могла быть лучше.",
+  "Заказ выполнили, но пришлось несколько раз напоминать о сроках.",
+  "Печать нормальная, но не хватило первоначальной консультации по материалу.",
+  "Результат приемлемый, ожидал(а) чуть более аккуратную постобработку.",
+  "Средне: цена адекватная, но общение было формальным и редким.",
 ];
 
 const EXECUTOR_REVIEW_5 = [
@@ -245,10 +261,22 @@ const EXECUTOR_REVIEW_5 = [
   "Отличная коммуникация, буду рад(а) новым заказам.",
   "Задача была понятная, заказчик оставил свободу в деталях — супер.",
   "Быстро согласовал(а) детали, никаких лишних правок.",
+  "Заказчик оплатил сразу после подтверждения ставки, никаких задержек.",
+  "Чёткий бриф, все файлы и размеры сразу в заказе — работать одно удовольствие.",
+  "Адекватно отнёсся к срокам, не торопил без причины.",
+  "Заказчик подробно ответил на все уточняющие вопросы до начала печати.",
+  "Вежливое общение, готов(а) взять в работу ещё заказы от этого клиента.",
+  "Заказчик заранее предупредил о своих пожеланиях по цвету — сильно упростило работу.",
+  "Всё прошло гладко, оплата и переписка без проблем.",
+  "Заказчик сразу согласовал цену без долгих торгов.",
 ];
 const EXECUTOR_REVIEW_4 = [
   "Хороший заказчик, но требования пришли не сразу целиком.",
   "Всё в порядке, было пару уточнений уже в процессе.",
+  "Нормальный заказчик, но не сразу вышел на связь после сдачи работы.",
+  "В целом всё хорошо, разве что задержалась оплата на пару дней.",
+  "Адекватный заказ, но было несколько правок уже после согласования цены.",
+  "Рабочий процесс приятный, коммуникация местами медленная.",
 ];
 
 function pickCustomerReview(): { rating: number; comment: string } {
@@ -260,6 +288,149 @@ function pickExecutorReview(): { rating: number; comment: string } {
   const rating = weighted<number>([[5, 80], [4, 20]]);
   const comment = rating === 5 ? pick(EXECUTOR_REVIEW_5) : pick(EXECUTOR_REVIEW_4);
   return { rating, comment };
+}
+
+type SeedUser = Awaited<ReturnType<typeof upsertUser>>;
+
+// Создаёт один завершённый заказ с парой отзывов (заказчик↔исполнитель) и
+// комиссионным платежом. Используется как для первичного наполнения, так и
+// для "дозаполнения" отзывов при повторном запуске сида на уже заполненной БД.
+async function createCompletedOrderWithReview(
+  executor: SeedUser,
+  customers: SeedUser[],
+  now: number,
+  day: number
+) {
+  const template = pick(ORDER_TEMPLATES);
+  const customer = pick(customers);
+  const price = randInt(400, 6000);
+  const daysAgo = randInt(1, 90);
+
+  const order = await prisma.order.create({
+    data: {
+      customerId: customer.id,
+      title: template.title,
+      description: `${template.title}. Материал — ${template.material}. Подробности обсуждались с исполнителем в сообщениях к ставке.`,
+      material: template.material,
+      quantity: randInt(1, 15),
+      budgetMin: Math.round(price * 0.8),
+      budgetMax: Math.round(price * 1.3),
+      biddingEnds: new Date(now - daysAgo * day),
+      status: "COMPLETED",
+    },
+  });
+  const winner = await prisma.bid.create({
+    data: {
+      orderId: order.id, executorId: executor.id, price, leadTimeDays: randInt(1, 10),
+      message: "Готов(а) выполнить в срок, есть опыт с похожими заказами.", status: "ACCEPTED",
+    },
+  });
+  await prisma.order.update({ where: { id: order.id }, data: { winningBidId: winner.id } });
+
+  const customerReview = pickCustomerReview();
+  await prisma.review.create({ data: { orderId: order.id, authorId: customer.id, targetId: executor.id, rating: customerReview.rating, comment: customerReview.comment } });
+  const executorReview = pickExecutorReview();
+  await prisma.review.create({ data: { orderId: order.id, authorId: executor.id, targetId: customer.id, rating: executorReview.rating, comment: executorReview.comment } });
+
+  const commissionPaid = rng() < 0.7;
+  const commission = await prisma.payment.create({
+    data: { type: "COMMISSION", amount: Math.max(1, Math.round(price * 0.01)), payerId: executor.id, orderId: order.id, status: commissionPaid ? "PAID" : "PENDING" },
+  });
+  if (commissionPaid) {
+    await prisma.payment.update({ where: { id: commission.id }, data: { provider: "manual", paidAt: new Date() } });
+  }
+}
+
+// Дозаполняет открытые заказы (со ставками) до целевого количества — вызывается
+// на каждом запуске сида, поэтому безопасно повторять без риска бесконечного роста.
+async function topUpOpenOrders(customers: SeedUser[], bidders: SeedUser[], now: number, day: number, target: number) {
+  const current = await prisma.order.count({ where: { status: "OPEN" } });
+  for (let i = current; i < target; i++) {
+    const template = pick(ORDER_TEMPLATES);
+    const customer = pick(customers);
+    const order = await prisma.order.create({
+      data: {
+        customerId: customer.id,
+        title: template.title,
+        description: `${template.title}. Материал — ${template.material}.`,
+        material: template.material,
+        quantity: randInt(1, 15),
+        budgetMin: randInt(500, 2000),
+        budgetMax: randInt(2500, 6000),
+        biddingEnds: new Date(now + randInt(1, 7) * day),
+        deadline: new Date(now + randInt(8, 20) * day),
+        status: "OPEN",
+      },
+    });
+    const bidderCount = randInt(1, 3);
+    const usedBidders = new Set<string>();
+    for (let b = 0; b < bidderCount; b++) {
+      const bidder = pick(bidders);
+      if (usedBidders.has(bidder.id)) continue;
+      usedBidders.add(bidder.id);
+      await prisma.bid.create({
+        data: {
+          orderId: order.id, executorId: bidder.id, price: randInt(500, 6000), leadTimeDays: randInt(1, 10),
+          message: "Готов(а) взяться, есть похожий опыт.",
+        },
+      });
+    }
+  }
+}
+
+async function topUpAwardedOrders(customers: SeedUser[], bidders: SeedUser[], now: number, day: number, target: number) {
+  const current = await prisma.order.count({ where: { status: "AWARDED" } });
+  for (let i = current; i < target; i++) {
+    const template = pick(ORDER_TEMPLATES);
+    const customer = pick(customers);
+    const executor = pick(bidders);
+    const price = randInt(500, 5000);
+    const order = await prisma.order.create({
+      data: {
+        customerId: customer.id, title: template.title, description: template.title,
+        material: template.material, quantity: randInt(1, 10),
+        budgetMin: Math.round(price * 0.8), budgetMax: Math.round(price * 1.3),
+        biddingEnds: new Date(now - day), status: "AWARDED",
+      },
+    });
+    const bid = await prisma.bid.create({ data: { orderId: order.id, executorId: executor.id, price, leadTimeDays: randInt(1, 8), message: "Начну сразу после подтверждения.", status: "ACCEPTED" } });
+    await prisma.order.update({ where: { id: order.id }, data: { winningBidId: bid.id } });
+  }
+}
+
+async function topUpInProgressOrders(customers: SeedUser[], bidders: SeedUser[], now: number, day: number, target: number) {
+  const current = await prisma.order.count({ where: { status: "IN_PROGRESS" } });
+  for (let i = current; i < target; i++) {
+    const template = pick(ORDER_TEMPLATES);
+    const customer = pick(customers);
+    const executor = pick(bidders);
+    const price = randInt(500, 5000);
+    const order = await prisma.order.create({
+      data: {
+        customerId: customer.id, title: template.title, description: template.title,
+        material: template.material, quantity: randInt(1, 10),
+        budgetMin: Math.round(price * 0.8), budgetMax: Math.round(price * 1.3),
+        biddingEnds: new Date(now - 2 * day), status: "IN_PROGRESS",
+      },
+    });
+    const bid = await prisma.bid.create({ data: { orderId: order.id, executorId: executor.id, price, leadTimeDays: randInt(1, 8), message: "В процессе печати.", status: "ACCEPTED" } });
+    await prisma.order.update({ where: { id: order.id }, data: { winningBidId: bid.id } });
+  }
+}
+
+async function topUpCancelledOrders(customers: SeedUser[], now: number, day: number, target: number) {
+  const current = await prisma.order.count({ where: { status: "CANCELLED" } });
+  for (let i = current; i < target; i++) {
+    const template = pick(ORDER_TEMPLATES);
+    const customer = pick(customers);
+    await prisma.order.create({
+      data: {
+        customerId: customer.id, title: template.title, description: `${template.title} — заказ отменён заказчиком.`,
+        material: template.material, quantity: randInt(1, 10),
+        biddingEnds: new Date(now - randInt(1, 10) * day), status: "CANCELLED",
+      },
+    });
+  }
 }
 
 async function main() {
@@ -351,16 +522,20 @@ async function main() {
   const allExecutors = [dmitry, plastform, nastya, ...bulkExecutors];
   const allBidders = [...allExecutors, viktoria, maxim];
 
-  const existingOrders = await prisma.order.count();
-  if (existingOrders > 0) {
-    console.log(
-      `В базе уже есть заказы (${existingOrders}) — пропускаю создание тестовых заказов, чтобы не плодить дубли. Пользователи и профили обновлены.`
-    );
-  } else {
-    const now = Date.now();
-    const day = 24 * 60 * 60 * 1000;
+  const now = Date.now();
+  const day = 24 * 60 * 60 * 1000;
 
-    // --- Именные "витринные" заказы (разные статусы, с файлами) ---
+  // --- Именные "витринные" заказы (разные статусы, с файлами) — создаём один
+  // раз при первом запуске, определяем по названию первого витринного заказа,
+  // чтобы повторный запуск сида не плодил дубли ---
+  const heroOrdersExist = await prisma.order.findFirst({
+    where: { customerId: anna.id, title: "10 миниатюр для настольной игры" },
+    select: { id: true },
+  });
+  if (heroOrdersExist) {
+    console.log("Витринные заказы уже существуют — пропускаю создание.");
+  } else {
+    console.log("Создаю витринные заказы...");
 
     const order1 = await prisma.order.create({
       data: {
@@ -486,135 +661,30 @@ async function main() {
       });
     }
 
-    // --- Массовая генерация заказов: у каждого нового исполнителя — 1-2
-    // завершённых заказа с реалистичными отзывами, чтобы рейтинги и каталог
-    // специалистов выглядели живыми, а не пустыми ---
+  }
 
-    console.log("Генерирую заказы и отзывы для новых исполнителей...");
-    for (const executor of bulkExecutors) {
-      const completedCount = weighted<number>([[1, 55], [2, 35], [3, 10]]);
-      for (let i = 0; i < completedCount; i++) {
-        const template = pick(ORDER_TEMPLATES);
-        const customer = pick(allCustomers);
-        const price = randInt(400, 6000);
-        const daysAgo = randInt(1, 40);
-
-        const order = await prisma.order.create({
-          data: {
-            customerId: customer.id,
-            title: template.title,
-            description: `${template.title}. Материал — ${template.material}. Подробности обсуждались с исполнителем в сообщениях к ставке.`,
-            material: template.material,
-            quantity: randInt(1, 15),
-            budgetMin: Math.round(price * 0.8),
-            budgetMax: Math.round(price * 1.3),
-            biddingEnds: new Date(now - daysAgo * day),
-            status: "COMPLETED",
-          },
-        });
-        const winner = await prisma.bid.create({
-          data: {
-            orderId: order.id, executorId: executor.id, price, leadTimeDays: randInt(1, 10),
-            message: "Готов(а) выполнить в срок, есть опыт с похожими заказами.", status: "ACCEPTED",
-          },
-        });
-        await prisma.order.update({ where: { id: order.id }, data: { winningBidId: winner.id } });
-
-        const customerReview = pickCustomerReview();
-        await prisma.review.create({ data: { orderId: order.id, authorId: customer.id, targetId: executor.id, rating: customerReview.rating, comment: customerReview.comment } });
-        const executorReview = pickExecutorReview();
-        await prisma.review.create({ data: { orderId: order.id, authorId: executor.id, targetId: customer.id, rating: executorReview.rating, comment: executorReview.comment } });
-
-        const commissionPaid = rng() < 0.7;
-        const commission = await prisma.payment.create({
-          data: { type: "COMMISSION", amount: Math.max(1, Math.round(price * 0.01)), payerId: executor.id, orderId: order.id, status: commissionPaid ? "PAID" : "PENDING" },
-        });
-        if (commissionPaid) {
-          await prisma.payment.update({ where: { id: commission.id }, data: { provider: "manual", paidAt: new Date() } });
-        }
-      }
-    }
-
-    // --- Ещё немного открытых/в работе/отменённых заказов для разнообразия ленты ---
-    console.log("Генерирую дополнительные открытые и текущие заказы...");
-    for (let i = 0; i < 20; i++) {
-      const template = pick(ORDER_TEMPLATES);
-      const customer = pick(allCustomers);
-      const order = await prisma.order.create({
-        data: {
-          customerId: customer.id,
-          title: template.title,
-          description: `${template.title}. Материал — ${template.material}.`,
-          material: template.material,
-          quantity: randInt(1, 15),
-          budgetMin: randInt(500, 2000),
-          budgetMax: randInt(2500, 6000),
-          biddingEnds: new Date(now + randInt(1, 7) * day),
-          deadline: new Date(now + randInt(8, 20) * day),
-          status: "OPEN",
-        },
-      });
-      const bidderCount = randInt(1, 3);
-      const usedBidders = new Set<string>();
-      for (let b = 0; b < bidderCount; b++) {
-        const bidder = pick(allBidders);
-        if (usedBidders.has(bidder.id)) continue;
-        usedBidders.add(bidder.id);
-        await prisma.bid.create({
-          data: {
-            orderId: order.id, executorId: bidder.id, price: randInt(500, 6000), leadTimeDays: randInt(1, 10),
-            message: "Готов(а) взяться, есть похожий опыт.",
-          },
-        });
-      }
-    }
-
-    for (let i = 0; i < 6; i++) {
-      const template = pick(ORDER_TEMPLATES);
-      const customer = pick(allCustomers);
-      const executor = pick(allBidders);
-      const price = randInt(500, 5000);
-      const order = await prisma.order.create({
-        data: {
-          customerId: customer.id, title: template.title, description: template.title,
-          material: template.material, quantity: randInt(1, 10),
-          budgetMin: Math.round(price * 0.8), budgetMax: Math.round(price * 1.3),
-          biddingEnds: new Date(now - day), status: "AWARDED",
-        },
-      });
-      const bid = await prisma.bid.create({ data: { orderId: order.id, executorId: executor.id, price, leadTimeDays: randInt(1, 8), message: "Начну сразу после подтверждения.", status: "ACCEPTED" } });
-      await prisma.order.update({ where: { id: order.id }, data: { winningBidId: bid.id } });
-    }
-
-    for (let i = 0; i < 6; i++) {
-      const template = pick(ORDER_TEMPLATES);
-      const customer = pick(allCustomers);
-      const executor = pick(allBidders);
-      const price = randInt(500, 5000);
-      const order = await prisma.order.create({
-        data: {
-          customerId: customer.id, title: template.title, description: template.title,
-          material: template.material, quantity: randInt(1, 10),
-          budgetMin: Math.round(price * 0.8), budgetMax: Math.round(price * 1.3),
-          biddingEnds: new Date(now - 2 * day), status: "IN_PROGRESS",
-        },
-      });
-      const bid = await prisma.bid.create({ data: { orderId: order.id, executorId: executor.id, price, leadTimeDays: randInt(1, 8), message: "В процессе печати.", status: "ACCEPTED" } });
-      await prisma.order.update({ where: { id: order.id }, data: { winningBidId: bid.id } });
-    }
-
-    for (let i = 0; i < 6; i++) {
-      const template = pick(ORDER_TEMPLATES);
-      const customer = pick(allCustomers);
-      await prisma.order.create({
-        data: {
-          customerId: customer.id, title: template.title, description: `${template.title} — заказ отменён заказчиком.`,
-          material: template.material, quantity: randInt(1, 10),
-          biddingEnds: new Date(now - randInt(1, 10) * day), status: "CANCELLED",
-        },
-      });
+  // --- Отзывы и завершённые заказы для исполнителей/дизайнеров: догоняем
+  // каждого специалиста до целевого диапазона полученных отзывов при КАЖДОМ
+  // запуске сида, а не только при первом создании базы — так можно
+  // допечатать данные в уже заполненную БД, не трогая существующие заказы ---
+  console.log("Дополняю отзывы и завершённые заказы для специалистов...");
+  for (const executor of allBidders) {
+    const receivedReviews = await prisma.review.count({ where: { targetId: executor.id } });
+    const target = randInt(6, 10);
+    const missing = target - receivedReviews;
+    for (let i = 0; i < missing; i++) {
+      await createCompletedOrderWithReview(executor, allCustomers, now, day);
     }
   }
+
+  // --- Догоняем количество заказов в остальных статусах до целевых объёмов,
+  // чтобы лента аукционов и профили выглядели живыми — тоже безопасно
+  // запускать повторно, каждый раз добиваем только недостающее ---
+  console.log("Дополняю открытые/текущие/отменённые заказы...");
+  await topUpOpenOrders(allCustomers, allBidders, now, day, 40);
+  await topUpAwardedOrders(allCustomers, allBidders, now, day, 12);
+  await topUpInProgressOrders(allCustomers, allBidders, now, day, 12);
+  await topUpCancelledOrders(allCustomers, now, day, 12);
 
   // --- Рейтинги пересчитываем из реальных отзывов, чтобы цифры на сайте
   // совпадали с тем, что реально видно в разделе «Отзывы» у профиля ---

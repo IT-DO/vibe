@@ -1,15 +1,29 @@
 import Link from "next/link";
-import { getOpenOrders } from "@/lib/orders";
+import { getOpenOrders, getPlatformStats } from "@/lib/orders";
 import { formatMoney, formatRelative } from "@/lib/format";
 import { OrderStatusBadge } from "@/components/StatusBadge";
 
 export default async function Home() {
-  const orders = (await getOpenOrders()).slice(0, 6);
+  const [orders, stats] = await Promise.all([
+    getOpenOrders().then((list) => list.slice(0, 6)),
+    getPlatformStats(),
+  ]);
 
   return (
     <div>
-      <section className="border-b border-slate-200 bg-gradient-to-b from-orange-50 to-white">
-        <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:py-20">
+      <section className="relative overflow-hidden border-b border-slate-200 bg-gradient-to-b from-orange-50 via-orange-50/40 to-white">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -top-24 right-[-10%] h-72 w-72 rounded-full bg-orange-200/40 blur-3xl sm:h-96 sm:w-96"
+        />
+        <div
+          aria-hidden
+          className="pointer-events-none absolute -bottom-32 left-[-10%] h-72 w-72 rounded-full bg-amber-100/60 blur-3xl sm:h-96 sm:w-96"
+        />
+        <div className="relative mx-auto max-w-6xl px-4 py-16 text-center sm:py-24">
+          <span className="mb-5 inline-flex items-center gap-1.5 rounded-full border border-orange-200 bg-white/80 px-3 py-1 text-xs font-medium text-orange-700 shadow-sm">
+            <span className="text-orange-500">●</span> Аукцион ставок на 3D-печать и 3D-моделирование
+          </span>
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-5xl">
             Биржа 3D-печати: заказчики, исполнители и дизайнеры
           </h1>
@@ -22,23 +36,30 @@ export default async function Home() {
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
               href="/auctions/new"
-              className="rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-orange-700"
+              className="rounded-lg bg-orange-600 px-5 py-2.5 text-sm font-semibold text-white shadow-sm shadow-orange-600/20 transition hover:-translate-y-0.5 hover:bg-orange-700 hover:shadow-md"
             >
               Разместить заказ
             </Link>
             <Link
               href="/auctions"
-              className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50"
             >
               Смотреть аукционы
             </Link>
             <Link
               href="/executors"
-              className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 transition hover:-translate-y-0.5 hover:border-slate-400 hover:bg-slate-50"
             >
               Найти специалиста
             </Link>
           </div>
+
+          <dl className="mx-auto mt-12 grid max-w-3xl grid-cols-2 gap-4 sm:grid-cols-4">
+            <StatItem value={`${stats.specialists}+`} label="Исполнителей и дизайнеров" />
+            <StatItem value={`${stats.completedOrders}+`} label="Завершённых заказов" />
+            <StatItem value={`${stats.totalReviews}+`} label="Отзывов" />
+            <StatItem value={stats.avgRating.toFixed(1)} label="Средний рейтинг" />
+          </dl>
         </div>
       </section>
 
@@ -57,6 +78,7 @@ export default async function Home() {
 
           <div className="mt-10 grid gap-6 sm:grid-cols-3">
             <RoleCard
+              icon="📦"
               title="Заказчикам"
               tagline="Нужно напечатать или спроектировать деталь"
               items={[
@@ -68,6 +90,7 @@ export default async function Home() {
               ]}
             />
             <RoleCard
+              icon="🖨️"
               title="Исполнителям"
               tagline="Печатаете на 3D-принтере и ищете заказы"
               items={[
@@ -79,6 +102,7 @@ export default async function Home() {
               ]}
             />
             <RoleCard
+              icon="🧩"
               title="3D-дизайнерам"
               tagline="Моделируете под печать или с нуля по эскизам"
               items={[
@@ -131,18 +155,22 @@ export default async function Home() {
               <Link
                 key={order.id}
                 href={`/auctions/${order.id}`}
-                className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-orange-300 hover:shadow-md"
+                className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-lg"
               >
                 <div className="mb-2 flex items-start justify-between gap-2">
-                  <h3 className="font-semibold text-slate-900">{order.title}</h3>
+                  <h3 className="font-semibold text-slate-900 group-hover:text-orange-700">
+                    {order.title}
+                  </h3>
                   <OrderStatusBadge status="OPEN" />
                 </div>
                 <p className="mb-3 line-clamp-2 text-sm text-slate-500">
                   {order.description}
                 </p>
                 <div className="mt-auto flex items-center justify-between text-sm text-slate-500">
-                  <span>{order.material}</span>
-                  <span>
+                  <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
+                    {order.material}
+                  </span>
+                  <span className="font-semibold text-slate-900">
                     {formatMoney(order.budgetMin)}–{formatMoney(order.budgetMax)}
                   </span>
                 </div>
@@ -159,9 +187,31 @@ export default async function Home() {
   );
 }
 
-function RoleCard({ title, tagline, items }: { title: string; tagline: string; items: string[] }) {
+function StatItem({ value, label }: { value: string; label: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-slate-50 p-6">
+    <div className="rounded-xl border border-orange-100 bg-white/70 px-3 py-4 shadow-sm backdrop-blur-sm">
+      <dt className="text-2xl font-bold text-slate-900 sm:text-3xl">{value}</dt>
+      <dd className="mt-1 text-xs font-medium text-slate-500 sm:text-sm">{label}</dd>
+    </div>
+  );
+}
+
+function RoleCard({
+  icon,
+  title,
+  tagline,
+  items,
+}: {
+  icon: string;
+  title: string;
+  tagline: string;
+  items: string[];
+}) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-6 transition hover:-translate-y-0.5 hover:border-orange-200 hover:bg-white hover:shadow-md">
+      <div className="mb-3 flex h-11 w-11 items-center justify-center rounded-lg bg-orange-100 text-xl">
+        {icon}
+      </div>
       <h3 className="font-bold text-slate-900">{title}</h3>
       <p className="mt-1 text-sm text-orange-600">{tagline}</p>
       <ul className="mt-4 space-y-2 text-sm text-slate-600">
@@ -178,7 +228,7 @@ function RoleCard({ title, tagline, items }: { title: string; tagline: string; i
 
 function HowItWorksStep({ step, title, text }: { step: string; title: string; text: string }) {
   return (
-    <div className="rounded-xl border border-slate-200 bg-white p-6">
+    <div className="rounded-xl border border-slate-200 bg-white p-6 transition hover:-translate-y-0.5 hover:shadow-md">
       <div className="mb-3 flex h-8 w-8 items-center justify-center rounded-full bg-orange-100 font-bold text-orange-700">
         {step}
       </div>

@@ -61,19 +61,29 @@ export default async function ExecutorsPage({
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
           {specialists.map((person) => {
             const labels = PROFILE_FIELD_LABELS[person.role === "DESIGNER" ? "DESIGNER" : "EXECUTOR"];
+            const initial = person.name.trim().charAt(0).toUpperCase() || "?";
             return (
               <Link
                 key={person.id}
                 href={`/u/${person.id}`}
-                className="flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:border-orange-300 hover:shadow-md"
+                className="group flex flex-col rounded-xl border border-slate-200 bg-white p-5 shadow-sm transition hover:-translate-y-0.5 hover:border-orange-300 hover:shadow-lg"
               >
-                <div className="mb-1 flex items-center justify-between gap-2">
-                  <h3 className="font-semibold text-slate-900">{person.name}</h3>
-                  {person.city && <span className="text-xs text-slate-400">{person.city}</span>}
+                <div className="mb-2 flex items-start gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-orange-100 font-bold text-orange-700">
+                    {initial}
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-center justify-between gap-2">
+                      <h3 className="truncate font-semibold text-slate-900 group-hover:text-orange-700">
+                        {person.name}
+                      </h3>
+                      {person.city && <span className="shrink-0 text-xs text-slate-400">{person.city}</span>}
+                    </div>
+                    <span className="mt-0.5 inline-block w-fit rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
+                      {ROLE_LABELS[person.role as Role]}
+                    </span>
+                  </div>
                 </div>
-                <span className="mb-1 inline-block w-fit rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                  {ROLE_LABELS[person.role as Role]}
-                </span>
                 <RatingStars rating={person.ratingAvg} count={person.ratingCount} size="sm" />
                 {person.specialization && (
                   <p className="mt-2 line-clamp-2 text-sm text-slate-500">{person.specialization}</p>
@@ -84,7 +94,7 @@ export default async function ExecutorsPage({
                   </p>
                 )}
                 {person.pricePerGram && (
-                  <p className="mt-1 text-xs text-slate-400">
+                  <p className="mt-1 text-xs font-medium text-slate-500">
                     От {formatMoney(person.pricePerGram)} {person.role === "DESIGNER" ? "/ час" : "/ г"}
                   </p>
                 )}

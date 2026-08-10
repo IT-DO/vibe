@@ -66,6 +66,20 @@ export function getOrdersByCustomer(customerId: string) {
   });
 }
 
+export async function getPlatformStats() {
+  const [specialists, completedOrders, reviewAgg] = await Promise.all([
+    prisma.user.count({ where: { role: { in: ["EXECUTOR", "DESIGNER"] } } }),
+    prisma.order.count({ where: { status: "COMPLETED" } }),
+    prisma.review.aggregate({ _avg: { rating: true }, _count: { rating: true } }),
+  ]);
+  return {
+    specialists,
+    completedOrders,
+    totalReviews: reviewAgg._count.rating,
+    avgRating: reviewAgg._avg.rating ?? 0,
+  };
+}
+
 export function getBidsByExecutor(executorId: string) {
   return prisma.bid.findMany({
     where: { executorId },

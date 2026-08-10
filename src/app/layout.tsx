@@ -29,15 +29,62 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">
         <Navbar />
         <main className="flex-1">{children}</main>
-        <footer className="border-t border-slate-200 bg-white py-6 text-center text-sm text-slate-400">
-          PrintAukcion — учебный проект, демонстрация портала 3D-печати ·{" "}
-          <Link href="/privacy" className="hover:text-slate-600 hover:underline">
-            Политика конфиденциальности
-          </Link>{" "}
-          ·{" "}
-          <Link href="/offer" className="hover:text-slate-600 hover:underline">
-            Публичная оферта
-          </Link>
+        <footer className="border-t border-slate-800 bg-slate-900 text-slate-400">
+          <div className="mx-auto max-w-6xl px-4 py-10">
+            <div className="grid gap-8 sm:grid-cols-3">
+              <div>
+                <div className="flex items-center gap-2 text-base font-bold text-white">
+                  <span className="text-orange-500">⬡</span> PrintAukcion
+                </div>
+                <p className="mt-2 max-w-xs text-sm text-slate-500">
+                  Биржа 3D-печати и 3D-моделирования: аукцион ставок, отзывы и
+                  рейтинги для заказчиков, исполнителей и дизайнеров.
+                </p>
+              </div>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Площадка
+                </div>
+                <ul className="mt-3 space-y-2 text-sm">
+                  <li>
+                    <Link href="/auctions" className="hover:text-white">
+                      Открытые аукционы
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/executors" className="hover:text-white">
+                      Каталог специалистов
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/auctions/new" className="hover:text-white">
+                      Разместить заказ
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+              <div>
+                <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
+                  Документы
+                </div>
+                <ul className="mt-3 space-y-2 text-sm">
+                  <li>
+                    <Link href="/privacy" className="hover:text-white">
+                      Политика конфиденциальности
+                    </Link>
+                  </li>
+                  <li>
+                    <Link href="/offer" className="hover:text-white">
+                      Публичная оферта
+                    </Link>
+                  </li>
+                </ul>
+              </div>
+            </div>
+            <div className="mt-8 border-t border-slate-800 pt-6 text-xs text-slate-600">
+              PrintAukcion — учебный проект, демонстрация портала 3D-печати.
+            </div>
+          </div>
         </footer>
       </body>
     </html>
