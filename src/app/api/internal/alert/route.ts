@@ -36,10 +36,10 @@ export async function POST(req: Request) {
     return new Response("Bad request", { status: 400 });
   }
 
-  const subject = body && typeof body === "object" && "subject" in body ? String((body as { subject: unknown }).subject) : "PrintAukcion alert";
+  const subject = body && typeof body === "object" && "subject" in body ? String((body as { subject: unknown }).subject) : "PrintAu alert";
   const text = body && typeof body === "object" && "text" in body ? String((body as { text: unknown }).text) : "";
 
-  await sendMail({ to: alertEmail, subject: `[PrintAukcion] ${sanitizeHeaderValue(subject)}`, text });
+  await sendMail({ to: alertEmail, subject: `[PrintAu] ${sanitizeHeaderValue(subject)}`, text });
 
   return new Response("OK", { status: 200 });
 }

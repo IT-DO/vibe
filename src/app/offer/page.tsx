@@ -2,7 +2,7 @@ import Link from "next/link";
 import { getSettings } from "@/lib/settings";
 
 export const metadata = {
-  title: "Публичная оферта — PrintAukcion",
+  title: "Публичная оферта — PrintAu",
 };
 
 export default async function OfferPage() {
@@ -25,7 +25,7 @@ export default async function OfferPage() {
         <h2 className="text-lg font-semibold text-slate-900">1. Общие положения</h2>
         <p className="text-sm text-slate-600">
           Настоящий документ является публичной офертой в адрес любого дееспособного лица,
-          зарегистрировавшегося на площадке PrintAukcion (далее — «Площадка»). Оплата
+          зарегистрировавшегося на площадке PrintAu (далее — «Площадка»). Оплата
           подписки или комиссии, описанных ниже, означает полное и безоговорочное принятие
           условий оферты.
         </p>

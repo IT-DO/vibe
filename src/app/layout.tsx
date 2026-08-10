@@ -15,7 +15,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PrintAukcion — 3D-печать на заказ",
+  title: "PrintAu — 3D-печать на заказ",
   description:
     "Портал для заказчиков и исполнителей 3D-печати: аукцион ставок, отзывы и рейтинги.",
 };
@@ -34,7 +34,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
             <div className="grid gap-8 sm:grid-cols-3">
               <div>
                 <div className="flex items-center gap-2 text-base font-bold text-white">
-                  <span className="text-orange-500">⬡</span> PrintAukcion
+                  <span className="text-orange-500">⬡</span> PrintAu
                 </div>
                 <p className="mt-2 max-w-xs text-sm text-slate-500">
                   Биржа 3D-печати и 3D-моделирования: аукцион ставок, отзывы и
@@ -87,7 +87,7 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
               </div>
             </div>
             <div className="mt-8 border-t border-slate-800 pt-6 text-xs text-slate-600">
-              PrintAukcion — учебный проект, демонстрация портала 3D-печати.
+              PrintAu — учебный проект, демонстрация портала 3D-печати.
             </div>
           </div>
         </footer>

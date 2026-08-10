@@ -42,7 +42,7 @@ export async function startSubscriptionPaymentAction(): Promise<ActionState> {
     const ykPayment = await createYooKassaPayment({
       idempotenceKey: payment.id,
       amountRub: settings.subscriptionPriceRub,
-      description: "Подписка PrintAukcion, 30 дней",
+      description: "Подписка PrintAu, 30 дней",
       returnUrl: `${origin}/billing`,
       metadata: { paymentId: payment.id },
     });

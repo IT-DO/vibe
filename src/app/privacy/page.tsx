@@ -7,7 +7,7 @@ import {
 import { ATTACHMENT_EXTENSIONS } from "@/lib/constants";
 
 export const metadata = {
-  title: "Политика конфиденциальности — PrintAukcion",
+  title: "Политика конфиденциальности — PrintAu",
 };
 
 export default function PrivacyPage() {

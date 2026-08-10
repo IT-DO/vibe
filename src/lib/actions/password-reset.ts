@@ -77,7 +77,7 @@ export async function requestPasswordResetAction(
 
     await sendMail({
       to: email,
-      subject: "Восстановление пароля — PrintAukcion",
+      subject: "Восстановление пароля — PrintAu",
       text: `Здравствуйте, ${user.name}!\n\nЧтобы сбросить пароль, перейдите по ссылке (действует 1 час):\n${resetUrl}\n\nЕсли вы не запрашивали сброс пароля, просто проигнорируйте это письмо.`,
     });
   }

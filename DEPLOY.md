@@ -89,7 +89,7 @@
 
    ```ini
    [Unit]
-   Description=PrintAukcion
+   Description=PrintAu
    After=network.target
 
    [Service]

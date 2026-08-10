@@ -67,7 +67,7 @@ export default async function Home() {
       <section className="border-b border-slate-200 bg-white">
         <div className="mx-auto max-w-6xl px-4 py-14">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">Что такое PrintAukcion</h2>
+            <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">Что такое PrintAu</h2>
             <p className="mt-3 text-slate-600">
               Площадка сводит вместе тех, кому нужна 3D-печать или 3D-модель, с теми, кто
               может это сделать. Вместо того чтобы искать исполнителя по знакомым или

@@ -3,7 +3,7 @@ import { getAdminSettingsView } from "@/lib/settings";
 import { SettingsForm } from "./SettingsForm";
 
 export const metadata = {
-  title: "Настройки площадки — PrintAukcion",
+  title: "Настройки площадки — PrintAu",
 };
 
 export default async function AdminSettingsPage() {

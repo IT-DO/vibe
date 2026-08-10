@@ -1,7 +1,7 @@
 import { MATERIALS, MATERIAL_PROPERTIES, MATERIAL_SPECS } from "@/lib/constants";
 
 export const metadata = {
-  title: "Материалы и технологии печати — PrintAukcion",
+  title: "Материалы и технологии печати — PrintAu",
 };
 
 export default function MaterialsPage() {

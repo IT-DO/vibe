@@ -110,7 +110,7 @@ export function SettingsForm({ initial }: { initial: AdminSettingsView }) {
             <Field label="От кого (From)">
               <input
                 name="mailFrom"
-                placeholder="PrintAukcion <noreply@your-domain.example>"
+                placeholder="PrintAu <noreply@your-domain.example>"
                 defaultValue={initial.mailFrom}
                 className="input"
               />
