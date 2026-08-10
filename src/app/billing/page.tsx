@@ -21,7 +21,7 @@ export default async function BillingPage({
   if (!session?.user) redirect("/login");
 
   const [{ demo }, summary] = await Promise.all([searchParams, getBillingSummary(session.user.id)]);
-  const demoMode = !isYooKassaConfigured();
+  const demoMode = !(await isYooKassaConfigured());
 
   async function paySubscription() {
     "use server";
@@ -49,8 +49,12 @@ export default async function BillingPage({
         <p className="mt-4 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800">
           Платёжный провайдер не подключён — оплата работает в демо-режиме: нажатие
           «Оплатить» сразу помечает платёж оплаченным, без реального списания денег.
-          Чтобы принимать настоящие платежи, задайте <code>YOOKASSA_SHOP_ID</code> и{" "}
-          <code>YOOKASSA_SECRET_KEY</code> в переменных окружения.
+          Чтобы принимать настоящие платежи, укажите ключи ЮKassa в{" "}
+          <Link href="/admin/settings" className="underline">
+            настройках админки
+          </Link>{" "}
+          (или переменных окружения <code>YOOKASSA_SHOP_ID</code> /{" "}
+          <code>YOOKASSA_SECRET_KEY</code>).
         </p>
       )}
 
@@ -96,7 +100,9 @@ export default async function BillingPage({
 
       <section className="mt-6 rounded-xl border border-slate-200 bg-white p-5">
         <div className="mb-3 flex items-center justify-between">
-          <h2 className="font-semibold text-slate-900">Комиссия площадки (1% с заказов)</h2>
+          <h2 className="font-semibold text-slate-900">
+            Комиссия площадки ({summary.commissionRatePercent}% с заказов)
+          </h2>
           {summary.owedCommission > 0 && (
             <span className="text-sm font-medium text-red-600">
               К оплате: {formatMoney(summary.owedCommission)}

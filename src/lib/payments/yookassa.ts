@@ -1,17 +1,20 @@
 import "server-only";
+import { getSettings } from "@/lib/settings";
 
 // Тонкая обёртка над REST API ЮKassa (без SDK — у них простой JSON API).
 // https://yookassa.ru/developers/api
 
 const API_BASE = "https://api.yookassa.ru/v3";
 
-export function isYooKassaConfigured(): boolean {
-  return Boolean(process.env.YOOKASSA_SHOP_ID && process.env.YOOKASSA_SECRET_KEY);
+export async function isYooKassaConfigured(): Promise<boolean> {
+  const settings = await getSettings();
+  return Boolean(settings.yookassaShopId && settings.yookassaSecretKey);
 }
 
-function authHeader(): string {
-  const shopId = process.env.YOOKASSA_SHOP_ID ?? "";
-  const secretKey = process.env.YOOKASSA_SECRET_KEY ?? "";
+async function authHeader(): Promise<string> {
+  const settings = await getSettings();
+  const shopId = settings.yookassaShopId ?? "";
+  const secretKey = settings.yookassaSecretKey ?? "";
   return "Basic " + Buffer.from(`${shopId}:${secretKey}`).toString("base64");
 }
 
@@ -37,7 +40,7 @@ export async function createYooKassaPayment(params: {
   const res = await fetch(`${API_BASE}/payments`, {
     method: "POST",
     headers: {
-      Authorization: authHeader(),
+      Authorization: await authHeader(),
       "Content-Type": "application/json",
       "Idempotence-Key": params.idempotenceKey,
     },
@@ -63,7 +66,7 @@ export async function createYooKassaPayment(params: {
 // его у ЮKassa по id через авторизованный запрос нашим секретным ключом.
 export async function fetchYooKassaPayment(paymentId: string): Promise<YooKassaPayment> {
   const res = await fetch(`${API_BASE}/payments/${encodeURIComponent(paymentId)}`, {
-    headers: { Authorization: authHeader() },
+    headers: { Authorization: await authHeader() },
   });
   if (!res.ok) {
     const text = await res.text().catch(() => "");

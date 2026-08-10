@@ -3,6 +3,8 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { getUserProfile } from "@/lib/users";
 import { RatingStars } from "@/components/RatingStars";
+import { AchievementBadge } from "@/components/AchievementBadge";
+import { MaterialList } from "@/components/MaterialList";
 import { ROLE_LABELS, PROFILE_FIELD_LABELS, type Role } from "@/lib/constants";
 import { formatDate, formatMoney } from "@/lib/format";
 
@@ -27,8 +29,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
               </span>
             </div>
             {user.city && <p className="mt-0.5 text-sm text-slate-500">{user.city}</p>}
-            <div className="mt-2">
+            <div className="mt-2 flex flex-wrap items-center gap-2">
               <RatingStars rating={user.ratingAvg} count={user.ratingCount} />
+              <AchievementBadge reviewCount={user.ratingCount} />
             </div>
           </div>
           {isSelf && (
@@ -54,7 +57,9 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
             {user.materials && (
               <div>
                 <dt className="text-slate-400">{PROFILE_FIELD_LABELS[role].materials}</dt>
-                <dd className="font-medium text-slate-900">{user.materials}</dd>
+                <dd className="font-medium text-slate-900">
+                  <MaterialList value={user.materials} />
+                </dd>
               </div>
             )}
             {user.printer && (

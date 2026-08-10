@@ -440,6 +440,13 @@ async function main() {
 
   // --- Именные демо-аккаунты (используются в README/доке для входа) ---
 
+  // Самостоятельная регистрация с ролью ADMIN запрещена (см.
+  // src/lib/actions/auth.ts) — единственный способ получить админ-доступ на
+  // свежем инстансе это сид. На проде первым делом смените пароль.
+  await upsertUser({
+    email: "admin@example.com", passwordHash, name: "Администратор", role: "ADMIN",
+  });
+
   const anna = await upsertUser({
     email: "anna@example.com", passwordHash, name: "Анна Смирнова", role: "CUSTOMER",
     city: "Москва", bio: "Делаю настольные игры, часто нужны миниатюры и фигурки.",
@@ -701,6 +708,7 @@ async function main() {
   console.log(`Готово: ${totalUsers} пользователей, ${totalOrders} заказов, ${totalReviews} отзывов.`);
 
   console.log("\nИменные демо-аккаунты (пароль везде: password123):");
+  console.log("  админ:       admin@example.com  (смените пароль перед реальным продакшеном!)");
   console.log("  заказчик:    anna@example.com");
   console.log("  заказчик:    oleg@example.com");
   console.log("  заказчик:    marina@example.com");

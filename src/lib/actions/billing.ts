@@ -6,7 +6,7 @@ import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import { getOrCreateSubscription, finalizePaidPayment } from "@/lib/billing";
 import { isYooKassaConfigured, createYooKassaPayment } from "@/lib/payments/yookassa";
-import { SUBSCRIPTION_PRICE_RUB } from "@/lib/constants";
+import { getSettings } from "@/lib/settings";
 import { getAppOrigin } from "@/lib/origin";
 import type { ActionState } from "@/lib/actions/auth";
 
@@ -15,18 +15,19 @@ export async function startSubscriptionPaymentAction(): Promise<ActionState> {
   if (!session?.user) return { error: "Требуется вход" };
 
   const subscription = await getOrCreateSubscription(session.user.id);
+  const settings = await getSettings();
 
   const payment = await prisma.payment.create({
     data: {
       type: "SUBSCRIPTION",
-      amount: SUBSCRIPTION_PRICE_RUB,
+      amount: settings.subscriptionPriceRub,
       payerId: session.user.id,
       subscriptionId: subscription.id,
       status: "PENDING",
     },
   });
 
-  if (!isYooKassaConfigured()) {
+  if (!(await isYooKassaConfigured())) {
     // Нет ключей платёжного провайдера — рабочий демо-режим: платёж сразу
     // считается оплаченным, чтобы можно было проверить весь сценарий до
     // подключения реальной оплаты. См. /privacy и README.
@@ -40,7 +41,7 @@ export async function startSubscriptionPaymentAction(): Promise<ActionState> {
   try {
     const ykPayment = await createYooKassaPayment({
       idempotenceKey: payment.id,
-      amountRub: SUBSCRIPTION_PRICE_RUB,
+      amountRub: settings.subscriptionPriceRub,
       description: "Подписка PrintAukcion, 30 дней",
       returnUrl: `${origin}/billing`,
       metadata: { paymentId: payment.id },
@@ -68,7 +69,7 @@ export async function payCommissionAction(paymentId: string): Promise<ActionStat
   if (payment.payerId !== session.user.id) return { error: "Недостаточно прав" };
   if (payment.status !== "PENDING") return { error: "Уже обработано" };
 
-  if (!isYooKassaConfigured()) {
+  if (!(await isYooKassaConfigured())) {
     await finalizePaidPayment(payment.id, "manual");
     revalidatePath("/billing");
     redirect("/billing?demo=1");

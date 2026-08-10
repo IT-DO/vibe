@@ -2,6 +2,7 @@ import Link from "next/link";
 import { getOpenOrders, getPlatformStats } from "@/lib/orders";
 import { formatMoney, formatRelative } from "@/lib/format";
 import { OrderStatusBadge } from "@/components/StatusBadge";
+import { MaterialTag } from "@/components/MaterialTag";
 
 export default async function Home() {
   const [orders, stats] = await Promise.all([
@@ -168,7 +169,7 @@ export default async function Home() {
                 </p>
                 <div className="mt-auto flex items-center justify-between text-sm text-slate-500">
                   <span className="rounded-full bg-slate-100 px-2 py-0.5 text-xs font-medium text-slate-600">
-                    {order.material}
+                    <MaterialTag material={order.material} />
                   </span>
                   <span className="font-semibold text-slate-900">
                     {formatMoney(order.budgetMin)}–{formatMoney(order.budgetMax)}

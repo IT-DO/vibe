@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { createOrderAction } from "@/lib/actions/orders";
 import type { ActionState } from "@/lib/actions/auth";
 import { MATERIALS, ATTACHMENT_EXTENSIONS } from "@/lib/constants";
+import { MaterialsLegend } from "@/components/MaterialsLegend";
 
 const ACCEPT_ATTR = Object.keys(ATTACHMENT_EXTENSIONS)
   .map((ext) => `.${ext}`)
@@ -52,6 +53,7 @@ export function NewOrderForm() {
           <input name="color" placeholder="Например: чёрный" className="input" />
         </Field>
       </div>
+      <MaterialsLegend />
 
       <div className="grid grid-cols-3 gap-4">
         <Field label="Количество, шт." error={state.fieldErrors?.quantity?.[0]}>

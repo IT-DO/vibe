@@ -173,3 +173,34 @@ model PasswordResetToken {
 
   @@index([userId])
 }
+
+// Единственная строка (id всегда "singleton") с параметрами площадки,
+// которые иначе задавались бы только через переменные окружения. Любое
+// поле null означает "используем .env/значение по умолчанию" — см.
+// src/lib/settings.ts. Секреты, критичные для старта процесса или боевой
+// безопасности (DATABASE_URL, AUTH_SECRET, UPLOAD_DIR), сюда осознанно НЕ
+// вынесены — их смена требует передеплоя, а не формы в админке.
+model PlatformSettings {
+  id String @id @default("singleton")
+
+  subscriptionPriceRub   Int?
+  subscriptionPeriodDays Int?
+  commissionRatePercent  Float?
+  subscriptionEnforced   Boolean?
+
+  appUrl String?
+
+  smtpHost String?
+  smtpPort Int?
+  smtpUser String?
+  smtpPass String?
+  mailFrom String?
+
+  yookassaShopId    String?
+  yookassaSecretKey String?
+
+  alertEmail         String?
+  internalAlertToken String?
+
+  updatedAt DateTime @updatedAt
+}

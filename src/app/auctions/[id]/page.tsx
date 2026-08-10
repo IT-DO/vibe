@@ -7,6 +7,7 @@ import { formatMoney, formatDate, formatRelative, biddingIsOpen } from "@/lib/fo
 import { OrderStatusBadge, BidStatusBadge } from "@/components/StatusBadge";
 import { RatingStars } from "@/components/RatingStars";
 import { BIDDER_ROLES, type OrderStatus, type BidStatus } from "@/lib/constants";
+import { MaterialTag } from "@/components/MaterialTag";
 import { BidForm } from "./BidForm";
 import { AcceptBidButton, LifecycleButtons } from "./ActionButtons";
 import { ReviewSection } from "./ReviewSection";
@@ -135,7 +136,9 @@ export default async function OrderDetailPage({
             <dl className="space-y-2">
               <div className="flex justify-between">
                 <dt className="text-slate-500">Материал</dt>
-                <dd className="font-medium text-slate-900">{order.material}</dd>
+                <dd className="font-medium text-slate-900">
+                  <MaterialTag material={order.material} />
+                </dd>
               </div>
               {order.color && (
                 <div className="flex justify-between">

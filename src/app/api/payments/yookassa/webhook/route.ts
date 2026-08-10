@@ -9,7 +9,7 @@ import { fetchYooKassaPayment, isYooKassaConfigured } from "@/lib/payments/yooka
 // секретным ключом (fetchYooKassaPayment). Тело вебхука используется только
 // чтобы понять, какой id платежа перепроверить.
 export async function POST(req: Request) {
-  if (!isYooKassaConfigured()) {
+  if (!(await isYooKassaConfigured())) {
     return new Response("Not configured", { status: 404 });
   }
 

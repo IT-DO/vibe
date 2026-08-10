@@ -1,12 +1,13 @@
 import Link from "next/link";
-import { SUBSCRIPTION_PRICE_RUB, SUBSCRIPTION_PERIOD_DAYS, COMMISSION_RATE } from "@/lib/constants";
+import { getSettings } from "@/lib/settings";
 
 export const metadata = {
   title: "Публичная оферта — PrintAukcion",
 };
 
-export default function OfferPage() {
-  const commissionPercent = (COMMISSION_RATE * 100).toString();
+export default async function OfferPage() {
+  const settings = await getSettings();
+  const commissionPercent = (settings.commissionRate * 100).toString();
 
   return (
     <div className="mx-auto max-w-3xl px-4 py-12">
@@ -56,7 +57,7 @@ export default function OfferPage() {
         <h2 className="text-lg font-semibold text-slate-900">3. Подписка</h2>
         <p className="text-sm text-slate-600">
           Доступ к размещению заказов и подаче ставок предоставляется по подписке —{" "}
-          {SUBSCRIPTION_PRICE_RUB} ₽ за {SUBSCRIPTION_PERIOD_DAYS} дней. Подписка{" "}
+          {settings.subscriptionPriceRub} ₽ за {settings.subscriptionPeriodDays} дней. Подписка{" "}
           <strong>не продлевается автоматически</strong>: по истечении периода пользователь
           самостоятельно оплачивает следующий period на странице «Оплата». Незачёт/возврат
           денег за неиспользованный остаток периода не производится, кроме случаев, прямо

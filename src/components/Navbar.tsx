@@ -28,6 +28,11 @@ export async function Navbar() {
               <Link href="/billing" className="hover:text-slate-900">
                 Оплата
               </Link>
+              {session.user.role === "ADMIN" && (
+                <Link href="/admin/settings" className="hover:text-slate-900">
+                  Админка
+                </Link>
+              )}
             </>
           )}
         </nav>

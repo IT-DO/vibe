@@ -1,5 +1,6 @@
 import { createHash, timingSafeEqual } from "node:crypto";
 import { sendMail, sanitizeHeaderValue } from "@/lib/mail";
+import { getSettings } from "@/lib/settings";
 
 // sha256 сначала — чтобы сравнивать буферы одинаковой длины (timingSafeEqual
 // бросает исключение при разной длине, а сама эта разница длин уже могла бы
@@ -16,8 +17,9 @@ function tokensMatch(a: string, b: string): boolean {
 // полностью выключен (404), а не просто "не проверяет токен" — так его не
 // видно и нечем злоупотребить на инстансах, где алерты не настраивались.
 export async function POST(req: Request) {
-  const expectedToken = process.env.INTERNAL_ALERT_TOKEN;
-  const alertEmail = process.env.ALERT_EMAIL;
+  const settings = await getSettings();
+  const expectedToken = settings.internalAlertToken;
+  const alertEmail = settings.alertEmail;
   if (!expectedToken || !alertEmail) {
     return new Response("Not found", { status: 404 });
   }

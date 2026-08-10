@@ -2,6 +2,8 @@ import Link from "next/link";
 import { getOpenOrders } from "@/lib/orders";
 import { formatMoney, formatRelative } from "@/lib/format";
 import { MATERIALS } from "@/lib/constants";
+import { MaterialTag } from "@/components/MaterialTag";
+import { MaterialsLegend } from "@/components/MaterialsLegend";
 
 export default async function AuctionsPage({
   searchParams,
@@ -46,6 +48,8 @@ export default async function AuctionsPage({
         </button>
       </form>
 
+      <MaterialsLegend className="mb-6" />
+
       {orders.length === 0 ? (
         <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
           Ничего не найдено. Попробуйте изменить фильтры.
@@ -61,7 +65,7 @@ export default async function AuctionsPage({
               <h3 className="mb-2 font-semibold text-slate-900">{order.title}</h3>
               <p className="mb-3 line-clamp-2 text-sm text-slate-500">{order.description}</p>
               <div className="mt-auto flex items-center justify-between text-sm text-slate-500">
-                <span>{order.material}</span>
+                <MaterialTag material={order.material} />
                 <span>
                   {formatMoney(order.budgetMin)}–{formatMoney(order.budgetMax)}
                 </span>

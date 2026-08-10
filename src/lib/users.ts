@@ -22,16 +22,51 @@ const publicUserSelect = {
   portfolio: true,
 } as const;
 
-export function getSpecialists(params?: { role?: Role; material?: string; city?: string }) {
-  return prisma.user.findMany({
+export async function getSpecialists(params?: {
+  role?: Role;
+  material?: string;
+  city?: string;
+  minRating?: number;
+  minCompletedOrders?: number;
+  sortBy?: "rating" | "reviews" | "completedOrders";
+}) {
+  const specialists = await prisma.user.findMany({
     where: {
       role: params?.role ? params.role : { in: ["EXECUTOR", "DESIGNER"] },
       ...(params?.material ? { materials: { contains: params.material } } : {}),
       ...(params?.city ? { city: { contains: params.city } } : {}),
+      ...(params?.minRating ? { ratingAvg: { gte: params.minRating } } : {}),
     },
     select: publicUserSelect,
     orderBy: [{ ratingAvg: "desc" }, { ratingCount: "desc" }],
   });
+
+  // Количество выполненных заказов на исполнителя — считаем отдельным
+  // groupBy вместо N+1 запросов на каждого специалиста в списке.
+  const completedCounts = await prisma.bid.groupBy({
+    by: ["executorId"],
+    where: { status: "ACCEPTED", order: { status: "COMPLETED" } },
+    _count: { _all: true },
+  });
+  const completedById = new Map(completedCounts.map((c) => [c.executorId, c._count._all]));
+
+  let withCounts = specialists.map((person) => ({
+    ...person,
+    completedOrders: completedById.get(person.id) ?? 0,
+  }));
+
+  if (params?.minCompletedOrders) {
+    withCounts = withCounts.filter((p) => p.completedOrders >= params.minCompletedOrders!);
+  }
+
+  if (params?.sortBy === "reviews") {
+    withCounts.sort((a, b) => b.ratingCount - a.ratingCount);
+  } else if (params?.sortBy === "completedOrders") {
+    withCounts.sort((a, b) => b.completedOrders - a.completedOrders);
+  }
+  // sortBy === "rating" (default) — уже отсортировано запросом выше.
+
+  return withCounts;
 }
 
 export function getUserProfile(id: string) {
