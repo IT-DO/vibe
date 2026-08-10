@@ -45,6 +45,7 @@ export function getOrderById(id: string) {
         select: {
           id: true,
           fileName: true,
+          mimeType: true,
           size: true,
           createdAt: true,
           uploaderId: true,

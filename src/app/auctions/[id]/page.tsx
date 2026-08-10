@@ -37,6 +37,9 @@ export default async function OrderDetailPage({
       status !== "CANCELLED" &&
       (isOwner || session.user.id === winningBid?.executorId)
   );
+  const isWinningExecutor = Boolean(session?.user && winningBid && session.user.id === winningBid.executorId);
+  const hasPhotoAttachment = order.attachments.some((a) => a.mimeType.startsWith("image/"));
+  const promptForPhoto = status === "COMPLETED" && isWinningExecutor && !hasPhotoAttachment;
   let reviewParticipant: { canReview: boolean; alreadyReviewed: boolean; targetId?: string } = {
     canReview: false,
     alreadyReviewed: false,
@@ -86,6 +89,7 @@ export default async function OrderDetailPage({
             attachments={session?.user ? order.attachments : []}
             currentUserId={session?.user?.id}
             canUpload={canUploadAttachment}
+            promptForPhoto={promptForPhoto}
           />
 
           <div className="rounded-xl border border-slate-200 bg-white p-5">
