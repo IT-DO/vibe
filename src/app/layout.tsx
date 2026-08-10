@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
@@ -29,7 +30,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
         <Navbar />
         <main className="flex-1">{children}</main>
         <footer className="border-t border-slate-200 bg-white py-6 text-center text-sm text-slate-400">
-          PrintAukcion — учебный проект, демонстрация портала 3D-печати
+          PrintAukcion — учебный проект, демонстрация портала 3D-печати ·{" "}
+          <Link href="/privacy" className="hover:text-slate-600 hover:underline">
+            Политика конфиденциальности
+          </Link>
         </footer>
       </body>
     </html>

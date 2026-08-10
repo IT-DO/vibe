@@ -1,14 +1,21 @@
 "use client";
 
 import { useActionState } from "react";
-import type { User } from "@prisma/client";
+import { useState } from "react";
 import { updateProfileAction } from "@/lib/actions/profile";
 import type { ActionState } from "@/lib/actions/auth";
+import { PROFILE_FIELD_LABELS, type Role } from "@/lib/constants";
+import type { getOwnProfile } from "@/lib/users";
+
+type OwnProfile = NonNullable<Awaited<ReturnType<typeof getOwnProfile>>>;
 
 const initialState: ActionState = {};
 
-export function EditProfileForm({ user }: { user: User }) {
+export function EditProfileForm({ user }: { user: OwnProfile }) {
   const [state, formAction, pending] = useActionState(updateProfileAction, initialState);
+  const isSpecialist = user.role === "EXECUTOR" || user.role === "DESIGNER";
+  const [role] = useState(user.role as Role);
+  const labels = isSpecialist ? PROFILE_FIELD_LABELS[role as "EXECUTOR" | "DESIGNER"] : null;
 
   return (
     <form action={formAction} className="mt-8 space-y-5">
@@ -27,32 +34,41 @@ export function EditProfileForm({ user }: { user: User }) {
         <textarea name="bio" rows={4} defaultValue={user.bio ?? ""} className="input mt-1" />
       </label>
 
-      {user.role === "EXECUTOR" && (
+      {isSpecialist && labels && (
         <>
           <label className="block text-sm font-medium text-slate-700">
-            Специализация
+            {labels.specialization}
             <input
               name="specialization"
               defaultValue={user.specialization ?? ""}
-              placeholder="Например: функциональные прототипы, миниатюры"
+              placeholder={
+                role === "DESIGNER"
+                  ? "Например: инженерный CAD, топологическая оптимизация"
+                  : "Например: функциональные прототипы, миниатюры"
+              }
               className="input mt-1"
             />
           </label>
           <label className="block text-sm font-medium text-slate-700">
-            Материалы
+            {labels.materials}
             <input
               name="materials"
               defaultValue={user.materials ?? ""}
-              placeholder="PLA, PETG, ABS, Resin..."
+              placeholder={role === "DESIGNER" ? "STL, STEP, OBJ..." : "PLA, PETG, ABS, Resin..."}
               className="input mt-1"
             />
           </label>
           <label className="block text-sm font-medium text-slate-700">
-            Оборудование
-            <input name="printer" defaultValue={user.printer ?? ""} className="input mt-1" />
+            {labels.printer}
+            <input
+              name="printer"
+              defaultValue={user.printer ?? ""}
+              placeholder={role === "DESIGNER" ? "Fusion 360, Blender, SolidWorks..." : undefined}
+              className="input mt-1"
+            />
           </label>
           <label className="block text-sm font-medium text-slate-700">
-            Цена, ₽ / г
+            {labels.price}
             <input
               name="pricePerGram"
               type="number"

@@ -18,7 +18,7 @@ export async function Navbar() {
             Аукционы
           </Link>
           <Link href="/executors" className="hover:text-slate-900">
-            Исполнители
+            Специалисты
           </Link>
           {session?.user && (
             <Link href="/dashboard" className="hover:text-slate-900">

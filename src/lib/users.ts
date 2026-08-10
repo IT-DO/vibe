@@ -1,13 +1,35 @@
 import "server-only";
 import { prisma } from "@/lib/prisma";
+import type { Role } from "@/lib/constants";
 
-export function getExecutors(params?: { material?: string; city?: string }) {
+// Публичные поля профиля — passwordHash сюда осознанно не включён нигде в этом
+// файле, чтобы он в принципе не мог утечь клиенту через сериализацию пропсов
+// Server → Client Component.
+const publicUserSelect = {
+  id: true,
+  name: true,
+  role: true,
+  city: true,
+  bio: true,
+  avatarUrl: true,
+  createdAt: true,
+  ratingAvg: true,
+  ratingCount: true,
+  specialization: true,
+  materials: true,
+  printer: true,
+  pricePerGram: true,
+  portfolio: true,
+} as const;
+
+export function getSpecialists(params?: { role?: Role; material?: string; city?: string }) {
   return prisma.user.findMany({
     where: {
-      role: "EXECUTOR",
+      role: params?.role ? params.role : { in: ["EXECUTOR", "DESIGNER"] },
       ...(params?.material ? { materials: { contains: params.material } } : {}),
       ...(params?.city ? { city: { contains: params.city } } : {}),
     },
+    select: publicUserSelect,
     orderBy: [{ ratingAvg: "desc" }, { ratingCount: "desc" }],
   });
 }
@@ -15,7 +37,8 @@ export function getExecutors(params?: { material?: string; city?: string }) {
 export function getUserProfile(id: string) {
   return prisma.user.findUnique({
     where: { id },
-    include: {
+    select: {
+      ...publicUserSelect,
       reviewsReceived: {
         include: {
           author: { select: { id: true, name: true, role: true } },
@@ -24,6 +47,16 @@ export function getUserProfile(id: string) {
         orderBy: { createdAt: "desc" },
       },
     },
+  });
+}
+
+// Профиль для формы редактирования: те же публичные поля, без passwordHash —
+// эта функция обязательно к использованию вместо прямого prisma.user.findUnique
+// на страницах, которые передают результат в клиентский компонент.
+export function getOwnProfile(id: string) {
+  return prisma.user.findUnique({
+    where: { id },
+    select: publicUserSelect,
   });
 }
 

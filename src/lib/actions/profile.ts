@@ -45,7 +45,7 @@ export async function updateProfileAction(
       name,
       city: city || null,
       bio: bio || null,
-      ...(session.user.role === "EXECUTOR"
+      ...(session.user.role === "EXECUTOR" || session.user.role === "DESIGNER"
         ? {
             specialization: specialization || null,
             materials: materials || null,

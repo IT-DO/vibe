@@ -8,7 +8,7 @@ datasource db {
 }
 
 // SQLite has no native enum support, so these are enforced in the TS layer (see src/lib/constants.ts):
-// Role: CUSTOMER | EXECUTOR | ADMIN
+// Role: CUSTOMER | EXECUTOR | DESIGNER | ADMIN
 // OrderStatus: OPEN | AWARDED | IN_PROGRESS | COMPLETED | CANCELLED
 // BidStatus: PENDING | ACCEPTED | REJECTED | WITHDRAWN
 
@@ -26,17 +26,18 @@ model User {
   ratingAvg   Float @default(0)
   ratingCount Int   @default(0)
 
-  // только для EXECUTOR
-  specialization String? // напр. "FDM, SLA, миниатюры"
-  materials       String? // напр. "PLA, PETG, ABS, Resin"
-  printer         String? // модель принтера
+  // только для EXECUTOR / DESIGNER (лейблы полей зависят от роли, см. src/lib/constants.ts)
+  specialization String? // напр. "FDM, SLA, миниатюры" / "Инженерный CAD, топология"
+  materials       String? // материалы печати ИЛИ форматы файлов (STL, STEP, OBJ...)
+  printer         String? // модель принтера ИЛИ используемое ПО (Fusion 360, Blender...)
   pricePerGram    Float?
   portfolio       String? // JSON-массив ссылок на изображения
 
-  ordersAsCustomer Order[]  @relation("CustomerOrders")
+  ordersAsCustomer Order[]      @relation("CustomerOrders")
   bids             Bid[]
-  reviewsWritten   Review[] @relation("ReviewAuthor")
-  reviewsReceived  Review[] @relation("ReviewTarget")
+  reviewsWritten   Review[]     @relation("ReviewAuthor")
+  reviewsReceived  Review[]     @relation("ReviewTarget")
+  attachments      Attachment[]
 }
 
 model Order {
@@ -58,8 +59,9 @@ model Order {
 
   winningBidId String? @unique
 
-  bids    Bid[]
-  reviews Review[]
+  bids        Bid[]
+  reviews     Review[]
+  attachments Attachment[]
 }
 
 model Bid {
@@ -90,4 +92,22 @@ model Review {
   createdAt DateTime @default(now())
 
   @@unique([orderId, authorId])
+}
+
+// storedName — случайное сгенерированное имя файла на диске (никогда не берётся из
+// пользовательского ввода, чтобы исключить directory traversal). fileName — исходное
+// имя файла, используется только для отображения и заголовка Content-Disposition.
+model Attachment {
+  id         String   @id @default(cuid())
+  order      Order    @relation(fields: [orderId], references: [id])
+  orderId    String
+  uploader   User     @relation(fields: [uploaderId], references: [id])
+  uploaderId String
+  fileName   String
+  storedName String
+  mimeType   String
+  size       Int
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
 }

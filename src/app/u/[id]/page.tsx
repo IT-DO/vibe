@@ -3,7 +3,7 @@ import Link from "next/link";
 import { auth } from "@/auth";
 import { getUserProfile } from "@/lib/users";
 import { RatingStars } from "@/components/RatingStars";
-import { ROLE_LABELS, type Role } from "@/lib/constants";
+import { ROLE_LABELS, PROFILE_FIELD_LABELS, type Role } from "@/lib/constants";
 import { formatDate, formatMoney } from "@/lib/format";
 
 export default async function ProfilePage({ params }: { params: Promise<{ id: string }> }) {
@@ -43,30 +43,30 @@ export default async function ProfilePage({ params }: { params: Promise<{ id: st
 
         {user.bio && <p className="mt-4 whitespace-pre-wrap text-sm text-slate-600">{user.bio}</p>}
 
-        {role === "EXECUTOR" && (
+        {(role === "EXECUTOR" || role === "DESIGNER") && (
           <dl className="mt-5 grid grid-cols-2 gap-3 border-t border-slate-100 pt-5 text-sm sm:grid-cols-3">
             {user.specialization && (
               <div>
-                <dt className="text-slate-400">Специализация</dt>
+                <dt className="text-slate-400">{PROFILE_FIELD_LABELS[role].specialization}</dt>
                 <dd className="font-medium text-slate-900">{user.specialization}</dd>
               </div>
             )}
             {user.materials && (
               <div>
-                <dt className="text-slate-400">Материалы</dt>
+                <dt className="text-slate-400">{PROFILE_FIELD_LABELS[role].materials}</dt>
                 <dd className="font-medium text-slate-900">{user.materials}</dd>
               </div>
             )}
             {user.printer && (
               <div>
-                <dt className="text-slate-400">Оборудование</dt>
+                <dt className="text-slate-400">{PROFILE_FIELD_LABELS[role].printer}</dt>
                 <dd className="font-medium text-slate-900">{user.printer}</dd>
               </div>
             )}
             {user.pricePerGram && (
               <div>
-                <dt className="text-slate-400">Цена</dt>
-                <dd className="font-medium text-slate-900">{formatMoney(user.pricePerGram)} / г</dd>
+                <dt className="text-slate-400">{PROFILE_FIELD_LABELS[role].price}</dt>
+                <dd className="font-medium text-slate-900">{formatMoney(user.pricePerGram)}</dd>
               </div>
             )}
           </dl>

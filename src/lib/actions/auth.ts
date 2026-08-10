@@ -37,7 +37,7 @@ export async function registerAction(
 
   const { name, email, password, role } = parsed.data;
 
-  const existing = await prisma.user.findUnique({ where: { email } });
+  const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
   if (existing) {
     return { error: "Пользователь с таким email уже зарегистрирован" };
   }

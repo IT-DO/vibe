@@ -18,7 +18,7 @@ export default function RegisterPage() {
       </p>
 
       <form action={formAction} className="mt-8 space-y-5">
-        <fieldset className="grid grid-cols-2 gap-3">
+        <fieldset className="grid grid-cols-1 gap-3 sm:grid-cols-3">
           <legend className="mb-2 text-sm font-medium text-slate-700">Я хочу...</legend>
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-3 py-3 text-sm has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">
             <input type="radio" name="role" value="CUSTOMER" defaultChecked className="accent-orange-600" />
@@ -27,6 +27,10 @@ export default function RegisterPage() {
           <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-3 py-3 text-sm has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">
             <input type="radio" name="role" value="EXECUTOR" className="accent-orange-600" />
             Печатать заказы
+          </label>
+          <label className="flex cursor-pointer items-center gap-2 rounded-lg border border-slate-300 px-3 py-3 text-sm has-[:checked]:border-orange-500 has-[:checked]:bg-orange-50">
+            <input type="radio" name="role" value="DESIGNER" className="accent-orange-600" />
+            Создавать 3D-модели
           </label>
         </fieldset>
 
@@ -99,7 +103,7 @@ export default function RegisterPage() {
         </Link>
       </p>
       <p className="mt-2 text-center text-xs text-slate-400">
-        Роли: {ROLE_LABELS.CUSTOMER} / {ROLE_LABELS.EXECUTOR}
+        Роли: {ROLE_LABELS.CUSTOMER} / {ROLE_LABELS.EXECUTOR} / {ROLE_LABELS.DESIGNER}
       </p>
     </div>
   );

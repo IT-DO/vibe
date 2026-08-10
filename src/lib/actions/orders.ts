@@ -6,6 +6,8 @@ import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
 import type { ActionState } from "@/lib/actions/auth";
+import { BIDDER_ROLES } from "@/lib/constants";
+import { filesFromFormData, validateFiles, saveAttachments } from "@/lib/storage";
 
 const createOrderSchema = z
   .object({
@@ -49,6 +51,10 @@ export async function createOrderAction(
     return { fieldErrors: parsed.error.flatten().fieldErrors };
   }
 
+  const files = filesFromFormData(formData);
+  const filesError = validateFiles(files);
+  if (filesError) return { error: filesError };
+
   const { title, description, material, color, quantity, budgetMin, budgetMax, biddingDays, deadlineDays } =
     parsed.data;
 
@@ -68,6 +74,10 @@ export async function createOrderAction(
     },
   });
 
+  if (files.length > 0) {
+    await saveAttachments(order.id, session.user.id, files);
+  }
+
   revalidatePath("/auctions");
   redirect(`/auctions/${order.id}`);
 }
@@ -84,8 +94,8 @@ export async function placeBidAction(
   formData: FormData
 ): Promise<ActionState> {
   const session = await auth();
-  if (!session?.user || session.user.role !== "EXECUTOR") {
-    return { error: "Только исполнители могут делать ставки" };
+  if (!session?.user || !BIDDER_ROLES.includes(session.user.role as (typeof BIDDER_ROLES)[number])) {
+    return { error: "Только исполнители и дизайнеры могут делать ставки" };
   }
 
   const parsed = bidSchema.safeParse({
@@ -103,6 +113,9 @@ export async function placeBidAction(
 
   const order = await prisma.order.findUnique({ where: { id: orderId } });
   if (!order) return { error: "Заказ не найден" };
+  if (order.customerId === session.user.id) {
+    return { error: "Нельзя делать ставку на собственный заказ" };
+  }
   if (order.status !== "OPEN" || order.biddingEnds.getTime() < Date.now()) {
     return { error: "Приём ставок по этому заказу завершён" };
   }

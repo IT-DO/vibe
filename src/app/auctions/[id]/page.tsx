@@ -6,10 +6,11 @@ import { prisma } from "@/lib/prisma";
 import { formatMoney, formatDate, formatRelative, biddingIsOpen } from "@/lib/format";
 import { OrderStatusBadge, BidStatusBadge } from "@/components/StatusBadge";
 import { RatingStars } from "@/components/RatingStars";
-import type { OrderStatus, BidStatus } from "@/lib/constants";
+import { BIDDER_ROLES, type OrderStatus, type BidStatus } from "@/lib/constants";
 import { BidForm } from "./BidForm";
 import { AcceptBidButton, LifecycleButtons } from "./ActionButtons";
 import { ReviewSection } from "./ReviewSection";
+import { AttachmentsSection } from "./AttachmentsSection";
 
 export default async function OrderDetailPage({
   params,
@@ -23,11 +24,18 @@ export default async function OrderDetailPage({
 
   const status = order.status as OrderStatus;
   const isOwner = session?.user?.id === order.customerId;
-  const isExecutor = session?.user?.role === "EXECUTOR";
+  const canBid = Boolean(
+    session?.user && BIDDER_ROLES.includes(session.user.role as (typeof BIDDER_ROLES)[number])
+  );
   const open = status === "OPEN" && biddingIsOpen(order.biddingEnds);
-  const myBid = isExecutor ? order.bids.find((b) => b.executorId === session!.user.id) : undefined;
+  const myBid = canBid ? order.bids.find((b) => b.executorId === session!.user.id) : undefined;
 
   const winningBid = order.bids.find((b) => b.status === "ACCEPTED");
+  const canUploadAttachment = Boolean(
+    session?.user &&
+      status !== "CANCELLED" &&
+      (isOwner || session.user.id === winningBid?.executorId)
+  );
   let reviewParticipant: { canReview: boolean; alreadyReviewed: boolean; targetId?: string } = {
     canReview: false,
     alreadyReviewed: false,
@@ -67,6 +75,17 @@ export default async function OrderDetailPage({
             <h2 className="mb-2 font-semibold text-slate-900">Описание</h2>
             <p className="whitespace-pre-wrap text-sm text-slate-600">{order.description}</p>
           </div>
+
+          {/* Список файлов отдаём только авторизованным — анонимным посетителям
+              страница ничего не сообщает даже о факте наличия вложений
+              (см. /privacy). Скачивание отдельных файлов дополнительно
+              проверяется на сервере в src/app/api/attachments/[id]/route.ts. */}
+          <AttachmentsSection
+            orderId={order.id}
+            attachments={session?.user ? order.attachments : []}
+            currentUserId={session?.user?.id}
+            canUpload={canUploadAttachment}
+          />
 
           <div className="rounded-xl border border-slate-200 bg-white p-5">
             <h2 className="mb-3 font-semibold text-slate-900">
@@ -151,7 +170,7 @@ export default async function OrderDetailPage({
 
           {isOwner && <LifecycleButtons orderId={order.id} status={status} />}
 
-          {open && isExecutor && !isOwner && (
+          {open && canBid && !isOwner && (
             <div className="rounded-xl border border-slate-200 bg-white p-5">
               <h2 className="mb-3 font-semibold text-slate-900">
                 {myBid ? "Изменить вашу ставку" : "Сделать ставку"}
@@ -165,7 +184,7 @@ export default async function OrderDetailPage({
               <Link href="/login" className="font-medium text-orange-600 hover:underline">
                 Войдите
               </Link>{" "}
-              как исполнитель, чтобы сделать ставку.
+              как исполнитель или дизайнер, чтобы сделать ставку.
             </div>
           )}
         </div>

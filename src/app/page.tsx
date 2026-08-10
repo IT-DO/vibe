@@ -11,12 +11,13 @@ export default async function Home() {
       <section className="border-b border-slate-200 bg-gradient-to-b from-orange-50 to-white">
         <div className="mx-auto max-w-6xl px-4 py-16 text-center sm:py-20">
           <h1 className="text-3xl font-bold tracking-tight text-slate-900 sm:text-5xl">
-            Биржа 3D-печати: заказчики и исполнители
+            Биржа 3D-печати: заказчики, исполнители и дизайнеры
           </h1>
           <p className="mx-auto mt-4 max-w-2xl text-lg text-slate-600">
-            Опишите, что нужно напечатать — исполнители предложат свою цену
-            и сроки. Выбирайте по цене, срокам и рейтингу. Отзывы после
-            каждого заказа помогают выбирать надёжных партнёров.
+            Опишите, что нужно напечатать или спроектировать — исполнители и
+            3D-дизайнеры предложат свою цену и сроки. Приложите файлы прямо к
+            заказу. Выбирайте по цене, срокам и рейтингу — отзывы после
+            каждого заказа помогают находить надёжных партнёров.
           </p>
           <div className="mt-8 flex flex-wrap items-center justify-center gap-3">
             <Link
@@ -35,7 +36,7 @@ export default async function Home() {
               href="/executors"
               className="rounded-lg border border-slate-300 bg-white px-5 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50"
             >
-              Найти исполнителя
+              Найти специалиста
             </Link>
           </div>
         </div>

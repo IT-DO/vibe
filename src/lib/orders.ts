@@ -41,6 +41,17 @@ export function getOrderById(id: string) {
         orderBy: { price: "asc" },
       },
       reviews: true,
+      attachments: {
+        select: {
+          id: true,
+          fileName: true,
+          size: true,
+          createdAt: true,
+          uploaderId: true,
+          uploader: { select: { id: true, name: true } },
+        },
+        orderBy: { createdAt: "asc" },
+      },
     },
   });
 }

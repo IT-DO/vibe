@@ -43,3 +43,6 @@ next-env.d.ts
 # prisma
 /prisma/dev.db
 /prisma/dev.db-journal
+
+# uploaded attachments (local dev default UPLOAD_DIR)
+/uploads

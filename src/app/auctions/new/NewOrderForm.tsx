@@ -3,7 +3,11 @@
 import { useActionState } from "react";
 import { createOrderAction } from "@/lib/actions/orders";
 import type { ActionState } from "@/lib/actions/auth";
-import { MATERIALS } from "@/lib/constants";
+import { MATERIALS, ATTACHMENT_EXTENSIONS } from "@/lib/constants";
+
+const ACCEPT_ATTR = Object.keys(ATTACHMENT_EXTENSIONS)
+  .map((ext) => `.${ext}`)
+  .join(",");
 
 const initialState: ActionState = {};
 
@@ -75,6 +79,19 @@ export function NewOrderForm() {
           <input name="deadlineDays" type="number" min={1} placeholder="Например: 10" className="input" />
         </Field>
       </div>
+
+      <Field label="Файлы (модели, чертежи, референсы) — опционально">
+        <input type="file" name="files" multiple accept={ACCEPT_ATTR} className="input" />
+        <p className="mt-1 text-xs font-normal text-slate-400">
+          До 5 файлов, каждый до 20 МБ. Разрешены: {Object.keys(ATTACHMENT_EXTENSIONS).join(", ")}.
+          Файлы увидят все авторизованные пользователи портала, которые смогут делать
+          ставки — это нужно, чтобы оценить задачу перед ставкой (подробнее — в{" "}
+          <a href="/privacy" target="_blank" className="text-orange-600 hover:underline">
+            политике конфиденциальности
+          </a>
+          ).
+        </p>
+      </Field>
 
       {state.error && (
         <p className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-700">{state.error}</p>
