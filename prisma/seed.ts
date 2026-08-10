@@ -535,10 +535,61 @@ async function main() {
     bulkExecutors.push(user);
   }
 
+
+  // --- Международные аккаунты: имена, города и специализации из стран,
+  // где говорят на поддерживаемых языках (см. src/lib/i18n/config.ts).
+  // Нужны, чтобы каталог выглядел как у действительно международной
+  // площадки, а не как у локального русского сервиса. ---
+
+  const INTL_CUSTOMERS = [
+    { email: "james.carter@example.com", name: "James Carter", city: "Manchester", bio: "Product designer, need functional prototypes for client pitches." },
+    { email: "olivia.bennett@example.com", name: "Olivia Bennett", city: "Toronto", bio: "Board game publisher looking for reliable miniature printing." },
+    { email: "li.wei@example.com", name: "李伟 (Li Wei)", city: "深圳 / Shenzhen", bio: "硬件创业者，需要电子产品外壳原型。" },
+    { email: "chen.yan@example.com", name: "陈燕 (Chen Yan)", city: "上海 / Shanghai", bio: "文创品牌主理人，定制周边与礼品。" },
+    { email: "arjun.sharma@example.com", name: "अर्जुन शर्मा (Arjun Sharma)", city: "बेंगलुरु / Bengaluru", bio: "रोबोटिक्स स्टार्टअप — कस्टम पुर्ज़ों की ज़रूरत रहती है।" },
+    { email: "priya.nair@example.com", name: "प्रिया नायर (Priya Nair)", city: "मुंबई / Mumbai", bio: "आर्किटेक्ट, प्रस्तुतियों के लिए स्केल मॉडल प्रिंट कराती हूँ।" },
+    { email: "carlos.rivera@example.com", name: "Carlos Rivera", city: "Ciudad de México", bio: "Taller de restauración: piezas descatalogadas y repuestos." },
+    { email: "lucia.fernandez@example.com", name: "Lucía Fernández", city: "Barcelona", bio: "Diseñadora de joyería, necesito modelos para fundición." },
+    { email: "camille.dubois@example.com", name: "Camille Dubois", city: "Lyon", bio: "Scénographe : accessoires et maquettes pour le théâtre." },
+    { email: "antoine.moreau@example.com", name: "Antoine Moreau", city: "Nantes", bio: "Ingénieur mécanique, prototypes fonctionnels en petite série." },
+    { email: "omar.alfarsi@example.com", name: "عمر الفارسي (Omar Al-Farsi)", city: "دبي / Dubai", bio: "مقتنٍ للنماذج المعمارية، أطلب مجسمات دقيقة." },
+    { email: "layla.haddad@example.com", name: "ليلى حداد (Layla Haddad)", city: "الرياض / Riyadh", bio: "مصممة ديكور، أحتاج قطعاً مخصصة للمشاريع." },
+  ];
+
+  const INTL_EXECUTORS = [
+    { email: "tom.whitfield@example.com", name: "Tom Whitfield", city: "Birmingham", specialization: "Functional prototypes, engineering plastics", materials: "PETG, Nylon, Carbon Fiber", printer: "Bambu Lab X1C, Prusa MK4", price: 9 },
+    { email: "sarah.oconnor@example.com", name: "Sarah O'Connor", city: "Dublin", specialization: "Miniatures and tabletop, high detail resin", materials: "Resin (SLA), PLA", printer: "Elegoo Saturn 4 Ultra", price: 11 },
+    { email: "zhang.min@example.com", name: "张敏 (Zhang Min)", city: "深圳 / Shenzhen", specialization: "批量生产，工业级 SLS 打印", materials: "Nylon (SLS), PETG", printer: "Farsoon 402P, Creality K1 Max", price: 7 },
+    { email: "wang.lei@example.com", name: "王雷 (Wang Lei)", city: "东莞 / Dongguan", specialization: "金属打印与后处理", materials: "Metal (DMLS/SLM), Nylon (SLS)", printer: "BLT-S310 工业设备", price: 26 },
+    { email: "rahul.mehta@example.com", name: "राहुल मेहता (Rahul Mehta)", city: "पुणे / Pune", specialization: "इंजीनियरिंग पुर्ज़े और कम मात्रा में उत्पादन", materials: "ABS, ASA, Fiberglass (стекловолокно)", printer: "Creality K1 Max, Ender 3 S1", price: 6 },
+    { email: "ananya.iyer@example.com", name: "अनन्या अय्यर (Ananya Iyer)", city: "चेन्नई / Chennai", specialization: "आभूषण मॉडलिंग और कास्टिंग हेतु वैक्स प्रिंटिंग", materials: "Wax (для литья), Resin (SLA)", printer: "Formlabs Form 3, Phrozen Sonic", price: 15 },
+    { email: "miguel.santos@example.com", name: "Miguel Santos", city: "Valencia", specialization: "Prototipos funcionales y series cortas", materials: "PETG, ASA, PC (поликарбонат)", printer: "Bambu Lab P1S x3", price: 8 },
+    { email: "sofia.ramirez@example.com", name: "Sofía Ramírez", city: "Bogotá", specialization: "Joyería y piezas de alta definición", materials: "Resin (SLA), Wax (для литья)", printer: "Phrozen Sonic Mighty 8K", price: 13 },
+    { email: "julien.laurent@example.com", name: "Julien Laurent", city: "Toulouse", specialization: "Pièces techniques composites, aéronautique", materials: "Carbon Fiber, PC (поликарбонат), Nylon", printer: "Markforged Onyx, Raise3D E2", price: 18 },
+    { email: "elise.girard@example.com", name: "Élise Girard", city: "Bordeaux", specialization: "Maquettes d'architecture et scénographie", materials: "PLA, Resin (SLA), Wood Fill (наполнитель — дерево)", printer: "Prusa MK4, Photon Mono X", price: 10 },
+    { email: "khalid.mansour@example.com", name: "خالد منصور (Khalid Mansour)", city: "دبي / Dubai", specialization: "طباعة معمارية كبيرة الحجم ومجسمات", materials: "PLA, PETG, ASA", printer: "Modix Big-60, Creality K1 Max", price: 12 },
+    { email: "nour.saeed@example.com", name: "نور سعيد (Nour Saeed)", city: "القاهرة / Cairo", specialization: "نماذج دقيقة وقطع ديكور مخصصة", materials: "Resin (SLA), PLA, Metal Fill (наполнитель — металл)", printer: "Anycubic Photon M5, Bambu A1", price: 9 },
+  ];
+
+  const intlCustomers: Awaited<ReturnType<typeof upsertUser>>[] = [];
+  for (const person of INTL_CUSTOMERS) {
+    intlCustomers.push(await upsertUser({ ...person, passwordHash, role: "CUSTOMER" }));
+  }
+
+  const intlExecutors: Awaited<ReturnType<typeof upsertUser>>[] = [];
+  for (const person of INTL_EXECUTORS) {
+    const { price, ...rest } = person;
+    intlExecutors.push(
+      await upsertUser({ ...rest, passwordHash, role: "EXECUTOR", pricePerGram: price })
+    );
+  }
+
+  console.log(`Международные аккаунты: ${intlCustomers.length} заказчиков, ${intlExecutors.length} исполнителей.`);
+
   console.log(`Пользователи готовы: ${3 + bulkCustomers.length} заказчиков, ${3 + bulkExecutors.length} исполнителей, 2 дизайнера.`);
 
-  const allCustomers = [anna, oleg, marina, ...bulkCustomers];
-  const allExecutors = [dmitry, plastform, nastya, ...bulkExecutors];
+  const allCustomers = [anna, oleg, marina, ...bulkCustomers, ...intlCustomers];
+  const allExecutors = [dmitry, plastform, nastya, ...bulkExecutors, ...intlExecutors];
   const allBidders = [...allExecutors, viktoria, maxim];
 
   const now = Date.now();

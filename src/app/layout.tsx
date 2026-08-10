@@ -3,6 +3,8 @@ import Link from "next/link";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
+import { getI18n } from "@/lib/i18n";
+import { isRtl } from "@/lib/i18n/config";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -15,15 +17,18 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "PrintAu — 3D-печать на заказ",
+  title: "PrintAu — 3D printing marketplace",
   description:
-    "Портал для заказчиков и исполнителей 3D-печати: аукцион ставок, отзывы и рейтинги.",
+    "Marketplace for 3D printing customers, print providers and designers: bidding auctions, reviews and ratings.",
 };
 
-export default function RootLayout({ children }: LayoutProps<"/">) {
+export default async function RootLayout({ children }: LayoutProps<"/">) {
+  const { locale, t } = await getI18n();
+
   return (
     <html
-      lang="ru"
+      lang={locale}
+      dir={isRtl(locale) ? "rtl" : "ltr"}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">
@@ -36,58 +41,55 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
                 <div className="flex items-center gap-2 text-base font-bold text-white">
                   <span className="text-orange-500">⬡</span> PrintAu
                 </div>
-                <p className="mt-2 max-w-xs text-sm text-slate-500">
-                  Биржа 3D-печати и 3D-моделирования: аукцион ставок, отзывы и
-                  рейтинги для заказчиков, исполнителей и дизайнеров.
-                </p>
+                <p className="mt-2 max-w-xs text-sm text-slate-500">{t.footer.tagline}</p>
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Площадка
+                  {t.footer.platform}
                 </div>
                 <ul className="mt-3 space-y-2 text-sm">
                   <li>
                     <Link href="/auctions" className="hover:text-white">
-                      Открытые аукционы
+                      {t.footer.openAuctions}
                     </Link>
                   </li>
                   <li>
                     <Link href="/executors" className="hover:text-white">
-                      Каталог специалистов
+                      {t.footer.specialistsCatalog}
                     </Link>
                   </li>
                   <li>
                     <Link href="/auctions/new" className="hover:text-white">
-                      Разместить заказ
+                      {t.footer.placeOrder}
                     </Link>
                   </li>
                   <li>
                     <Link href="/materials" className="hover:text-white">
-                      Материалы и технологии
+                      {t.footer.materials}
                     </Link>
                   </li>
                 </ul>
               </div>
               <div>
                 <div className="text-xs font-semibold uppercase tracking-wide text-slate-500">
-                  Документы
+                  {t.footer.documents}
                 </div>
                 <ul className="mt-3 space-y-2 text-sm">
                   <li>
                     <Link href="/privacy" className="hover:text-white">
-                      Политика конфиденциальности
+                      {t.footer.privacy}
                     </Link>
                   </li>
                   <li>
                     <Link href="/offer" className="hover:text-white">
-                      Публичная оферта
+                      {t.footer.offer}
                     </Link>
                   </li>
                 </ul>
               </div>
             </div>
             <div className="mt-8 border-t border-slate-800 pt-6 text-xs text-slate-600">
-              PrintAu — учебный проект, демонстрация портала 3D-печати.
+              {t.footer.disclaimer}
             </div>
           </div>
         </footer>

@@ -3,8 +3,9 @@ import { getSpecialists } from "@/lib/users";
 import { RatingStars } from "@/components/RatingStars";
 import { AchievementBadge } from "@/components/AchievementBadge";
 import { MaterialList } from "@/components/MaterialList";
-import { MATERIALS, ROLE_LABELS, PROFILE_FIELD_LABELS, type Role } from "@/lib/constants";
+import { MATERIALS, PROFILE_FIELD_LABELS, type Role } from "@/lib/constants";
 import { formatMoney } from "@/lib/format";
+import { getDictionary } from "@/lib/i18n";
 
 function isBidderRole(value: string | undefined): value is "EXECUTOR" | "DESIGNER" {
   return value === "EXECUTOR" || value === "DESIGNER";
@@ -16,12 +17,6 @@ function isSortBy(value: string | undefined): value is "rating" | "reviews" | "c
 
 const RATING_OPTIONS = [4.5, 4, 3.5];
 const COMPLETED_OPTIONS = [5, 10, 20];
-const SORT_LABELS: Record<"rating" | "reviews" | "completedOrders", string> = {
-  rating: "По рейтингу",
-  reviews: "По количеству отзывов",
-  completedOrders: "По количеству заказов",
-};
-
 export default async function ExecutorsPage({
   searchParams,
 }: {
@@ -49,6 +44,14 @@ export default async function ExecutorsPage({
     sortBy,
   });
 
+  const dict = await getDictionary();
+  const t = dict.executors;
+  const SORT_LABELS: Record<"rating" | "reviews" | "completedOrders", string> = {
+    rating: t.sortByRating,
+    reviews: t.sortByReviews,
+    completedOrders: t.sortByOrders,
+  };
+
   const hasActiveFilters = Boolean(
     params.role || params.material || params.city || params.minRating || params.minCompleted
   );
@@ -57,11 +60,10 @@ export default async function ExecutorsPage({
     <div className="mx-auto max-w-6xl px-4 py-10">
       <div className="mb-6 flex flex-wrap items-end justify-between gap-3">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900">Исполнители и дизайнеры</h1>
+          <h1 className="text-2xl font-bold text-slate-900">{t.title}</h1>
           <p className="mt-1 text-sm text-slate-500">
-            {specialists.length}{" "}
-            {specialists.length === 1 ? "специалист" : specialists.length < 5 ? "специалиста" : "специалистов"}
-            {hasActiveFilters ? " по вашим фильтрам" : " на площадке"}
+            {specialists.length} {t.specialists}{" "}
+            {hasActiveFilters ? t.byFilters : t.onPlatform}
           </p>
         </div>
       </div>
@@ -69,32 +71,32 @@ export default async function ExecutorsPage({
       <form className="card mb-8 p-4" method="get">
         <div className="flex flex-wrap gap-3">
           <select name="role" defaultValue={params.role ?? ""} className="input max-w-xs">
-            <option value="">Все роли</option>
-            <option value="EXECUTOR">{ROLE_LABELS.EXECUTOR}</option>
-            <option value="DESIGNER">{ROLE_LABELS.DESIGNER}</option>
+            <option value="">{t.allRoles}</option>
+            <option value="EXECUTOR">{dict.roles.EXECUTOR}</option>
+            <option value="DESIGNER">{dict.roles.DESIGNER}</option>
           </select>
           <select name="material" defaultValue={params.material ?? ""} className="input max-w-xs">
-            <option value="">Любой материал</option>
+            <option value="">{dict.auctions.anyMaterial}</option>
             {MATERIALS.map((m) => (
               <option key={m} value={m}>
                 {m}
               </option>
             ))}
           </select>
-          <input name="city" defaultValue={params.city} placeholder="Город" className="input max-w-xs" />
+          <input name="city" defaultValue={params.city} placeholder={t.city} className="input max-w-xs" />
           <select name="minRating" defaultValue={params.minRating ?? ""} className="input max-w-xs">
-            <option value="">Любой рейтинг</option>
+            <option value="">{t.anyRating}</option>
             {RATING_OPTIONS.map((r) => (
               <option key={r} value={r}>
-                От {r.toFixed(1)} ★
+                {t.from} {r.toFixed(1)} ★
               </option>
             ))}
           </select>
           <select name="minCompleted" defaultValue={params.minCompleted ?? ""} className="input max-w-xs">
-            <option value="">Любое число заказов</option>
+            <option value="">{t.anyOrders}</option>
             {COMPLETED_OPTIONS.map((c) => (
               <option key={c} value={c}>
-                От {c} выполненных заказов
+                {t.from} {c} {t.completedOrders}
               </option>
             ))}
           </select>
@@ -106,11 +108,11 @@ export default async function ExecutorsPage({
             ))}
           </select>
           <button type="submit" className="btn-primary">
-            Найти
+            {t.find}
           </button>
           {hasActiveFilters && (
             <Link href="/executors" className="btn-secondary">
-              Сбросить
+              {t.reset}
             </Link>
           )}
         </div>
@@ -118,7 +120,7 @@ export default async function ExecutorsPage({
 
       {specialists.length === 0 ? (
         <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
-          Никого не нашлось по этим фильтрам. Попробуйте ослабить условия.
+          {t.nobodyFound}
         </p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -139,7 +141,7 @@ export default async function ExecutorsPage({
                       {person.city && <span className="shrink-0 text-xs text-slate-400">{person.city}</span>}
                     </div>
                     <span className="mt-0.5 inline-block w-fit rounded-full bg-slate-100 px-2 py-0.5 text-xs text-slate-600">
-                      {ROLE_LABELS[person.role as Role]}
+                      {dict.roles[person.role as Role]}
                     </span>
                   </div>
                 </div>
@@ -147,7 +149,7 @@ export default async function ExecutorsPage({
                   <RatingStars rating={person.ratingAvg} count={person.ratingCount} size="sm" />
                   <AchievementBadge reviewCount={person.ratingCount} />
                 </div>
-                <p className="mt-2 text-xs text-slate-400">{person.completedOrders} выполненных заказов</p>
+                <p className="mt-2 text-xs text-slate-400">{person.completedOrders} {t.completedOrders}</p>
                 {person.specialization && (
                   <p className="mt-2 line-clamp-2 text-sm text-slate-500">{person.specialization}</p>
                 )}
@@ -158,7 +160,7 @@ export default async function ExecutorsPage({
                 )}
                 {person.pricePerGram && (
                   <p className="mt-1 text-xs font-medium text-slate-500">
-                    От {formatMoney(person.pricePerGram)} {person.role === "DESIGNER" ? "/ час" : "/ г"}
+                    {t.from} {formatMoney(person.pricePerGram)} {person.role === "DESIGNER" ? dict.achievements.perHour : dict.achievements.perGram}
                   </p>
                 )}
               </Link>

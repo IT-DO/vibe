@@ -2,13 +2,13 @@
 
 import { signOut } from "next-auth/react";
 
-export function SignOutButton() {
+export function SignOutButton({ label }: { label: string }) {
   return (
     <button
       onClick={() => signOut({ callbackUrl: "/" })}
       className="text-sm font-medium text-slate-600 hover:text-slate-900"
     >
-      Выйти
+      {label}
     </button>
   );
 }

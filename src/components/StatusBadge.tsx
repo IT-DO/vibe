@@ -1,9 +1,5 @@
-import {
-  ORDER_STATUS_LABELS,
-  BID_STATUS_LABELS,
-  type OrderStatus,
-  type BidStatus,
-} from "@/lib/constants";
+import { type OrderStatus, type BidStatus } from "@/lib/constants";
+import { getDictionary } from "@/lib/i18n";
 
 const ORDER_STYLES: Record<OrderStatus, string> = {
   OPEN: "bg-emerald-50 text-emerald-700 ring-emerald-600/20",
@@ -20,22 +16,24 @@ const BID_STYLES: Record<BidStatus, string> = {
   WITHDRAWN: "bg-slate-100 text-slate-500 ring-slate-500/20",
 };
 
-export function OrderStatusBadge({ status }: { status: OrderStatus }) {
+export async function OrderStatusBadge({ status }: { status: OrderStatus }) {
+  const t = await getDictionary();
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${ORDER_STYLES[status]}`}
     >
-      {ORDER_STATUS_LABELS[status]}
+      {t.orderStatus[status]}
     </span>
   );
 }
 
-export function BidStatusBadge({ status }: { status: BidStatus }) {
+export async function BidStatusBadge({ status }: { status: BidStatus }) {
+  const t = await getDictionary();
   return (
     <span
       className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium ring-1 ring-inset ${BID_STYLES[status]}`}
     >
-      {BID_STATUS_LABELS[status]}
+      {t.bidStatus[status]}
     </span>
   );
 }

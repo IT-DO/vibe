@@ -4,6 +4,7 @@ import { formatMoney, formatRelative } from "@/lib/format";
 import { MATERIALS } from "@/lib/constants";
 import { MaterialTag } from "@/components/MaterialTag";
 import { MaterialsLegend } from "@/components/MaterialsLegend";
+import { getDictionary } from "@/lib/i18n";
 
 export default async function AuctionsPage({
   searchParams,
@@ -12,13 +13,15 @@ export default async function AuctionsPage({
 }) {
   const params = await searchParams;
   const orders = await getOpenOrders({ material: params.material, q: params.q });
+  const dict = await getDictionary();
+  const t = dict.auctions;
 
   return (
     <div className="mx-auto max-w-6xl px-4 py-10">
       <div className="mb-6 flex flex-wrap items-center justify-between gap-3">
-        <h1 className="text-2xl font-bold text-slate-900">Открытые аукционы</h1>
+        <h1 className="text-2xl font-bold text-slate-900">{t.title}</h1>
         <Link href="/auctions/new" className="btn-primary">
-          + Разместить заказ
+          {t.newOrder}
         </Link>
       </div>
 
@@ -26,11 +29,11 @@ export default async function AuctionsPage({
         <input
           name="q"
           defaultValue={params.q}
-          placeholder="Поиск по названию или описанию"
+          placeholder={t.searchPlaceholder}
           className="input max-w-xs"
         />
         <select name="material" defaultValue={params.material ?? ""} className="input max-w-xs">
-          <option value="">Любой материал</option>
+          <option value="">{t.anyMaterial}</option>
           {MATERIALS.map((m) => (
             <option key={m} value={m}>
               {m}
@@ -38,7 +41,7 @@ export default async function AuctionsPage({
           ))}
         </select>
         <button type="submit" className="btn-secondary">
-          Найти
+          {t.find}
         </button>
       </form>
 
@@ -46,7 +49,7 @@ export default async function AuctionsPage({
 
       {orders.length === 0 ? (
         <p className="rounded-xl border border-dashed border-slate-300 p-8 text-center text-slate-500">
-          Ничего не найдено. Попробуйте изменить фильтры.
+          {t.nothingFound}
         </p>
       ) : (
         <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -61,8 +64,8 @@ export default async function AuctionsPage({
                 </span>
               </div>
               <div className="mt-2 flex items-center justify-between text-xs text-slate-400">
-                <span>{order.bids.length} ставок · {order.customer.name}</span>
-                <span>Ставки {formatRelative(order.biddingEnds)}</span>
+                <span>{order.bids.length} {t.bidsCount} · {order.customer.name}</span>
+                <span>{t.bidsEnd} {formatRelative(order.biddingEnds)}</span>
               </div>
             </Link>
           ))}
