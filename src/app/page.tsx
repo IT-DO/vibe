@@ -42,6 +42,57 @@ export default async function Home() {
         </div>
       </section>
 
+      <section className="border-b border-slate-200 bg-white">
+        <div className="mx-auto max-w-6xl px-4 py-14">
+          <div className="mx-auto max-w-2xl text-center">
+            <h2 className="text-2xl font-bold text-slate-900 sm:text-3xl">Что такое PrintAukcion</h2>
+            <p className="mt-3 text-slate-600">
+              Площадка сводит вместе тех, кому нужна 3D-печать или 3D-модель, с теми, кто
+              может это сделать. Вместо того чтобы искать исполнителя по знакомым или
+              соцсетям, вы публикуете заказ — и получаете несколько предложений с ценой и
+              сроками, из которых выбираете сами. Аукцион ставок работает в вашу пользу:
+              специалисты конкурируют за заказ, а не диктуют единственную цену.
+            </p>
+          </div>
+
+          <div className="mt-10 grid gap-6 sm:grid-cols-3">
+            <RoleCard
+              title="Заказчикам"
+              tagline="Нужно напечатать или спроектировать деталь"
+              items={[
+                "Опишите задачу, укажите материал, бюджет и срок — размещение заказа бесплатно",
+                "Приложите файлы (STL, STEP, чертежи, референсы) прямо к заказу",
+                "Сравнивайте предложения по цене, срокам и рейтингу, а не вслепую",
+                "Следите за статусом заказа от приёма ставок до готового изделия",
+                "После выполнения оставьте отзыв — он поможет другим заказчикам",
+              ]}
+            />
+            <RoleCard
+              title="Исполнителям"
+              tagline="Печатаете на 3D-принтере и ищете заказы"
+              items={[
+                "Просматривайте открытые заказы и делайте ставки — цена, срок, сообщение",
+                "Показывайте специализацию, материалы, оборудование в профиле",
+                "Зарабатывайте репутацию: рейтинг и отзывы видны всем в каталоге специалистов",
+                "Прикладывайте фото/файлы результата прямо к заказу",
+                "Комиссия площадки — только 1% с выполненного заказа, не с каждой ставки",
+              ]}
+            />
+            <RoleCard
+              title="3D-дизайнерам"
+              tagline="Моделируете под печать или с нуля по эскизам"
+              items={[
+                "Заказчики без готового файла размещают заказы именно на разработку модели",
+                "Указывайте специализацию (инженерный CAD, стилизация, скульптинг) и форматы файлов",
+                "Ставки работают так же, как у исполнителей — цена и срок на разработку",
+                "Готовую модель прикладываете к заказу как файл результата",
+                "Тот же рейтинг и отзывы, что и у исполнителей печати — доверие строится одинаково",
+              ]}
+            />
+          </div>
+        </div>
+      </section>
+
       <section className="mx-auto max-w-6xl px-4 py-12">
         <div className="grid gap-6 sm:grid-cols-3">
           <HowItWorksStep
@@ -52,7 +103,7 @@ export default async function Home() {
           <HowItWorksStep
             step="2"
             title="Получите ставки"
-            text="Исполнители предлагают цену и срок. Сравнивайте по рейтингу и отзывам."
+            text="Исполнители и дизайнеры предлагают цену и срок. Сравнивайте по рейтингу и отзывам."
           />
           <HowItWorksStep
             step="3"
@@ -104,6 +155,23 @@ export default async function Home() {
           </div>
         )}
       </section>
+    </div>
+  );
+}
+
+function RoleCard({ title, tagline, items }: { title: string; tagline: string; items: string[] }) {
+  return (
+    <div className="rounded-xl border border-slate-200 bg-slate-50 p-6">
+      <h3 className="font-bold text-slate-900">{title}</h3>
+      <p className="mt-1 text-sm text-orange-600">{tagline}</p>
+      <ul className="mt-4 space-y-2 text-sm text-slate-600">
+        {items.map((item) => (
+          <li key={item} className="flex gap-2">
+            <span className="mt-0.5 text-orange-500">✓</span>
+            <span>{item}</span>
+          </li>
+        ))}
+      </ul>
     </div>
   );
 }
