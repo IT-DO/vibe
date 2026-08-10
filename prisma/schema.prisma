@@ -1,0 +1,93 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite has no native enum support, so these are enforced in the TS layer (see src/lib/constants.ts):
+// Role: CUSTOMER | EXECUTOR | ADMIN
+// OrderStatus: OPEN | AWARDED | IN_PROGRESS | COMPLETED | CANCELLED
+// BidStatus: PENDING | ACCEPTED | REJECTED | WITHDRAWN
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String
+  city         String?
+  bio          String?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+
+  ratingAvg   Float @default(0)
+  ratingCount Int   @default(0)
+
+  // только для EXECUTOR
+  specialization String? // напр. "FDM, SLA, миниатюры"
+  materials       String? // напр. "PLA, PETG, ABS, Resin"
+  printer         String? // модель принтера
+  pricePerGram    Float?
+  portfolio       String? // JSON-массив ссылок на изображения
+
+  ordersAsCustomer Order[]  @relation("CustomerOrders")
+  bids             Bid[]
+  reviewsWritten   Review[] @relation("ReviewAuthor")
+  reviewsReceived  Review[] @relation("ReviewTarget")
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  customer    User     @relation("CustomerOrders", fields: [customerId], references: [id])
+  customerId  String
+  title       String
+  description String
+  material    String
+  color       String?
+  quantity    Int      @default(1)
+  budgetMin   Int?
+  budgetMax   Int?
+  deadline    DateTime?
+  biddingEnds DateTime
+  status      String   @default("OPEN")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  winningBidId String? @unique
+
+  bids    Bid[]
+  reviews Review[]
+}
+
+model Bid {
+  id           String    @id @default(cuid())
+  order        Order     @relation(fields: [orderId], references: [id])
+  orderId      String
+  executor     User      @relation(fields: [executorId], references: [id])
+  executorId   String
+  price        Int
+  leadTimeDays Int
+  message      String?
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
+
+  @@unique([orderId, executorId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  order     Order    @relation(fields: [orderId], references: [id])
+  orderId   String
+  author    User     @relation("ReviewAuthor", fields: [authorId], references: [id])
+  authorId  String
+  target    User     @relation("ReviewTarget", fields: [targetId], references: [id])
+  targetId  String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@unique([orderId, authorId])
+}
