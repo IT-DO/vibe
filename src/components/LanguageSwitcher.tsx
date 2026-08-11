@@ -1,12 +1,31 @@
 "use client";
 
-import { useRef, useState, useEffect } from "react";
+import { useRef, useState, useEffect, useTransition } from "react";
 import { setLocaleAction } from "@/lib/actions/locale";
 import { LOCALES, LOCALE_META, type Locale } from "@/lib/i18n/config";
 
 export function LanguageSwitcher({ current, label }: { current: Locale; label: string }) {
   const [open, setOpen] = useState(false);
+  const [pending, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
+
+  // Экшен вызываем напрямую в transition, а не через <form> с onClick,
+  // закрывающим меню: закрытие размонтирует форму раньше, чем браузер успеет
+  // её отправить ("Form submission canceled because the form is not
+  // connected"), и язык молча не переключался. Здесь меню закрывается только
+  // после того, как серверный экшен отработал.
+  function choose(locale: Locale) {
+    if (locale === current) {
+      setOpen(false);
+      return;
+    }
+    const formData = new FormData();
+    formData.set("locale", locale);
+    startTransition(async () => {
+      await setLocaleAction(formData);
+      setOpen(false);
+    });
+  }
 
   // Закрываем выпадающий список по клику вне его и по Escape — иначе он
   // остаётся висеть поверх страницы после перехода фокуса.
@@ -49,21 +68,21 @@ export function LanguageSwitcher({ current, label }: { current: Locale; label: s
           className="absolute end-0 z-40 mt-2 w-44 overflow-hidden rounded-lg border border-slate-200 bg-white py-1 shadow-lg"
         >
           {LOCALES.map((locale) => (
-            <form key={locale} action={setLocaleAction}>
-              <input type="hidden" name="locale" value={locale} />
-              <button
-                type="submit"
-                role="menuitem"
-                onClick={() => setOpen(false)}
-                className={`flex w-full items-center gap-2 px-3 py-2 text-start text-sm transition hover:bg-slate-50 ${
-                  locale === current ? "font-semibold text-orange-700" : "text-slate-700"
-                }`}
-              >
-                <span aria-hidden>{LOCALE_META[locale].flag}</span>
-                {LOCALE_META[locale].label}
-                {locale === current && <span className="ms-auto text-xs text-orange-600">✓</span>}
-              </button>
-            </form>
+            <button
+              key={locale}
+              type="button"
+              role="menuitem"
+              lang={locale}
+              disabled={pending}
+              onClick={() => choose(locale)}
+              className={`flex w-full items-center gap-2 px-3 py-2 text-start text-sm transition hover:bg-slate-50 disabled:opacity-60 ${
+                locale === current ? "font-semibold text-orange-700" : "text-slate-700"
+              }`}
+            >
+              <span aria-hidden>{LOCALE_META[locale].flag}</span>
+              {LOCALE_META[locale].label}
+              {locale === current && <span className="ms-auto text-xs text-orange-600">✓</span>}
+            </button>
           ))}
         </div>
       )}
