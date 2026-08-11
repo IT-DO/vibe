@@ -2,6 +2,7 @@ import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { getOwnProfile } from "@/lib/users";
 import { EditProfileForm } from "./EditProfileForm";
+import { ChangePasswordForm } from "./ChangePasswordForm";
 
 import type { Metadata } from "next";
 import { buildMetadata } from "@/lib/seo";
@@ -35,6 +36,11 @@ export default async function EditProfilePage() {
       <h1 className="text-2xl font-bold text-slate-900">Редактирование профиля</h1>
       <div className="card mt-6">
         <EditProfileForm user={user} />
+      </div>
+
+      <h2 className="mt-10 text-lg font-bold text-slate-900">Смена пароля</h2>
+      <div className="card mt-4">
+        <ChangePasswordForm />
       </div>
     </div>
   );
