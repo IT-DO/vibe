@@ -30,13 +30,40 @@ type YooKassaPayment = {
 // idempotenceKey должен быть уникальным для конкретной попытки оплаты — используем
 // id нашей записи Payment, чтобы повторные клики/ретраи не создавали дублей на
 // стороне ЮKassa.
+//
+// customerEmail обязателен: по 54-ФЗ при приёме денег от физлица нужно выдать
+// фискальный чек, а ЮKassa отправляет его именно на этот адрес. Своя касса при
+// этом не нужна — блок receipt ниже включает «Чеки от ЮKassa», услугу надо
+// один раз подключить в личном кабинете магазина.
 export async function createYooKassaPayment(params: {
   idempotenceKey: string;
   amountRub: number;
   description: string;
   returnUrl: string;
   metadata: Record<string, string>;
+  customerEmail: string;
 }): Promise<YooKassaPayment> {
+  const settings = await getSettings();
+  const amount = { value: params.amountRub.toFixed(2), currency: "RUB" };
+
+  const receipt = {
+    customer: { email: params.customerEmail },
+    tax_system_code: settings.taxSystemCode,
+    items: [
+      {
+        // Наименование позиции в чеке ограничено 128 символами.
+        description: params.description.slice(0, 128),
+        quantity: "1.00",
+        amount,
+        vat_code: settings.vatCode,
+        // Услуга, оплаченная целиком в момент расчёта: и подписка, и комиссия
+        // площадки — это плата за уже оказанный/оказываемый доступ к сервису.
+        payment_mode: "full_payment",
+        payment_subject: "service",
+      },
+    ],
+  };
+
   const res = await fetch(`${API_BASE}/payments`, {
     method: "POST",
     headers: {
@@ -45,11 +72,12 @@ export async function createYooKassaPayment(params: {
       "Idempotence-Key": params.idempotenceKey,
     },
     body: JSON.stringify({
-      amount: { value: params.amountRub.toFixed(2), currency: "RUB" },
+      amount,
       capture: true,
       confirmation: { type: "redirect", return_url: params.returnUrl },
       description: params.description,
       metadata: params.metadata,
+      receipt,
     }),
   });
 

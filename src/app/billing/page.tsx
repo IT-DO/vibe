@@ -75,6 +75,14 @@ export default async function BillingPage({
         </p>
       )}
 
+      {!demoMode && (
+        <p className="mt-4 rounded-lg bg-slate-50 px-3 py-2 text-sm text-slate-600">
+          Оплата принимается российскими банковскими картами и через СБП. Карты,
+          выпущенные за пределами России, платёжный провайдер не принимает. После
+          оплаты на вашу почту придёт фискальный чек.
+        </p>
+      )}
+
       <section className="card mt-6">
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>

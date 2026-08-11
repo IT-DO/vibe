@@ -18,6 +18,14 @@ export async function startSubscriptionPaymentAction(): Promise<ActionState> {
   const subscription = await getOrCreateSubscription(session.user.id);
   const settings = await getSettings();
 
+  // Email нужен для фискального чека (54-ФЗ). Берём из базы, а не из сессии:
+  // в JWT он мог устареть, если пользователь менял почту.
+  const payer = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true },
+  });
+  if (!payer) return { error: "Пользователь не найден" };
+
   const payment = await prisma.payment.create({
     data: {
       type: "SUBSCRIPTION",
@@ -43,9 +51,10 @@ export async function startSubscriptionPaymentAction(): Promise<ActionState> {
     const ykPayment = await createYooKassaPayment({
       idempotenceKey: payment.id,
       amountRub: settings.subscriptionPriceRub,
-      description: "Подписка PrintAu, 30 дней",
+      description: `Подписка PrintAu, ${settings.subscriptionPeriodDays} дней`,
       returnUrl: `${origin}/billing`,
       metadata: { paymentId: payment.id },
+      customerEmail: payer.email,
     });
     await prisma.payment.update({
       where: { id: payment.id },
@@ -70,6 +79,12 @@ export async function payCommissionAction(paymentId: string): Promise<ActionStat
   if (payment.payerId !== session.user.id) return { error: "Недостаточно прав" };
   if (payment.status !== "PENDING") return { error: "Уже обработано" };
 
+  const payer = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true },
+  });
+  if (!payer) return { error: "Пользователь не найден" };
+
   if (!(await isYooKassaConfigured())) {
     await finalizePaidPayment(payment.id, "manual");
     revalidatePath("/billing");
@@ -85,6 +100,7 @@ export async function payCommissionAction(paymentId: string): Promise<ActionStat
       description: `Комиссия площадки по заказу ${payment.orderId ?? ""}`.trim(),
       returnUrl: `${origin}/billing`,
       metadata: { paymentId: payment.id },
+      customerEmail: payer.email,
     });
     await prisma.payment.update({
       where: { id: payment.id },

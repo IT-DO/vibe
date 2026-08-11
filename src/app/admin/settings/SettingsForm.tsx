@@ -4,6 +4,7 @@ import { useActionState } from "react";
 import { updateSettingsAction, generateAlertTokenAction } from "@/lib/actions/admin";
 import type { ActionState } from "@/lib/actions/auth";
 import type { AdminSettingsView } from "@/lib/settings";
+import { TAX_SYSTEM_OPTIONS, VAT_OPTIONS } from "@/lib/constants";
 
 const initialState: ActionState = {};
 
@@ -87,6 +88,35 @@ export function SettingsForm({ initial }: { initial: AdminSettingsView }) {
           <p className="mt-1 text-xs text-slate-400">
             Без обоих полей оплата подписки/комиссии работает в демо-режиме (платёж
             отмечается оплаченным сразу, без реального провайдера).
+          </p>
+        </Section>
+
+        <Section title="Фискальные чеки (54-ФЗ)">
+          <div className="grid grid-cols-2 gap-4">
+            <Field label="Система налогообложения">
+              <select name="taxSystemCode" defaultValue={initial.taxSystemCode} className="input">
+                {TAX_SYSTEM_OPTIONS.map((o) => (
+                  <option key={o.code} value={o.code}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+            <Field label="Ставка НДС в чеке">
+              <select name="vatCode" defaultValue={initial.vatCode} className="input">
+                {VAT_OPTIONS.map((o) => (
+                  <option key={o.code} value={o.code}>
+                    {o.label}
+                  </option>
+                ))}
+              </select>
+            </Field>
+          </div>
+          <p className="mt-1 text-xs text-slate-400">
+            При приёме денег от физлица нужно выдать фискальный чек. Своя касса не
+            требуется: чек пробивает ЮKassa — подключите услугу «Чеки от ЮKassa» в
+            личном кабинете магазина. Для ИП на УСН обычно «УСН &laquo;Доходы&raquo;» и
+            «Без НДС». Чек уходит на email плательщика.
           </p>
         </Section>
 

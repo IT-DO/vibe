@@ -202,5 +202,10 @@ model PlatformSettings {
   alertEmail         String?
   internalAlertToken String?
 
+  // Фискализация чеков по 54-ФЗ (см. src/lib/constants.ts): код системы
+  // налогообложения и ставка НДС, которые ЮKassa проставляет в чеке.
+  taxSystemCode Int?
+  vatCode       Int?
+
   updatedAt DateTime @updatedAt
 }

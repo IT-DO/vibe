@@ -6,6 +6,7 @@ import { z } from "zod";
 import { requireAdmin } from "@/lib/admin";
 import { updateSettings, type SettingsPatch } from "@/lib/settings";
 import type { ActionState } from "@/lib/actions/auth";
+import { TAX_SYSTEM_OPTIONS, VAT_OPTIONS } from "@/lib/constants";
 
 const SECRET_FIELDS = ["smtpPass", "yookassaSecretKey", "internalAlertToken"] as const;
 const OPTIONAL_STRING_FIELDS = ["appUrl", "smtpHost", "smtpUser", "mailFrom", "yookassaShopId", "alertEmail"] as const;
@@ -15,6 +16,10 @@ const settingsSchema = z.object({
   subscriptionPeriodDays: z.coerce.number().int().min(1).max(3650),
   commissionRatePercent: z.coerce.number().min(0).max(100),
   smtpPort: z.coerce.number().int().min(1).max(65535),
+  // Коды приходят из <select> с фиксированным набором значений, но валидируем
+  // всё равно — форму можно отправить и в обход интерфейса.
+  taxSystemCode: z.coerce.number().int().refine((v) => TAX_SYSTEM_OPTIONS.some((o) => o.code === v), "Некорректная система налогообложения"),
+  vatCode: z.coerce.number().int().refine((v) => VAT_OPTIONS.some((o) => o.code === v), "Некорректная ставка НДС"),
 });
 
 // Значения приходят строками из FormData — пустая строка для необязательного
@@ -35,6 +40,8 @@ export async function updateSettingsAction(
     subscriptionPeriodDays: formData.get("subscriptionPeriodDays"),
     commissionRatePercent: formData.get("commissionRatePercent"),
     smtpPort: formData.get("smtpPort"),
+    taxSystemCode: formData.get("taxSystemCode"),
+    vatCode: formData.get("vatCode"),
   });
   if (!parsed.success) {
     return { error: "Проверьте числовые поля — введены некорректные значения." };
@@ -45,6 +52,8 @@ export async function updateSettingsAction(
     subscriptionPeriodDays: parsed.data.subscriptionPeriodDays,
     commissionRatePercent: parsed.data.commissionRatePercent,
     smtpPort: parsed.data.smtpPort,
+    taxSystemCode: parsed.data.taxSystemCode,
+    vatCode: parsed.data.vatCode,
     subscriptionEnforced: formData.get("subscriptionEnforced") === "on",
   };
 

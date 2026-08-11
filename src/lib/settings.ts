@@ -4,6 +4,8 @@ import {
   SUBSCRIPTION_PRICE_RUB,
   SUBSCRIPTION_PERIOD_DAYS,
   COMMISSION_RATE,
+  DEFAULT_TAX_SYSTEM_CODE,
+  DEFAULT_VAT_CODE,
 } from "@/lib/constants";
 
 const SETTINGS_ID = "singleton";
@@ -23,6 +25,8 @@ export type ResolvedSettings = {
   yookassaSecretKey: string | null;
   alertEmail: string | null;
   internalAlertToken: string | null;
+  taxSystemCode: number;
+  vatCode: number;
 };
 
 // Значения из БД (админка) переопределяют .env, а .env переопределяет
@@ -60,6 +64,8 @@ export async function getSettings(): Promise<ResolvedSettings> {
     yookassaSecretKey: row?.yookassaSecretKey || process.env.YOOKASSA_SECRET_KEY || null,
     alertEmail: row?.alertEmail || process.env.ALERT_EMAIL || null,
     internalAlertToken: row?.internalAlertToken || process.env.INTERNAL_ALERT_TOKEN || null,
+    taxSystemCode: row?.taxSystemCode ?? DEFAULT_TAX_SYSTEM_CODE,
+    vatCode: row?.vatCode ?? DEFAULT_VAT_CODE,
   };
 
   cache = { value, expiresAt: Date.now() + CACHE_TTL_MS };
@@ -84,6 +90,8 @@ export type SettingsPatch = Partial<{
   yookassaSecretKey: string | null;
   alertEmail: string | null;
   internalAlertToken: string | null;
+  taxSystemCode: number | null;
+  vatCode: number | null;
 }>;
 
 export async function updateSettings(patch: SettingsPatch): Promise<void> {
@@ -117,6 +125,8 @@ export type AdminSettingsView = {
   mailFrom: string;
   yookassaShopId: string;
   alertEmail: string;
+  taxSystemCode: number;
+  vatCode: number;
   smtpPass: { isSet: boolean; fromEnv: boolean };
   yookassaSecretKey: { isSet: boolean; fromEnv: boolean };
   internalAlertToken: { isSet: boolean; fromEnv: boolean };
@@ -139,6 +149,8 @@ export async function getAdminSettingsView(): Promise<AdminSettingsView> {
     mailFrom: resolved.mailFrom ?? "",
     yookassaShopId: resolved.yookassaShopId ?? "",
     alertEmail: resolved.alertEmail ?? "",
+    taxSystemCode: resolved.taxSystemCode,
+    vatCode: resolved.vatCode,
     smtpPass: {
       isSet: Boolean(resolved.smtpPass),
       fromEnv: !row?.smtpPass && Boolean(process.env.SMTP_PASS),

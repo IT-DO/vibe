@@ -204,3 +204,33 @@ export const PROFILE_FIELD_LABELS: Record<
     price: "Цена, ₽ / час",
   },
 };
+
+// --- Фискализация чеков (54-ФЗ) ---
+// При приёме денег от физлица ИП/ООО обязаны отправить покупателю фискальный
+// чек. Своя касса не нужна: ЮKassa пробивает чек сама, если передать в платёж
+// состав заказа, email плательщика и коды ниже. Значения кодов — из
+// документации ЮKassa (https://yookassa.ru/developers/payment-acceptance/receipts).
+
+// Код системы налогообложения (tax_system_code в чеке ЮKassa).
+export const TAX_SYSTEM_OPTIONS = [
+  { code: 1, label: "ОСН — общая" },
+  { code: 2, label: "УСН «Доходы»" },
+  { code: 3, label: "УСН «Доходы минус расходы»" },
+  { code: 5, label: "ЕСХН" },
+  { code: 6, label: "Патент (ПСН)" },
+] as const;
+
+// Ставка НДС в позиции чека (vat_code). У ИП на УСН — «без НДС».
+export const VAT_OPTIONS = [
+  { code: 1, label: "Без НДС" },
+  { code: 2, label: "НДС 0%" },
+  { code: 3, label: "НДС 10%" },
+  { code: 4, label: "НДС 20%" },
+  { code: 5, label: "НДС 10/110" },
+  { code: 6, label: "НДС 20/120" },
+] as const;
+
+// Значения по умолчанию — самый частый случай для небольшой площадки:
+// ИП на УСН «Доходы», работающий без НДС.
+export const DEFAULT_TAX_SYSTEM_CODE = 2;
+export const DEFAULT_VAT_CODE = 1;
