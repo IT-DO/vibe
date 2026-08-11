@@ -1,0 +1,211 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+// SQLite has no native enum support, so these are enforced in the TS layer (see src/lib/constants.ts):
+// Role: CUSTOMER | EXECUTOR | DESIGNER | ADMIN
+// OrderStatus: OPEN | AWARDED | IN_PROGRESS | COMPLETED | CANCELLED
+// BidStatus: PENDING | ACCEPTED | REJECTED | WITHDRAWN
+// SubscriptionStatus: INACTIVE | ACTIVE | PAST_DUE | CANCELLED
+// PaymentType: SUBSCRIPTION | COMMISSION
+// PaymentStatus: PENDING | PAID | FAILED | CANCELLED
+
+model User {
+  id           String   @id @default(cuid())
+  email        String   @unique
+  passwordHash String
+  name         String
+  role         String
+  city         String?
+  bio          String?
+  avatarUrl    String?
+  createdAt    DateTime @default(now())
+
+  ratingAvg   Float @default(0)
+  ratingCount Int   @default(0)
+
+  // только для EXECUTOR / DESIGNER (лейблы полей зависят от роли, см. src/lib/constants.ts)
+  specialization String? // напр. "FDM, SLA, миниатюры" / "Инженерный CAD, топология"
+  materials       String? // материалы печати ИЛИ форматы файлов (STL, STEP, OBJ...)
+  printer         String? // модель принтера ИЛИ используемое ПО (Fusion 360, Blender...)
+  pricePerGram    Float?
+  portfolio       String? // JSON-массив ссылок на изображения
+
+  ordersAsCustomer Order[]      @relation("CustomerOrders")
+  bids             Bid[]
+  reviewsWritten   Review[]     @relation("ReviewAuthor")
+  reviewsReceived  Review[]     @relation("ReviewTarget")
+  attachments      Attachment[]
+  subscription     Subscription?
+  payments         Payment[]
+  passwordResetTokens PasswordResetToken[]
+}
+
+model Order {
+  id          String   @id @default(cuid())
+  customer    User     @relation("CustomerOrders", fields: [customerId], references: [id])
+  customerId  String
+  title       String
+  description String
+  material    String
+  color       String?
+  quantity    Int      @default(1)
+  budgetMin   Int?
+  budgetMax   Int?
+  deadline    DateTime?
+  biddingEnds DateTime
+  status      String   @default("OPEN")
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  winningBidId String? @unique
+
+  bids        Bid[]
+  reviews     Review[]
+  attachments Attachment[]
+  payments    Payment[]
+}
+
+model Bid {
+  id           String    @id @default(cuid())
+  order        Order     @relation(fields: [orderId], references: [id])
+  orderId      String
+  executor     User      @relation(fields: [executorId], references: [id])
+  executorId   String
+  price        Int
+  leadTimeDays Int
+  message      String?
+  status       String   @default("PENDING")
+  createdAt    DateTime @default(now())
+
+  @@unique([orderId, executorId])
+}
+
+model Review {
+  id        String   @id @default(cuid())
+  order     Order    @relation(fields: [orderId], references: [id])
+  orderId   String
+  author    User     @relation("ReviewAuthor", fields: [authorId], references: [id])
+  authorId  String
+  target    User     @relation("ReviewTarget", fields: [targetId], references: [id])
+  targetId  String
+  rating    Int
+  comment   String?
+  createdAt DateTime @default(now())
+
+  @@unique([orderId, authorId])
+}
+
+// storedName — случайное сгенерированное имя файла на диске (никогда не берётся из
+// пользовательского ввода, чтобы исключить directory traversal). fileName — исходное
+// имя файла, используется только для отображения и заголовка Content-Disposition.
+model Attachment {
+  id         String   @id @default(cuid())
+  order      Order    @relation(fields: [orderId], references: [id])
+  orderId    String
+  uploader   User     @relation(fields: [uploaderId], references: [id])
+  uploaderId String
+  fileName   String
+  storedName String
+  mimeType   String
+  size       Int
+  createdAt  DateTime @default(now())
+
+  @@index([orderId])
+}
+
+// Подписка площадки (300₽/мес, см. src/lib/billing.ts). Строка на пользователя;
+// создаётся лениво при первом обращении к разделу «Оплата».
+model Subscription {
+  id               String    @id @default(cuid())
+  user             User      @relation(fields: [userId], references: [id])
+  userId           String    @unique
+  status           String    @default("INACTIVE")
+  currentPeriodEnd DateTime?
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  payments Payment[]
+}
+
+// Единая таблица для двух видов начислений: ежемесячная подписка (payerId —
+// сам подписчик) и комиссия площадки 1% с завершённого заказа (payerId —
+// исполнитель/дизайнер, выигравший заказ). providerPaymentId — id платежа на
+// стороне платёжного провайдера (ЮKassa и т.п.), используется для сверки по
+// вебхуку, см. src/lib/billing.ts и src/app/api/payments/yookassa/webhook.
+model Payment {
+  id                String        @id @default(cuid())
+  type              String
+  status            String        @default("PENDING")
+  amount            Int
+  subscription      Subscription? @relation(fields: [subscriptionId], references: [id])
+  subscriptionId    String?
+  order             Order?        @relation(fields: [orderId], references: [id])
+  orderId           String?
+  payer             User          @relation(fields: [payerId], references: [id])
+  payerId           String
+  provider          String?
+  providerPaymentId String?       @unique
+  createdAt         DateTime      @default(now())
+  paidAt            DateTime?
+
+  @@index([payerId])
+  @@index([orderId])
+}
+
+// Хранится только sha256-хэш токена, никогда сам токен — так же, как пароли
+// хранятся в виде bcrypt-хэша. Ссылка на сброс пароля содержит сырой токен,
+// сервер хэширует его и ищет совпадение по tokenHash. Одноразовый (usedAt) и
+// с коротким сроком жизни (expiresAt), см. src/lib/actions/password-reset.ts.
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  user      User      @relation(fields: [userId], references: [id])
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+
+  @@index([userId])
+}
+
+// Единственная строка (id всегда "singleton") с параметрами площадки,
+// которые иначе задавались бы только через переменные окружения. Любое
+// поле null означает "используем .env/значение по умолчанию" — см.
+// src/lib/settings.ts. Секреты, критичные для старта процесса или боевой
+// безопасности (DATABASE_URL, AUTH_SECRET, UPLOAD_DIR), сюда осознанно НЕ
+// вынесены — их смена требует передеплоя, а не формы в админке.
+model PlatformSettings {
+  id String @id @default("singleton")
+
+  subscriptionPriceRub   Int?
+  subscriptionPeriodDays Int?
+  commissionRatePercent  Float?
+  subscriptionEnforced   Boolean?
+
+  appUrl String?
+
+  smtpHost String?
+  smtpPort Int?
+  smtpUser String?
+  smtpPass String?
+  mailFrom String?
+
+  yookassaShopId    String?
+  yookassaSecretKey String?
+
+  alertEmail         String?
+  internalAlertToken String?
+
+  // Фискализация чеков по 54-ФЗ (см. src/lib/constants.ts): код системы
+  // налогообложения и ставка НДС, которые ЮKassa проставляет в чеке.
+  taxSystemCode Int?
+  vatCode       Int?
+
+  updatedAt DateTime @updatedAt
+}

@@ -1,0 +1,117 @@
+"use server";
+
+import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
+import { auth } from "@/auth";
+import { prisma } from "@/lib/prisma";
+import { getOrCreateSubscription, finalizePaidPayment } from "@/lib/billing";
+import { isYooKassaConfigured, createYooKassaPayment } from "@/lib/payments/yookassa";
+import { getSettings } from "@/lib/settings";
+import { getAppOrigin } from "@/lib/origin";
+import type { ActionState } from "@/lib/actions/auth";
+import { localeRedirect } from "@/lib/i18n/redirect";
+
+export async function startSubscriptionPaymentAction(): Promise<ActionState> {
+  const session = await auth();
+  if (!session?.user) return { error: "Требуется вход" };
+
+  const subscription = await getOrCreateSubscription(session.user.id);
+  const settings = await getSettings();
+
+  // Email нужен для фискального чека (54-ФЗ). Берём из базы, а не из сессии:
+  // в JWT он мог устареть, если пользователь менял почту.
+  const payer = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true },
+  });
+  if (!payer) return { error: "Пользователь не найден" };
+
+  const payment = await prisma.payment.create({
+    data: {
+      type: "SUBSCRIPTION",
+      amount: settings.subscriptionPriceRub,
+      payerId: session.user.id,
+      subscriptionId: subscription.id,
+      status: "PENDING",
+    },
+  });
+
+  if (!(await isYooKassaConfigured())) {
+    // Нет ключей платёжного провайдера — рабочий демо-режим: платёж сразу
+    // считается оплаченным, чтобы можно было проверить весь сценарий до
+    // подключения реальной оплаты. См. /privacy и README.
+    await finalizePaidPayment(payment.id, "manual");
+    revalidatePath("/billing");
+    return await localeRedirect("/billing?demo=1");
+  }
+
+  const origin = await getAppOrigin();
+  let confirmationUrl: string | undefined;
+  try {
+    const ykPayment = await createYooKassaPayment({
+      idempotenceKey: payment.id,
+      amountRub: settings.subscriptionPriceRub,
+      description: `Подписка PrintAu, ${settings.subscriptionPeriodDays} дней`,
+      returnUrl: `${origin}/billing`,
+      metadata: { paymentId: payment.id },
+      customerEmail: payer.email,
+    });
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { provider: "yookassa", providerPaymentId: ykPayment.id },
+    });
+    confirmationUrl = ykPayment.confirmation?.confirmation_url;
+  } catch (err) {
+    console.error("YooKassa createPayment failed", err);
+    return { error: "Не удалось начать оплату. Попробуйте позже." };
+  }
+
+  if (!confirmationUrl) return { error: "Платёжный провайдер не вернул ссылку на оплату" };
+  redirect(confirmationUrl);
+}
+
+export async function payCommissionAction(paymentId: string): Promise<ActionState> {
+  const session = await auth();
+  if (!session?.user) return { error: "Требуется вход" };
+
+  const payment = await prisma.payment.findUnique({ where: { id: paymentId } });
+  if (!payment || payment.type !== "COMMISSION") return { error: "Начисление не найдено" };
+  if (payment.payerId !== session.user.id) return { error: "Недостаточно прав" };
+  if (payment.status !== "PENDING") return { error: "Уже обработано" };
+
+  const payer = await prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { email: true },
+  });
+  if (!payer) return { error: "Пользователь не найден" };
+
+  if (!(await isYooKassaConfigured())) {
+    await finalizePaidPayment(payment.id, "manual");
+    revalidatePath("/billing");
+    return await localeRedirect("/billing?demo=1");
+  }
+
+  const origin = await getAppOrigin();
+  let confirmationUrl: string | undefined;
+  try {
+    const ykPayment = await createYooKassaPayment({
+      idempotenceKey: payment.id,
+      amountRub: payment.amount,
+      description: `Комиссия площадки по заказу ${payment.orderId ?? ""}`.trim(),
+      returnUrl: `${origin}/billing`,
+      metadata: { paymentId: payment.id },
+      customerEmail: payer.email,
+    });
+    await prisma.payment.update({
+      where: { id: payment.id },
+      data: { provider: "yookassa", providerPaymentId: ykPayment.id },
+    });
+    confirmationUrl = ykPayment.confirmation?.confirmation_url;
+  } catch (err) {
+    console.error("YooKassa createPayment failed", err);
+    return { error: "Не удалось начать оплату. Попробуйте позже." };
+  }
+
+  if (!confirmationUrl) return { error: "Платёжный провайдер не вернул ссылку на оплату" };
+  redirect(confirmationUrl);
+}
