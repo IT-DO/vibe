@@ -1,6 +1,11 @@
 import type { MetadataRoute } from "next";
 import { getSiteUrl } from "@/lib/seo";
 
+// Адрес сайта берётся из настроек площадки (то есть из базы), поэтому файл
+// тоже не должен пререндериться на сборке — иначе сборка падает без
+// DATABASE_URL, как и было при первом деплое.
+export const dynamic = "force-dynamic";
+
 export default async function robots(): Promise<MetadataRoute.Robots> {
   const siteUrl = await getSiteUrl();
 
