@@ -2,9 +2,21 @@ import { requireAdmin } from "@/lib/admin";
 import { getAdminSettingsView } from "@/lib/settings";
 import { SettingsForm } from "./SettingsForm";
 
-export const metadata = {
-  title: "Настройки площадки — PrintAu",
-};
+import type { Metadata } from "next";
+import { buildMetadata } from "@/lib/seo";
+import { getLocale } from "@/lib/i18n";
+
+// Личный/служебный раздел — из индекса исключён явно (плюс закрыт в robots.txt).
+export async function generateMetadata(): Promise<Metadata> {
+  return buildMetadata({
+    locale: await getLocale(),
+    path: "/admin/settings",
+    title: "PrintAu",
+    description: "",
+    noindex: true,
+  });
+}
+
 
 export default async function AdminSettingsPage() {
   await requireAdmin();

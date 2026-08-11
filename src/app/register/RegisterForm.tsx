@@ -1,7 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
-import Link from "next/link";
+import { LocaleLink as Link } from "@/components/LocaleLink";
 import { registerAction, type ActionState } from "@/lib/actions/auth";
 import type { Dictionary } from "@/lib/i18n/locales/ru";
 

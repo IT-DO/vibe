@@ -1,10 +1,19 @@
-import Link from "next/link";
+import { LocaleLink as Link } from "@/components/LocaleLink";
 import { getOpenOrders } from "@/lib/orders";
 import { formatMoney, formatRelative } from "@/lib/format";
 import { MATERIALS } from "@/lib/constants";
 import { MaterialTag } from "@/components/MaterialTag";
 import { MaterialsLegend } from "@/components/MaterialsLegend";
 import { getDictionary } from "@/lib/i18n";
+
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+import { getLocale } from "@/lib/i18n";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata(await getLocale(), "auctions", "/auctions");
+}
+
 
 export default async function AuctionsPage({
   searchParams,

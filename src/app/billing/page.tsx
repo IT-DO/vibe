@@ -1,16 +1,33 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
+import { LocaleLink as Link } from "@/components/LocaleLink";
 import { auth } from "@/auth";
 import { getBillingSummary } from "@/lib/billing";
 import { startSubscriptionPaymentAction, payCommissionAction } from "@/lib/actions/billing";
 import { isYooKassaConfigured } from "@/lib/payments/yookassa";
 import { formatMoney, formatDate } from "@/lib/format";
 import {
+
   SUBSCRIPTION_STATUS_LABELS,
   PAYMENT_STATUS_LABELS,
   type SubscriptionStatus,
   type PaymentStatus,
 } from "@/lib/constants";
+
+import type { Metadata } from "next";
+import { buildMetadata } from "@/lib/seo";
+import { getLocale } from "@/lib/i18n";
+import { localeRedirect } from "@/lib/i18n/redirect";
+
+// Личный/служебный раздел — из индекса исключён явно (плюс закрыт в robots.txt).
+export async function generateMetadata(): Promise<Metadata> {
+  return buildMetadata({
+    locale: await getLocale(),
+    path: "/billing",
+    title: "PrintAu",
+    description: "",
+    noindex: true,
+  });
+}
+
 
 export default async function BillingPage({
   searchParams,
@@ -18,7 +35,7 @@ export default async function BillingPage({
   searchParams: Promise<{ demo?: string }>;
 }) {
   const session = await auth();
-  if (!session?.user) redirect("/login");
+  if (!session?.user) return await localeRedirect("/login");
 
   const [{ demo }, summary] = await Promise.all([searchParams, getBillingSummary(session.user.id)]);
   const demoMode = !(await isYooKassaConfigured());

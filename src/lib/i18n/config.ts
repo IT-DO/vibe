@@ -1,12 +1,18 @@
-// Локаль хранится в куке, а не в сегменте URL — так не нужно переписывать все
-// маршруты и ссылки в приложении, а серверные компоненты читают её напрямую
-// через cookies(). Для SEO-критичного продакшена правильнее /[locale]/...,
-// но для этой площадки простота важнее.
+// Локаль живёт в первом сегменте URL (/en/auctions, /zh/auctions) — это
+// обязательное условие для международного SEO: без отдельного адреса на язык
+// поисковик видит один URL с меняющимся содержимым и не может показать
+// пользователю его языковую версию. Кука остаётся только как память о выборе
+// пользователя для редиректа с корня, но источник правды — путь.
 export const LOCALES = ["ru", "en", "zh", "hi", "es", "fr", "ar"] as const;
 export type Locale = (typeof LOCALES)[number];
 
 export const DEFAULT_LOCALE: Locale = "ru";
 export const LOCALE_COOKIE = "locale";
+
+// Заголовок, которым middleware передаёт распознанную из пути локаль серверным
+// компонентам. Живёт здесь, а не в middleware.ts, чтобы серверный код не
+// импортировал модуль edge-рантайма ради одной строки.
+export const LOCALE_HEADER = "x-app-locale";
 
 // Арабский — единственный RTL-язык в списке; направление проставляется на <html>.
 export const RTL_LOCALES: readonly Locale[] = ["ar"];
@@ -41,3 +47,25 @@ export const INTL_LOCALE: Record<Locale, string> = {
   fr: "fr-FR",
   ar: "ar-SA",
 };
+
+// --- Работа с локалью в пути ---
+
+// Вырезает языковой префикс: "/en/auctions" → { locale: "en", path: "/auctions" }.
+// Если префикса нет, локаль null — вызывающий код сам решает, что делать.
+export function splitLocalePath(pathname: string): { locale: Locale | null; path: string } {
+  const segments = pathname.split("/");
+  const first = segments[1];
+  if (isLocale(first)) {
+    const rest = "/" + segments.slice(2).join("/");
+    return { locale: first, path: rest === "/" ? "/" : rest.replace(/\/$/, "") };
+  }
+  return { locale: null, path: pathname };
+}
+
+// Собирает адрес с языковым префиксом: ("/auctions", "en") → "/en/auctions".
+// Внешние ссылки, якоря и mailto оставляем как есть.
+export function localePath(path: string, locale: Locale): string {
+  if (!path.startsWith("/")) return path;
+  const { path: clean } = splitLocalePath(path);
+  return clean === "/" ? `/${locale}` : `/${locale}${clean}`;
+}

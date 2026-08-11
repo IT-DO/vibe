@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocaleLink as Link } from "@/components/LocaleLink";
 import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { getOrderById } from "@/lib/orders";
@@ -12,6 +12,35 @@ import { BidForm } from "./BidForm";
 import { AcceptBidButton, LifecycleButtons } from "./ActionButtons";
 import { ReviewSection } from "./ReviewSection";
 import { AttachmentsSection } from "./AttachmentsSection";
+
+
+import type { Metadata } from "next";
+import { buildMetadata, SEO } from "@/lib/seo";
+import { getLocale } from "@/lib/i18n";
+
+// Заголовок и описание берём из самого заказа — именно такие страницы
+// собирают длинный хвост поисковых запросов ("печать шестерни из нейлона").
+// Закрытые/отменённые заказы из индекса убираем: они уже неактуальны.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const locale = await getLocale();
+  const order = await getOrderById(id);
+  if (!order) return buildMetadata({ locale, path: `/auctions/${id}`, title: "PrintAu", description: "", noindex: true });
+
+  const budget = order.budgetMin && order.budgetMax ? ` ${order.budgetMin}–${order.budgetMax}` : "";
+  return buildMetadata({
+    locale,
+    path: `/auctions/${order.id}`,
+    title: `${order.title} — ${order.material} | PrintAu`,
+    description: order.description.replace(/\s+/g, " ").slice(0, 155) || `${order.title}${budget}`,
+    keywords: SEO[locale].keywords,
+    noindex: order.status === "CANCELLED" || order.status === "COMPLETED",
+  });
+}
 
 export default async function OrderDetailPage({
   params,

@@ -1,9 +1,14 @@
-import Link from "next/link";
+import { LocaleLink as Link } from "@/components/LocaleLink";
 import { getSettings } from "@/lib/settings";
 
-export const metadata = {
-  title: "Публичная оферта — PrintAu",
-};
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+import { getLocale } from "@/lib/i18n";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata(await getLocale(), "offer", "/offer");
+}
+
 
 export default async function OfferPage() {
   const settings = await getSettings();

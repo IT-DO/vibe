@@ -1,7 +1,7 @@
-import { redirect } from "next/navigation";
 import { requireAdmin } from "@/lib/admin";
+import { localeRedirect } from "@/lib/i18n/redirect";
 
 export default async function AdminIndexPage() {
   await requireAdmin();
-  redirect("/admin/settings");
+  return await localeRedirect("/admin/settings");
 }

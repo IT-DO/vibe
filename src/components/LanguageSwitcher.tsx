@@ -1,28 +1,37 @@
 "use client";
 
 import { useRef, useState, useEffect, useTransition } from "react";
+import { useRouter, usePathname, useSearchParams } from "next/navigation";
 import { setLocaleAction } from "@/lib/actions/locale";
-import { LOCALES, LOCALE_META, type Locale } from "@/lib/i18n/config";
+import { LOCALES, LOCALE_META, localePath, type Locale } from "@/lib/i18n/config";
 
 export function LanguageSwitcher({ current, label }: { current: Locale; label: string }) {
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
+  const router = useRouter();
+  const pathname = usePathname();
+  const searchParams = useSearchParams();
 
+  // Язык живёт в адресе, поэтому переключение — это переход на ту же страницу
+  // под другим префиксом (/en/auctions → /fr/auctions), а не только запись
+  // куки. Куку всё равно обновляем: по ней потом происходит редирект с корня.
   // Экшен вызываем напрямую в transition, а не через <form> с onClick,
-  // закрывающим меню: закрытие размонтирует форму раньше, чем браузер успеет
-  // её отправить ("Form submission canceled because the form is not
-  // connected"), и язык молча не переключался. Здесь меню закрывается только
-  // после того, как серверный экшен отработал.
+  // закрывающим меню: закрытие размонтировало бы форму раньше отправки
+  // ("Form submission canceled because the form is not connected").
   function choose(locale: Locale) {
     if (locale === current) {
       setOpen(false);
       return;
     }
+    const query = searchParams.toString();
+    const target = localePath(pathname, locale) + (query ? `?${query}` : "");
     const formData = new FormData();
     formData.set("locale", locale);
     startTransition(async () => {
       await setLocaleAction(formData);
+      router.push(target);
+      router.refresh();
       setOpen(false);
     });
   }

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocaleLink as Link } from "@/components/LocaleLink";
 import { getSpecialists } from "@/lib/users";
 import { RatingStars } from "@/components/RatingStars";
 import { AchievementBadge } from "@/components/AchievementBadge";
@@ -6,6 +6,15 @@ import { MaterialList } from "@/components/MaterialList";
 import { MATERIALS, PROFILE_FIELD_LABELS, type Role } from "@/lib/constants";
 import { formatMoney } from "@/lib/format";
 import { getDictionary } from "@/lib/i18n";
+
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+import { getLocale } from "@/lib/i18n";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata(await getLocale(), "executors", "/executors");
+}
+
 
 function isBidderRole(value: string | undefined): value is "EXECUTOR" | "DESIGNER" {
   return value === "EXECUTOR" || value === "DESIGNER";

@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocaleLink as Link } from "@/components/LocaleLink";
 import { getOpenOrders, getPlatformStats } from "@/lib/orders";
 import { formatMoney, formatRelative } from "@/lib/format";
 import { OrderStatusBadge } from "@/components/StatusBadge";

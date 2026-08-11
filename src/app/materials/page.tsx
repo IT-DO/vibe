@@ -1,8 +1,13 @@
 import { MATERIALS, MATERIAL_PROPERTIES, MATERIAL_SPECS } from "@/lib/constants";
 
-export const metadata = {
-  title: "Материалы и технологии печати — PrintAu",
-};
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+import { getLocale } from "@/lib/i18n";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata(await getLocale(), "materials", "/materials");
+}
+
 
 export default function MaterialsPage() {
   return (

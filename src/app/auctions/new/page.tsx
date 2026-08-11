@@ -1,11 +1,11 @@
-import { redirect } from "next/navigation";
 import { auth } from "@/auth";
 import { NewOrderForm } from "./NewOrderForm";
+import { localeRedirect } from "@/lib/i18n/redirect";
 
 export default async function NewOrderPage() {
   const session = await auth();
-  if (!session?.user) redirect("/login");
-  if (session.user.role !== "CUSTOMER") redirect("/auctions");
+  if (!session?.user) return await localeRedirect("/login");
+  if (session.user.role !== "CUSTOMER") return await localeRedirect("/auctions");
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10">

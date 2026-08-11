@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocaleLink as Link } from "@/components/LocaleLink";
 import {
   MAX_FILE_SIZE,
   MAX_FILES_PER_UPLOAD,
@@ -6,9 +6,14 @@ import {
 } from "@/lib/storage";
 import { ATTACHMENT_EXTENSIONS } from "@/lib/constants";
 
-export const metadata = {
-  title: "Политика конфиденциальности — PrintAu",
-};
+import type { Metadata } from "next";
+import { pageMetadata } from "@/lib/seo";
+import { getLocale } from "@/lib/i18n";
+
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata(await getLocale(), "privacy", "/privacy");
+}
+
 
 export default function PrivacyPage() {
   return (

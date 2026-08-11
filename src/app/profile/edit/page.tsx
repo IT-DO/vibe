@@ -1,11 +1,28 @@
-import { redirect, notFound } from "next/navigation";
+import { notFound } from "next/navigation";
 import { auth } from "@/auth";
 import { getOwnProfile } from "@/lib/users";
 import { EditProfileForm } from "./EditProfileForm";
 
+import type { Metadata } from "next";
+import { buildMetadata } from "@/lib/seo";
+import { getLocale } from "@/lib/i18n";
+import { localeRedirect } from "@/lib/i18n/redirect";
+
+// Личный/служебный раздел — из индекса исключён явно (плюс закрыт в robots.txt).
+export async function generateMetadata(): Promise<Metadata> {
+  return buildMetadata({
+    locale: await getLocale(),
+    path: "/profile/edit",
+    title: "PrintAu",
+    description: "",
+    noindex: true,
+  });
+}
+
+
 export default async function EditProfilePage() {
   const session = await auth();
-  if (!session?.user) redirect("/login");
+  if (!session?.user) return await localeRedirect("/login");
 
   // getOwnProfile explicitly selects only public-safe columns (никогда не
   // passwordHash) — важно, так как результат идёт в клиентский компонент ниже

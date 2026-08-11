@@ -6,6 +6,8 @@ import { prisma } from "@/lib/prisma";
 import { signIn } from "@/auth";
 import { AuthError } from "next-auth";
 import { ROLES } from "@/lib/constants";
+import { getLocale } from "@/lib/i18n";
+import { localePath } from "@/lib/i18n/config";
 
 const registerSchema = z.object({
   name: z.string().trim().min(2, "Введите имя (минимум 2 символа)").max(100),
@@ -52,7 +54,10 @@ export async function registerAction(
     await signIn("credentials", {
       email,
       password,
-      redirectTo: "/dashboard",
+      // next-auth редиректит сам, мимо localeRedirect, поэтому язык в адрес
+      // подставляем здесь — иначе после входа человек попадал бы на адрес
+      // без префикса и ловил лишний редирект middleware.
+      redirectTo: localePath("/dashboard", await getLocale()),
     });
   } catch (err) {
     if (err instanceof AuthError) {
@@ -79,7 +84,10 @@ export async function loginAction(
     await signIn("credentials", {
       email,
       password,
-      redirectTo: "/dashboard",
+      // next-auth редиректит сам, мимо localeRedirect, поэтому язык в адрес
+      // подставляем здесь — иначе после входа человек попадал бы на адрес
+      // без префикса и ловил лишний редирект middleware.
+      redirectTo: localePath("/dashboard", await getLocale()),
     });
   } catch (err) {
     if (err instanceof AuthError) {

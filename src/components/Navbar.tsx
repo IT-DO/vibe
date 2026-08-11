@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocaleLink as Link } from "@/components/LocaleLink";
 import { auth } from "@/auth";
 import { SignOutButton } from "@/components/SignOutButton";
 import { LanguageSwitcher } from "@/components/LanguageSwitcher";

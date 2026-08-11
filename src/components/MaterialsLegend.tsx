@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { LocaleLink as Link } from "@/components/LocaleLink";
 import { MATERIALS, MATERIAL_PROPERTIES, MATERIAL_SPECS } from "@/lib/constants";
 
 // Разворачиваемая справка по материалам — для страниц с select-фильтром

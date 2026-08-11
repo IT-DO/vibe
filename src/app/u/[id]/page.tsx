@@ -1,5 +1,5 @@
 import { notFound } from "next/navigation";
-import Link from "next/link";
+import { LocaleLink as Link } from "@/components/LocaleLink";
 import { auth } from "@/auth";
 import { getUserProfile } from "@/lib/users";
 import { RatingStars } from "@/components/RatingStars";
@@ -7,6 +7,38 @@ import { AchievementBadge } from "@/components/AchievementBadge";
 import { MaterialList } from "@/components/MaterialList";
 import { ROLE_LABELS, PROFILE_FIELD_LABELS, type Role } from "@/lib/constants";
 import { formatDate, formatMoney } from "@/lib/format";
+
+
+import type { Metadata } from "next";
+import { buildMetadata, SEO } from "@/lib/seo";
+import { getLocale } from "@/lib/i18n";
+
+// Профили специалистов — вторая по важности группа индексируемых страниц
+// (запросы вида "3D печать Казань"). Профили заказчиков не индексируем:
+// поисковой ценности нет, а персональных данных в выдаче быть не должно.
+export async function generateMetadata({
+  params,
+}: {
+  params: Promise<{ id: string }>;
+}): Promise<Metadata> {
+  const { id } = await params;
+  const locale = await getLocale();
+  const user = await getUserProfile(id);
+  if (!user) return buildMetadata({ locale, path: `/u/${id}`, title: "PrintAu", description: "", noindex: true });
+
+  const isSpecialist = user.role === "EXECUTOR" || user.role === "DESIGNER";
+  const where = user.city ? `, ${user.city}` : "";
+  const rating = user.ratingCount > 0 ? ` ★ ${user.ratingAvg.toFixed(1)} (${user.ratingCount})` : "";
+
+  return buildMetadata({
+    locale,
+    path: `/u/${user.id}`,
+    title: `${user.name}${where}${rating} | PrintAu`,
+    description: (user.bio || user.specialization || "").replace(/\s+/g, " ").slice(0, 155),
+    keywords: SEO[locale].keywords,
+    noindex: !isSpecialist,
+  });
+}
 
 export default async function ProfilePage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;

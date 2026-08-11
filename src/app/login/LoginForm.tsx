@@ -2,7 +2,7 @@
 
 import { useActionState } from "react";
 import { useSearchParams } from "next/navigation";
-import Link from "next/link";
+import { LocaleLink as Link } from "@/components/LocaleLink";
 import { loginAction, type ActionState } from "@/lib/actions/auth";
 import type { Dictionary } from "@/lib/i18n/locales/ru";
 

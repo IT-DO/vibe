@@ -9,6 +9,7 @@ import { isYooKassaConfigured, createYooKassaPayment } from "@/lib/payments/yook
 import { getSettings } from "@/lib/settings";
 import { getAppOrigin } from "@/lib/origin";
 import type { ActionState } from "@/lib/actions/auth";
+import { localeRedirect } from "@/lib/i18n/redirect";
 
 export async function startSubscriptionPaymentAction(): Promise<ActionState> {
   const session = await auth();
@@ -33,7 +34,7 @@ export async function startSubscriptionPaymentAction(): Promise<ActionState> {
     // подключения реальной оплаты. См. /privacy и README.
     await finalizePaidPayment(payment.id, "manual");
     revalidatePath("/billing");
-    redirect("/billing?demo=1");
+    return await localeRedirect("/billing?demo=1");
   }
 
   const origin = await getAppOrigin();
@@ -72,7 +73,7 @@ export async function payCommissionAction(paymentId: string): Promise<ActionStat
   if (!(await isYooKassaConfigured())) {
     await finalizePaidPayment(payment.id, "manual");
     revalidatePath("/billing");
-    redirect("/billing?demo=1");
+    return await localeRedirect("/billing?demo=1");
   }
 
   const origin = await getAppOrigin();

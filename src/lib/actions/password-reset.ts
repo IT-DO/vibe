@@ -2,7 +2,6 @@
 
 import { z } from "zod";
 import { randomBytes, createHash } from "node:crypto";
-import { redirect } from "next/navigation";
 import { headers } from "next/headers";
 import bcrypt from "bcryptjs";
 import { prisma } from "@/lib/prisma";
@@ -10,6 +9,7 @@ import { sendMail } from "@/lib/mail";
 import { isRateLimited } from "@/lib/rate-limit";
 import { getAppOrigin } from "@/lib/origin";
 import type { ActionState } from "@/lib/actions/auth";
+import { localeRedirect } from "@/lib/i18n/redirect";
 
 const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // 1 час
 const REQUEST_LIMIT = 3;
@@ -130,5 +130,5 @@ export async function resetPasswordAction(
     }),
   ]);
 
-  redirect("/login?reset=1");
+  return await localeRedirect("/login?reset=1");
 }

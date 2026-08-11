@@ -1,10 +1,12 @@
 import type { Metadata } from "next";
-import Link from "next/link";
+import { LocaleLink as Link, LocaleProvider } from "@/components/LocaleLink";
 import { Geist, Geist_Mono } from "next/font/google";
 import "./globals.css";
 import { Navbar } from "@/components/Navbar";
 import { getI18n } from "@/lib/i18n";
 import { isRtl } from "@/lib/i18n/config";
+import { pageMetadata, getSiteUrl, SITE_NAME } from "@/lib/seo";
+import { getLocale } from "@/lib/i18n";
 
 const geistSans = Geist({
   variable: "--font-geist-sans",
@@ -16,14 +18,41 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-export const metadata: Metadata = {
-  title: "PrintAu — 3D printing marketplace",
-  description:
-    "Marketplace for 3D printing customers, print providers and designers: bidding auctions, reviews and ratings.",
-};
+// Метаданные корня отвечают за главную страницу; вложенные страницы
+// переопределяют их своими generateMetadata.
+export async function generateMetadata(): Promise<Metadata> {
+  return pageMetadata(await getLocale(), "home", "/");
+}
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
   const { locale, t } = await getI18n();
+  const siteUrl = await getSiteUrl();
+
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@graph": [
+      {
+        "@type": "Organization",
+        "@id": `${siteUrl}/#organization`,
+        name: SITE_NAME,
+        url: siteUrl,
+        description: t.footer.tagline,
+      },
+      {
+        "@type": "WebSite",
+        "@id": `${siteUrl}/#website`,
+        url: siteUrl,
+        name: SITE_NAME,
+        inLanguage: locale,
+        publisher: { "@id": `${siteUrl}/#organization` },
+        potentialAction: {
+          "@type": "SearchAction",
+          target: { "@type": "EntryPoint", urlTemplate: `${siteUrl}/${locale}/auctions?q={search_term_string}` },
+          "query-input": "required name=search_term_string",
+        },
+      },
+    ],
+  };
 
   return (
     <html
@@ -32,8 +61,15 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col bg-slate-50 text-slate-900">
-        <Navbar />
-        <main className="flex-1">{children}</main>
+        {/* Разметка Schema.org: даёт поисковику понять, что это за сайт, и
+            включает поле поиска прямо в выдаче. */}
+        <script
+          type="application/ld+json"
+          dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
+        />
+        <LocaleProvider locale={locale}>
+          <Navbar />
+          <main className="flex-1">{children}</main>
         <footer className="border-t border-slate-800 bg-slate-900 text-slate-400">
           <div className="mx-auto max-w-6xl px-4 py-10">
             <div className="grid gap-8 sm:grid-cols-3">
@@ -93,6 +129,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             </div>
           </div>
         </footer>
+        </LocaleProvider>
       </body>
     </html>
   );

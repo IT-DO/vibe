@@ -1,5 +1,4 @@
-import Link from "next/link";
-import { redirect } from "next/navigation";
+import { LocaleLink as Link } from "@/components/LocaleLink";
 import { auth } from "@/auth";
 import { getOrdersByCustomer, getBidsByExecutor } from "@/lib/orders";
 import { OrderStatusBadge, BidStatusBadge } from "@/components/StatusBadge";
@@ -8,9 +7,26 @@ import type { OrderStatus, BidStatus } from "@/lib/constants";
 import { getDictionary } from "@/lib/i18n";
 import type { Dictionary } from "@/lib/i18n/locales/ru";
 
+import type { Metadata } from "next";
+import { buildMetadata } from "@/lib/seo";
+import { getLocale } from "@/lib/i18n";
+import { localeRedirect } from "@/lib/i18n/redirect";
+
+// Личный/служебный раздел — из индекса исключён явно (плюс закрыт в robots.txt).
+export async function generateMetadata(): Promise<Metadata> {
+  return buildMetadata({
+    locale: await getLocale(),
+    path: "/dashboard",
+    title: "PrintAu",
+    description: "",
+    noindex: true,
+  });
+}
+
+
 export default async function DashboardPage() {
   const session = await auth();
-  if (!session?.user) redirect("/login");
+  if (!session?.user) return await localeRedirect("/login");
   const dict = await getDictionary();
   const t = dict.dashboard;
 
