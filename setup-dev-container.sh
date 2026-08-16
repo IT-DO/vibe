@@ -175,10 +175,31 @@ if [[ $INSTALL_CLAUDE -eq 1 ]]; then
         log "Claude Code уже установлен"
     else
         log "Устанавливаю Claude Code от имени $DEV_USER"
-        if runuser -l "$DEV_USER" -c 'curl -fsSL https://claude.ai/install.sh | bash'; then
+        INSTALLER="$DEV_HOME/.claude-install.sh"
+
+        # Скачиваем в файл, а не в пайп: сервер может вернуть HTML
+        # (страница-заглушка, портал Wi-Fi, ошибка прокси), и тогда
+        # `curl | bash` попытается выполнить разметку как команды.
+        if ! runuser -l "$DEV_USER" -c \
+                "curl -fsSL https://claude.ai/install.sh -o '$INSTALLER'"; then
+            warn "Не удалось скачать установщик — проверьте сеть и DNS в контейнере"
+        elif ! head -c 2 "$INSTALLER" | grep -q '#!'; then
+            warn "Сервер вернул не скрипт установки, а что-то другое."
+            if grep -qi 'unavailable.in.region\|not available in your' "$INSTALLER"; then
+                warn "Claude Code недоступен в вашем регионе — установка невозможна."
+                warn "Список поддерживаемых стран: https://www.anthropic.com/supported-countries"
+            else
+                warn "Первые строки ответа:"
+                head -c 300 "$INSTALLER" | tr -d '\000' >&2
+                echo >&2
+            fi
+            rm -f "$INSTALLER"
+        elif runuser -l "$DEV_USER" -c "bash '$INSTALLER'"; then
             log "Claude Code установлен"
+            rm -f "$INSTALLER"
         else
-            warn "Установка Claude Code не удалась — проверьте сеть/DNS в контейнере"
+            warn "Установщик завершился с ошибкой — вывод выше"
+            rm -f "$INSTALLER"
         fi
     fi
 
