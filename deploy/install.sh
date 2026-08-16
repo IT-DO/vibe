@@ -5,20 +5,30 @@
 #   1. ставит python3-venv, pip, nginx (через apt);
 #   2. копирует репозиторий в /opt/egrz от системного пользователя egrz;
 #   3. создаёт venv и ставит пакет;
-#   4. спрашивает ссылку на выгрузку и кладёт её в /opt/egrz/.env;
+#   4. кладёт ссылку на выгрузку в /opt/egrz/.env — по умолчанию публичный
+#      адрес ЕГРЗ ниже, без диалоговых вопросов;
 #   5. включает systemd-таймер ежедневного запуска;
 #   6. включает nginx-сайт.
 #
 # Запускать из корня репозитория, от root:
 #   sudo bash deploy/install.sh
 #
-# Скрипт идемпотентен: повторный запуск не ломает уже настроенное.
+# Своя ссылка вместо адреса по умолчанию (не для секретов — токенов в ней
+# нет и быть не может, endpoint публичный):
+#   EGRZ_EXCEL_URL='https://...' sudo -E bash deploy/install.sh
+#
+# Скрипт идемпотентен: повторный запуск не ломает уже настроенное, а если
+# .env с другой ссылкой уже существует — не перезаписывает её.
 
 set -euo pipefail
 
 APP_DIR="${APP_DIR:-/opt/egrz}"
 APP_USER="${APP_USER:-egrz}"
 HTTP_PORT="${HTTP_PORT:-80}"
+# Публичный, бессекретный endpoint ЕГРЗ — сортировка по дате заключения,
+# 5000 последних записей. Это тот же самый адрес для всех, кто разворачивает
+# проект, поэтому он захардкожен, а не спрашивается в диалоге при установке.
+EGRZ_EXCEL_URL="${EGRZ_EXCEL_URL:-https://open-api.egrz.ru/api/PublicRegistrationBook/excelDataFile?\$orderby=ExpertiseDate desc&\$count=true&\$top=5000&\$skip=0}"
 REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 
 log() { printf '\033[1;34m==>\033[0m %s\n' "$1"; }
@@ -66,19 +76,20 @@ log "Устанавливаю обход TLS-особенности open-api.egr
 cp "$APP_DIR/deploy/openssl-legacy-renegotiation.cnf" "$APP_DIR/openssl-legacy-renegotiation.cnf"
 
 if [ ! -f "$APP_DIR/.env" ]; then
-  echo
-  echo "Ссылка на выгрузку реестра выглядит так:"
-  echo "  https://open-api.egrz.ru/api/PublicRegistrationBook/excelDataFile?\$orderby=ExpertiseDate desc&\$top=5000&\$skip=0"
-  read -r -p "Вставьте вашу ссылку (или Enter, чтобы задать позже вручную в $APP_DIR/.env): " EXCEL_URL
+  # Без диалога: ссылка публичная и одинаковая для всех, спрашивать её
+  # незачем. Хотите другую — переменная EGRZ_EXCEL_URL перед запуском
+  # (см. комментарий вверху файла), а не правка этого блока.
   {
     echo "# Ссылка на Excel-выгрузку ЕГРЗ. Изменить можно в любой момент,"
     echo "# перезапуск таймера не требуется — файл читается при каждом запуске."
-    echo "EGRZ_EXCEL_URL=${EXCEL_URL}"
+    echo "EGRZ_EXCEL_URL=${EGRZ_EXCEL_URL}"
     echo "OPENSSL_CONF=${APP_DIR}/openssl-legacy-renegotiation.cnf"
   } > "$APP_DIR/.env"
+  log "Ссылка на выгрузку записана в $APP_DIR/.env (публичный адрес ЕГРЗ по умолчанию)"
 elif ! grep -q '^OPENSSL_CONF=' "$APP_DIR/.env"; then
   # .env уже существовал (например, после ручной правки или прерванной
-  # установки) — дописываем недостающую строку, не трогая остальное.
+  # установки) — дописываем недостающую строку, не трогая остальное,
+  # включая уже заданную там ссылку.
   echo "OPENSSL_CONF=${APP_DIR}/openssl-legacy-renegotiation.cnf" >> "$APP_DIR/.env"
 fi
 
