@@ -1,0 +1,91 @@
+name: Ежедневная выгрузка ЕГРЗ
+
+on:
+  schedule:
+    # 04:20 UTC = 07:20 МСК — реестр к этому времени уже пополнен за прошлые сутки.
+    - cron: "20 4 * * *"
+  workflow_dispatch:
+    inputs:
+      source:
+        description: "Источник данных"
+        type: choice
+        options: [api, demo]
+        default: api
+      full:
+        description: "Полная выгрузка вместо инкрементальной"
+        type: boolean
+        default: false
+
+concurrency:
+  group: egrz-daily
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+jobs:
+  export:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+
+      - name: Установить зависимости
+        run: pip install -e .
+
+      # База между запусками живёт в кеше: без неё каждая выгрузка была бы
+      # полной, а инкрементальный режим не имел бы смысла.
+      - name: Восстановить базу
+        uses: actions/cache/restore@v4
+        with:
+          path: data/egrz.sqlite3
+          key: egrz-db-${{ github.run_id }}
+          restore-keys: egrz-db-
+
+      - name: Выгрузка и сборка витрины
+        run: |
+          python -m egrz.cli daily \
+            --source "${{ inputs.source || 'api' }}" \
+            ${{ inputs.full && '--full' || '' }}
+
+      - name: Сохранить базу
+        if: always()
+        uses: actions/cache/save@v4
+        with:
+          path: data/egrz.sqlite3
+          key: egrz-db-${{ github.run_id }}
+
+      - name: Собрать сайт
+        run: |
+          mkdir -p site
+          cp -r web/* site/
+          mkdir -p site/data
+          cp data/export/*.json data/export/*.csv site/data/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: egrz-export-${{ github.run_number }}
+          path: |
+            data/export/*.json
+            data/export/*.csv
+          retention-days: 30
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  publish:
+    needs: export
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - id: deploy
+        uses: actions/deploy-pages@v4

@@ -1,0 +1,18 @@
+# Данные выгрузки — воспроизводятся командой `egrz daily`
+data/
+web/data/
+site/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.pytest_cache/
+.venv/
+venv/
+build/
+dist/
+
+# Node (используется только для локальной проверки дашборда)
+node_modules/
+package-lock.json

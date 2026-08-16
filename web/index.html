@@ -1,0 +1,167 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>ЕГРЗ — реестр заключений экспертизы</title>
+<meta name="description" content="Ежедневная выгрузка реестра заключений экспертизы проектной документации: умные фильтры и инфографика.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'><text y='26' font-size='26'>📊</text></svg>">
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="topbar">
+  <div>
+    <h1>ЕГРЗ — реестр заключений экспертизы</h1>
+    <div class="sub" id="meta-line">Загрузка витрины…</div>
+  </div>
+  <div class="actions">
+    <a class="btn" href="data/conclusions.csv" download>Скачать CSV</a>
+    <a class="btn" href="data/aggregates.json" download>Агрегаты JSON</a>
+    <button class="btn" id="theme" title="Светлая / тёмная тема">Тема</button>
+  </div>
+</header>
+
+<div class="loading" id="loading">Загрузка данных…</div>
+
+<div id="app" class="hidden">
+
+  <section class="filters">
+    <div class="filter-row">
+      <input class="search" id="search" type="search"
+             placeholder="Поиск по объекту, адресу, организации, номеру заключения…"
+             aria-label="Полнотекстовый поиск">
+      <div class="presets">
+        <button class="btn" data-days="30" aria-pressed="false">30 дней</button>
+        <button class="btn" data-days="90" aria-pressed="false">90 дней</button>
+        <button class="btn" data-days="365" aria-pressed="false">Год</button>
+        <button class="btn" data-days="all" aria-pressed="false">Весь период</button>
+      </div>
+      <div class="date-range">
+        <label for="date-from">с</label>
+        <input type="date" id="date-from" aria-label="Дата с">
+        <label for="date-to">по</label>
+        <input type="date" id="date-to" aria-label="Дата по">
+      </div>
+    </div>
+    <div class="chips hidden" id="chips"></div>
+  </section>
+
+  <div class="layout">
+
+    <aside class="sidebar" id="facets" aria-label="Фильтры"></aside>
+
+    <main class="main">
+
+      <div class="hero-row">
+        <section class="card hero">
+          <div class="label">Заключений в срезе</div>
+          <div class="value" id="hero-value">—</div>
+          <div class="caption" id="hero-caption"></div>
+        </section>
+
+        <section class="card kpis">
+          <div class="kpi">
+            <div class="label">Новых за 30 дней</div>
+            <div class="value" id="kpi-recent">—</div>
+            <div class="delta" id="kpi-recent-delta"></div>
+          </div>
+          <div class="kpi">
+            <div class="label">Доля положительных</div>
+            <div class="value" id="kpi-positive">—</div>
+            <div class="delta" id="kpi-positive-delta"></div>
+          </div>
+          <div class="kpi">
+            <div class="label">Медианная стоимость</div>
+            <div class="value" id="kpi-cost">—</div>
+            <div class="delta" id="kpi-cost-delta"></div>
+          </div>
+          <div class="kpi">
+            <div class="label">Экспертных организаций</div>
+            <div class="value" id="kpi-orgs">—</div>
+            <div class="delta" id="kpi-orgs-delta"></div>
+          </div>
+        </section>
+      </div>
+
+      <section class="card" id="card-dynamics">
+        <div class="card-head">
+          <h3>Динамика включений в реестр</h3>
+          <button class="toggle-table" data-target="card-dynamics">Таблица</button>
+        </div>
+        <p class="hint">Число заключений по месяцу включения в реестр.</p>
+        <div class="chart"></div>
+        <div class="table-wrap hidden"></div>
+      </section>
+
+      <div class="grid-2">
+        <section class="card" id="card-regions">
+          <div class="card-head">
+            <h3>Топ-15 субъектов РФ</h3>
+            <button class="toggle-table" data-target="card-regions">Таблица</button>
+          </div>
+          <p class="hint">В таблице — все субъекты среза.</p>
+          <div class="chart"></div>
+          <div class="table-wrap hidden"></div>
+        </section>
+
+        <section class="card" id="card-categories">
+          <div class="card-head">
+            <h3>Категории объектов</h3>
+            <button class="toggle-table" data-target="card-categories">Таблица</button>
+          </div>
+          <p class="hint">Категория определяется по наименованию объекта.</p>
+          <div class="chart"></div>
+          <div class="table-wrap hidden"></div>
+        </section>
+      </div>
+
+      <section class="card" id="card-districts">
+        <div class="card-head">
+          <h3>Федеральные округа: государственная и негосударственная экспертиза</h3>
+          <button class="toggle-table" data-target="card-districts">Таблица</button>
+        </div>
+        <p class="hint">Длина полосы — всего заключений в округе.</p>
+        <div class="legend"></div>
+        <div class="chart"></div>
+        <div class="table-wrap hidden"></div>
+      </section>
+
+      <div class="grid-2">
+        <section class="card" id="card-cost">
+          <div class="card-head">
+            <h3>Распределение по сметной стоимости</h3>
+            <button class="toggle-table" data-target="card-cost">Таблица</button>
+          </div>
+          <p class="hint">Диапазоны стоимости объектов, руб.</p>
+          <div class="chart"></div>
+          <div class="table-wrap hidden"></div>
+        </section>
+
+        <section class="card" id="card-orgs">
+          <div class="card-head">
+            <h3>Топ экспертных организаций</h3>
+            <button class="toggle-table" data-target="card-orgs">Таблица</button>
+          </div>
+          <p class="hint">В таблице — 60 организаций среза.</p>
+          <div class="chart"></div>
+          <div class="table-wrap hidden"></div>
+        </section>
+      </div>
+
+      <section class="card">
+        <div class="card-head">
+          <h3>Записи реестра</h3>
+          <span class="hint" id="records-note" style="margin:0"></span>
+        </div>
+        <div class="table-wrap" id="records"></div>
+        <button class="btn hidden" id="records-more" style="margin-top:12px">Показать ещё 200</button>
+      </section>
+
+    </main>
+  </div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

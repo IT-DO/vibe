@@ -1,0 +1,89 @@
+# Описание источника ЕГРЗ.
+#
+# ВАЖНО. Публичный API ЕГРЗ не имеет опубликованной спецификации, и его контракт
+# меняется вместе с сайтом. Поэтому endpoint и сопоставление полей вынесены сюда,
+# в конфиг: чтобы починить выгрузку после изменения API, код править не нужно.
+#
+# Порядок действий, когда выгрузка перестала отдавать записи:
+#   1. egrz discover --out data/discovery.json
+#   2. посмотреть в отчёте, какой кандидат вернул JSON со списком записей;
+#   3. перенести его method/path/body в секцию `request`, а подсказанное
+#      сопоставление — в `field_map`.
+
+name: egrz
+title: ЕГРЗ — реестр заключений экспертизы
+base_url: https://egrz.ru
+# Ссылка на карточку заключения; {id} подставляется из записи.
+record_url_template: "https://egrz.ru/organisation/reestr/detail/{id}"
+
+http:
+  timeout: 60
+  retries: 4
+  backoff: 2.0          # секунды, удваиваются на каждой попытке
+  rate_limit: 0.5       # пауза между запросами, секунды
+  headers:
+    Accept: "application/json, text/plain, */*"
+    Accept-Language: "ru-RU,ru;q=0.9"
+    User-Agent: "egrz-daily/0.1 (+https://github.com/it-do/vibe)"
+
+# Основной запрос списка. Плейсхолдеры: {page}, {page_size}, {offset}, {since}.
+request:
+  method: POST
+  path: /api/publicRegistry/list
+  query: {}
+  json_body:
+    pageNum: "{page}"
+    pageSize: "{page_size}"
+    sortField: "dateRegistration"
+    sortOrder: "desc"
+
+# Где в ответе лежат записи и общее количество.
+response:
+  items_path: "value"
+  total_path: "@odata.count"
+
+paging:
+  mode: page            # page | offset
+  page_size: 100
+  start_page: 1
+  max_pages: 2000
+
+# Сопоставление полей. Значение — список путей-кандидатов: берётся первый
+# непустой. Точка разделяет уровни вложенности, число — индекс в массиве.
+field_map:
+  id: ["id", "Id", "objectId", "documentId"]
+  registry_number: ["registryNumber", "numberInRegistry", "regNumber"]
+  conclusion_number: ["conclusionNumber", "number", "documentNumber"]
+  date_registered: ["dateRegistration", "registrationDate", "dateInclusion", "createDate"]
+  date_issued: ["dateConclusion", "conclusionDate", "documentDate"]
+  expertise_type: ["expertiseType", "typeExpertise", "expertiseTypeName", "kindExpertise"]
+  result: ["conclusionResult", "result", "resultName", "conclusionType"]
+  subject_matter: ["objectExpertise", "subjectExpertise", "expertiseSubject", "documentKind"]
+  is_repeat: ["isRepeat", "repeat", "isRepeated"]
+  object_name: ["objectName", "name", "nameObject", "objectFullName"]
+  address: ["objectAddress", "address", "addressObject", "location"]
+  region: ["regionName", "region", "subjectRf", "subjectName"]
+  region_code: ["regionCode", "codeRegion", "subjectRfCode"]
+  purpose: ["objectPurpose", "purpose", "assignment"]
+  organization: ["expertOrganizationName", "organizationName", "expertOrganization", "orgName"]
+  organization_inn: ["expertOrganizationInn", "organizationInn", "orgInn", "inn"]
+  developer: ["developerName", "developer", "customerName", "applicantName"]
+  developer_inn: ["developerInn", "customerInn", "applicantInn"]
+  cost: ["estimatedCost", "cost", "sumCost", "costTotal", "smetnayaStoimost"]
+
+# Кандидаты для `egrz discover`: пробуются по очереди, отчёт покажет,
+# какой из них отвечает JSON со списком записей.
+discovery_candidates:
+  - { method: GET,  path: /api/publicRegistry/list, query: { pageNum: 1, pageSize: 5 } }
+  - { method: POST, path: /api/publicRegistry/list, json_body: { pageNum: 1, pageSize: 5 } }
+  - { method: GET,  path: /api/PublicRegistry/GetList, query: { page: 1, size: 5 } }
+  - { method: GET,  path: /api/registry/list, query: { page: 1, size: 5 } }
+  - { method: GET,  path: /api/reestr/list, query: { page: 1, size: 5 } }
+  - { method: GET,  path: /api/sections/reestr/list, query: { page: 1, size: 5 } }
+  - { method: GET,  path: /swagger/v1/swagger.json }
+  - { method: GET,  path: /swagger/index.html }
+  # open-api.egrz.ru — отдельный хост аналитики и открытых данных ЕГРЗ.
+  - { method: GET,  base_url: "https://open-api.egrz.ru", path: /swagger/v1/swagger.json }
+  - { method: GET,  base_url: "https://open-api.egrz.ru", path: /api/File/analytics }
+  - { method: GET,  base_url: "https://open-api.egrz.ru", path: /api/Analytics }
+  - { method: GET,  base_url: "https://open-api.egrz.ru", path: /api/Registry, query: { page: 1, size: 5 } }
