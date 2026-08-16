@@ -39,11 +39,15 @@ fi
 
 log "Копирую приложение в $APP_DIR…"
 mkdir -p "$APP_DIR"
-# data/ и .git не переносим: данные — рабочее состояние сервера,
-# а не часть релиза, и переносить историю git незачем.
+# data/ и .git не переносим: данные — рабочее состояние сервера, а не часть
+# релиза. .env и openssl-legacy-renegotiation.cnf тоже создаются только внутри
+# APP_DIR и никогда не существуют в самом репозитории — без --exclude
+# `rsync --delete` считал бы их «лишними» и удалял на каждом повторном
+# запуске install.sh, стирая уже введённую ссылку на выгрузку.
 rsync -a --delete \
   --exclude='.git' --exclude='data' --exclude='.venv' \
   --exclude='__pycache__' --exclude='.pytest_cache' --exclude='node_modules' \
+  --exclude='/.env' --exclude='/openssl-legacy-renegotiation.cnf' \
   "$REPO_ROOT"/ "$APP_DIR"/
 
 log "Создаю виртуальное окружение и ставлю пакет…"
