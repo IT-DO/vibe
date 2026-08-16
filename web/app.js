@@ -1127,10 +1127,15 @@ async function main() {
   try {
     await load();
   } catch (error) {
+    // Ошибку нужно реально показать, а не просто записать в скрытый #app —
+    // иначе #loading («Загрузка данных…») так и останется висеть вечно,
+    // и от реальной причины не останется и следа на экране.
+    el("loading").classList.add("hidden");
+    el("app").classList.remove("hidden");
     el("app").innerHTML =
       `<div class="error"><b>Не удалось загрузить витрину.</b><br>` +
-      `Соберите её и откройте дашборд через локальный сервер:` +
-      `<code>python -m egrz.cli sync --source demo\npython -m egrz.cli export\npython -m egrz.cli serve</code>` +
+      `Соберите её командой <code>egrz export</code> на сервере (данные в базе есть, ` +
+      `но витрина для дашборда собирается отдельным шагом) и обновите страницу.` +
       `<code>${escapeHtml(error.message)}</code></div>`;
     return;
   }

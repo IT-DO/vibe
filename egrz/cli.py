@@ -162,6 +162,13 @@ def cmd_backfill(args: argparse.Namespace) -> int:
             f"обновлено {stats.updated}, без изменений {stats.unchanged}"
         )
         _log(f"Всего в базе: {store.count()}")
+
+        # Данные в базе есть уже после первой страницы, но дашборд их не
+        # увидит, пока не пересобрана витрина, — не заставляем разбираться
+        # с этим отдельно, как с sync/export: backfill сразу отдаёт
+        # готовый к просмотру результат.
+        result = export_all(store, args.out, max_rows=args.max_rows)
+        _log(f"Витрина собрана: {result['records']} записей -> {args.out}")
     return 0
 
 
@@ -287,6 +294,7 @@ def build_parser() -> argparse.ArgumentParser:
                           help="пауза между страницами, секунды (не перегружать сервер ЕГРЗ)")
     backfill.add_argument("--restart", action="store_true",
                           help="начать обход заново с $skip=0, а не продолжать сохранённую позицию")
+    add_export_args(backfill)
     backfill.set_defaults(func=cmd_backfill)
 
     discover = subparsers.add_parser("discover", help="разведка API источника")
