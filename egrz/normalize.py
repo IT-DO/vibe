@@ -109,6 +109,14 @@ def parse_inn(value: Any) -> str | None:
 
 _QUOTES = {"«": '"', "»": '"', "“": '"', "”": '"', "„": '"', "‟": '"', "`": "'"}
 
+#: Excel-выгрузка ЕГРЗ склеивает в одну ячейку имя организации и её
+#: регистрационные реквизиты: `..." (ОГРН: ..., ИНН: ..., КПП: ...,
+#: МЕСТО НАХОЖДЕНИЯ и АДРЕС: ...)`. ИНН уже приходит отдельной колонкой —
+#: хвост в имени только раздувает строку и мешает дашборду.
+_REGISTRY_TAIL = re.compile(
+    r"\s*\((?:ОГРН|ОГРНИП|ИНН|КПП)\b[^)]*\)\s*$", re.IGNORECASE
+)
+
 _LEGAL_FORMS = (
     (r"\bобщество с ограниченной ответственностью\b", "ООО"),
     (r"\bакционерное общество\b", "АО"),
@@ -148,6 +156,7 @@ def canonical_org(value: Any) -> str:
     text = str(value or "").strip()
     if not text:
         return ""
+    text = _REGISTRY_TAIL.sub("", text)
     for src, dst in _QUOTES.items():
         text = text.replace(src, dst)
     text = re.sub(r"\s+", " ", text)

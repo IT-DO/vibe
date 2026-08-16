@@ -48,6 +48,8 @@ class HeaderRule:
 #: Порядок значим: узкие правила стоят выше широких, иначе «ИНН экспертной
 #: организации» будет поглощено правилом для самой организации.
 HEADER_RULES: tuple[HeaderRule, ...] = (
+    HeaderRule("id", ("идентификатор",)),
+
     HeaderRule("organization_inn", ("инн",), ("застройщик", "заказчик", "заявител")),
     HeaderRule("developer_inn", ("инн",)),
 
@@ -63,6 +65,9 @@ HEADER_RULES: tuple[HeaderRule, ...] = (
     HeaderRule("date_issued", ("дата", "экспертиз")),
     HeaderRule("date_issued", ("дата",), ("объект",)),
 
+    # «Форма экспертизы» — формулировка из реальной выгрузки ЕГРЗ;
+    # «вид»/«тип» держим на случай, если формулировка изменится.
+    HeaderRule("expertise_type", ("форма", "экспертиз")),
     HeaderRule("expertise_type", ("вид", "экспертиз"), ("предмет", "объект", "результат")),
     HeaderRule("expertise_type", ("тип", "экспертиз")),
     HeaderRule("result", ("результат",)),
@@ -74,8 +79,14 @@ HEADER_RULES: tuple[HeaderRule, ...] = (
     HeaderRule("object_name", ("наименование", "объект")),
     HeaderRule("object_name", ("объект", "капитальн")),
     HeaderRule("purpose", ("назначение",)),
-    HeaderRule("address", ("адрес",)),
-    HeaderRule("address", ("место", "располож")),
+    # Исключаем «Место нахождения и адрес экспертной организации» — это адрес
+    # организации, а не объекта; в реальной выгрузке ЕГРЗ адрес объекта уже
+    # встроен текстом в колонку названия объекта, отдельной колонки для него нет.
+    HeaderRule("address", ("адрес",), ("организации",)),
+    HeaderRule("address", ("место", "располож"), ("организации",)),
+    # Код субъекта — раньше общего правила по «субъект», иначе «код субъекта
+    # рф» просто не дойдёт до этого правила, если «Субъект РФ» в файле нет.
+    HeaderRule("region_code", ("код", "субъект")),
     HeaderRule("region", ("субъект",)),
     HeaderRule("region", ("регион",)),
 
@@ -124,7 +135,14 @@ def _score_header_row(row: list[Any]) -> int:
     return len(mapping)
 
 
-def read_rows(path: str | Path, *, sheet: str | None = None, probe_rows: int = 12) -> tuple[list[dict[str, Any]], list[str]]:
+#: Верхняя граница колонок для потокового чтения (см. пояснение ниже).
+#: Ни одна реальная таблица реестра в этот запас не упрётся.
+_SAFE_MAX_COL = 100
+
+
+def read_rows(
+    path: str | Path, *, sheet: str | None = None, probe_rows: int = 12
+) -> tuple[list[dict[str, Any]], list[str]]:
     """Читает .xlsx и возвращает ``(записи, нераспознанные заголовки)``.
 
     Строка заголовков ищется среди первых строк: в выгрузке над таблицей
@@ -141,7 +159,15 @@ def read_rows(path: str | Path, *, sheet: str | None = None, probe_rows: int = 1
     worksheet = workbook[sheet] if sheet else workbook.worksheets[0]
 
     try:
-        rows = worksheet.iter_rows(values_only=True)
+        # Выгрузка ЕГРЗ пишет в лист некорректный тег <dimension> (он указывает
+        # только на первую колонку, хотя реальных колонок в разы больше — баг
+        # генератора файла на стороне сервера). Потоковый iter_rows() в
+        # read_only-режиме доверяет этому тегу и без явного max_col обрезает
+        # каждую строку до одной ячейки, молча теряя все данные, кроме id.
+        # Задаём щедрый max_col сами — лишние пустые колонки после реальных
+        # данных потом отфильтруют map_headers() (пустой заголовок) и emit()
+        # (пустое значение), так что запас с большим запасом безопасен.
+        rows = worksheet.iter_rows(max_col=_SAFE_MAX_COL, values_only=True)
         head: list[list[Any]] = []
         for row in rows:
             head.append(list(row))

@@ -314,8 +314,32 @@ function niceTicks(max, count = 4) {
   return ticks;
 }
 
-function truncate(text, max) {
-  return text.length > max ? text.slice(0, max - 1) + "…" : text;
+// Ширина текста в SVG зависит от реального шрифта и алфавита — оценка
+// «N px на символ» на кириллице (особенно на широких буквах вроде «Ш», «Д»,
+// «Ж») занижает ширину, обрезанная строка не помещается в отведённое место
+// и «наезжает» за левый край SVG у подписей с text-anchor="end". Меряем
+// по-настоящему через Canvas вместо угадывания по числу символов.
+const _measureCanvas = document.createElement("canvas");
+const _measureCtx = _measureCanvas.getContext("2d");
+const TICK_FONT = "11px system-ui, -apple-system, 'Segoe UI', sans-serif";
+
+function textWidth(text, font = TICK_FONT) {
+  _measureCtx.font = font;
+  return _measureCtx.measureText(text).width;
+}
+
+/** Обрезает текст под реальную ширину в пикселях, добавляя «…» только если
+ *  не поместилось. Двоичный поиск — O(log n) измерений вместо посимвольных. */
+function truncateToWidth(text, maxWidth, font = TICK_FONT) {
+  if (textWidth(text, font) <= maxWidth) return text;
+  let lo = 0;
+  let hi = text.length;
+  while (lo < hi) {
+    const mid = (lo + hi + 1) >> 1;
+    if (textWidth(text.slice(0, mid) + "…", font) <= maxWidth) lo = mid;
+    else hi = mid - 1;
+  }
+  return lo > 0 ? text.slice(0, lo) + "…" : "";
 }
 
 // ----------------------------------------------------------------- тултип
@@ -461,7 +485,7 @@ function drawBars(host, data, { width, formatValue = fmtInt, labelWidth = 150 })
     const w = Math.max(2, (d.value / max) * plotW);
 
     svg("text", { class: "tick", x: pad.left - 10, y: y + barH / 2 + 4, "text-anchor": "end" }, root)
-      .textContent = truncate(d.name, Math.max(10, Math.floor(labelWidth / 7)));
+      .textContent = truncateToWidth(d.name, labelWidth - 14);
 
     const bar = svg("path", {
       d: barPath(pad.left, y, w, barH, 4, "right"), fill: "var(--series-1)",
@@ -504,7 +528,7 @@ function drawStacked(host, data, series, { width, labelWidth = 150 }) {
     const total = d.values.reduce((a, b) => a + b, 0);
 
     svg("text", { class: "tick", x: pad.left - 10, y: y + barH / 2 + 4, "text-anchor": "end" }, root)
-      .textContent = truncate(d.name, Math.max(10, Math.floor(labelWidth / 7)));
+      .textContent = truncateToWidth(d.name, labelWidth - 14);
 
     let x = pad.left;
     d.values.forEach((value, s) => {
