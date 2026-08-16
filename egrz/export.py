@@ -29,7 +29,8 @@ DICTIONARY_COLUMNS: tuple[str, ...] = (
 #: Колонки, по которым дашборд строит фасеты (в порядке отображения).
 FACET_COLUMNS: tuple[str, ...] = (
     "federal_district", "region", "expertise_type", "result",
-    "object_category", "purpose", "subject_matter", "organization", "cost_bucket",
+    "object_category", "purpose", "subject_matter",
+    "organization", "developer", "cost_bucket",
 )
 
 #: Колонки полнотекстового поиска.
@@ -93,6 +94,7 @@ def build_aggregates(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
     by_district: Counter[str] = Counter()
     by_category: Counter[str] = Counter()
     by_org: Counter[str] = Counter()
+    by_developer: Counter[str] = Counter()
     by_cost_bucket: Counter[str] = Counter()
     by_expertise: Counter[str] = Counter()
     cost_by_district: defaultdict[str, float] = defaultdict(float)
@@ -125,6 +127,9 @@ def build_aggregates(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
         organization = record.get("organization")
         if organization:
             by_org[organization] += 1
+        developer = record.get("developer")
+        if developer:
+            by_developer[developer] += 1
 
         cost = record.get("cost")
         if isinstance(cost, (int, float)) and cost > 0:
@@ -171,6 +176,7 @@ def build_aggregates(records: Sequence[dict[str, Any]]) -> dict[str, Any]:
             for b in COST_BUCKET_ORDER if by_cost_bucket.get(b)
         ],
         "top_organizations": [{"organization": o, "count": c} for o, c in by_org.most_common(25)],
+        "top_developers": [{"developer": d, "count": c} for d, c in by_developer.most_common(25)],
     }
 
 

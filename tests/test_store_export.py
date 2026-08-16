@@ -4,7 +4,7 @@ import json
 
 import pytest
 
-from egrz.export import DICTIONARY_COLUMNS, build_aggregates, encode_dataset, export_all
+from egrz.export import DICTIONARY_COLUMNS, FACET_COLUMNS, build_aggregates, encode_dataset, export_all
 from egrz.models import COLUMNS
 from egrz.normalize import build_conclusion
 from egrz.source import DemoSource
@@ -150,6 +150,24 @@ def test_build_aggregates_totals():
     assert totals["positive_share"] == pytest.approx(2 / 3, abs=1e-4)
     assert totals["cost_sum"] == 600
     assert totals["cost_median"] == 200
+
+
+def test_build_aggregates_top_developers():
+    """Застройщик — отдельный срез от экспертной организации: заказчик
+    экспертизы и тот, кто её проводил, — разные компании."""
+    records = [
+        record(id="a", developer="ООО Стройка-1").to_dict(),
+        record(id="b", developer="ООО Стройка-1").to_dict(),
+        record(id="c", developer="ООО Стройка-2").to_dict(),
+        record(id="d", developer="").to_dict(),  # без застройщика — не считается
+    ]
+    aggregates = build_aggregates(records)
+    top = {item["developer"]: item["count"] for item in aggregates["top_developers"]}
+    assert top == {"ООО Стройка-1": 2, "ООО Стройка-2": 1}
+
+
+def test_facet_columns_include_developer():
+    assert "developer" in FACET_COLUMNS
 
 
 def test_build_aggregates_groups_sum_to_total():

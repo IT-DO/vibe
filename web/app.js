@@ -83,11 +83,12 @@ const FACET_TITLES = {
   purpose: "Назначение",
   subject_matter: "Предмет экспертизы",
   organization: "Экспертная организация",
+  developer: "Застройщик",
   cost_bucket: "Сметная стоимость",
 };
 
 // Фасеты, которым нужен поиск внутри списка: значений много.
-const SEARCHABLE_FACETS = new Set(["region", "organization"]);
+const SEARCHABLE_FACETS = new Set(["region", "organization", "developer"]);
 
 const el = (id) => document.getElementById(id);
 const col = (name) => DS.index[name];
@@ -201,6 +202,7 @@ function aggregate(rows) {
   const byRegion = new Map();
   const byCategory = new Map();
   const byOrg = new Map();
+  const byDeveloper = new Map();
   const byBucket = new Map();
   const byDistrict = new Map();   // округ -> [государственная, негосударственная]
 
@@ -213,6 +215,7 @@ function aggregate(rows) {
   const regionIdx = DS.index.region;
   const categoryIdx = DS.index.object_category;
   const orgIdx = DS.index.organization;
+  const developerIdx = DS.index.developer;
   const bucketIdx = DS.index.cost_bucket;
   const districtIdx = DS.index.federal_district;
   const resultIdx = DS.index.result;
@@ -232,6 +235,7 @@ function aggregate(rows) {
 
     const org = row[orgIdx];
     if (org != null) { bump(byOrg, org); orgSet.add(org); }
+    bump(byDeveloper, row[developerIdx]);
 
     const resultName = dResult[row[resultIdx]];
     if (resultName === "Положительное") positive++;
@@ -258,7 +262,7 @@ function aggregate(rows) {
     costSum: costs.reduce((a, b) => a + b, 0),
     costMedian: median,
     orgCount: orgSet.size,
-    byMonth, byRegion, byCategory, byOrg, byBucket, byDistrict,
+    byMonth, byRegion, byCategory, byOrg, byDeveloper, byBucket, byDistrict,
   };
 }
 
@@ -777,6 +781,15 @@ function renderCharts(stats, rows) {
     draw: (host, width) => drawBars(host, orgs, { width, labelWidth: 210 }),
     table: () => tableHtml(["Организация", "Заключений", "Доля"],
       toList(stats.byOrg, "organization", { limit: 60 }).map((d) =>
+        [d.name, fmtInt(d.value), fmtPct(stats.total ? d.value / stats.total : 0)])),
+  });
+
+  const developers = toList(stats.byDeveloper, "developer", { limit: 12 });
+  chartCard({
+    id: "card-developers",
+    draw: (host, width) => drawBars(host, developers, { width, labelWidth: 210 }),
+    table: () => tableHtml(["Застройщик", "Заключений", "Доля"],
+      toList(stats.byDeveloper, "developer", { limit: 60 }).map((d) =>
         [d.name, fmtInt(d.value), fmtPct(stats.total ? d.value / stats.total : 0)])),
   });
 }

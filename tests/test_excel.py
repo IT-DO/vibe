@@ -3,10 +3,12 @@
 import datetime as dt
 import re
 import zipfile
+from pathlib import Path
 
 import pytest
 
-from egrz.excel import ExcelSource, map_headers, read_rows
+import egrz.excel as excel_module
+from egrz.excel import ExcelBackfillSource, ExcelSource, download_with_retries, map_headers, read_rows
 
 openpyxl = pytest.importorskip("openpyxl")
 
@@ -375,3 +377,139 @@ def test_excel_source_survives_broken_dimension_tag(tmp_path):
     assert records[0].region == "Алтайский край"
     assert records[0].organization_inn == "2221123815"
     assert records[0].expertise_type == "Государственная"
+
+
+# --------------------------------------------------------- download_with_retries
+
+def test_download_with_retries_succeeds_after_transient_failures(tmp_path, monkeypatch):
+    calls = {"n": 0}
+
+    def flaky_download(url, target, *, timeout=180.0):
+        calls["n"] += 1
+        if calls["n"] < 3:
+            raise RuntimeError("сеть моргнула")
+        Path(target).write_bytes(b"ok")
+        return Path(target)
+
+    monkeypatch.setattr(excel_module, "download", flaky_download)
+    monkeypatch.setattr(excel_module.time, "sleep", lambda _: None)  # тест не должен ждать реально
+
+    result = download_with_retries("http://example/x", tmp_path / "f.bin", retries=3)
+    assert calls["n"] == 3
+    assert result.read_bytes() == b"ok"
+
+
+def test_download_with_retries_gives_up(tmp_path, monkeypatch):
+    def always_fails(url, target, *, timeout=180.0):
+        raise RuntimeError("сервер лежит")
+
+    monkeypatch.setattr(excel_module, "download", always_fails)
+    monkeypatch.setattr(excel_module.time, "sleep", lambda _: None)
+
+    with pytest.raises(RuntimeError, match="сервер лежит"):
+        download_with_retries("http://example/x", tmp_path / "f.bin", retries=2)
+
+
+# ------------------------------------------------------------- ExcelBackfillSource
+
+def make_paged_download(tmp_path, pages: list[int], *, page_size: int):
+    """Подменяет download_with_retries: возвращает подряд файлы указанных
+    размеров, имитируя постраничный ответ сервера (последняя страница короче
+    полного размера — это и есть сигнал конца истории)."""
+    served_at_skip: dict[int, int] = {}
+    skip = 0
+    for count in pages:
+        served_at_skip[skip] = count
+        skip += page_size
+
+    def fake_download(url, target, *, timeout=180.0):
+        skip_value = int(re.search(r"\$skip=(\d+)", url).group(1))
+        count = served_at_skip.get(skip_value, 0)
+        make_real_shaped_workbook(target, rows=count) if count else openpyxl.Workbook().save(target)
+        return Path(target)
+
+    return fake_download
+
+
+def test_backfill_pages_until_short_page(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        excel_module, "download_with_retries",
+        lambda url, target, **kw: make_paged_download(tmp_path, [3, 3, 1], page_size=3)(url, target),
+    )
+    seen_pages = []
+    source = ExcelBackfillSource(
+        page_size=3, rate_limit=0, cache_dir=tmp_path / "cache",
+        on_page=lambda skip, count: seen_pages.append((skip, count)),
+    )
+    records = list(source.iter_conclusions())
+
+    assert len(records) == 7  # 3 + 3 + 1
+    assert seen_pages == [(0, 3), (3, 3), (6, 1)]
+    assert source.report["finished"] is True
+    assert source.report["pages"] == 3
+
+
+def test_backfill_stops_on_empty_page(tmp_path, monkeypatch):
+    monkeypatch.setattr(
+        excel_module, "download_with_retries",
+        lambda url, target, **kw: make_paged_download(tmp_path, [3, 0], page_size=3)(url, target),
+    )
+    source = ExcelBackfillSource(page_size=3, rate_limit=0, cache_dir=tmp_path / "cache")
+    records = list(source.iter_conclusions())
+    assert len(records) == 3
+    assert source.report["finished"] is True
+
+
+def test_backfill_respects_max_pages(tmp_path, monkeypatch):
+    """Полных страниц больше, чем max_pages — обход должен остановиться,
+    не дойдя до конца истории, и явно сообщить об этом через report."""
+    monkeypatch.setattr(
+        excel_module, "download_with_retries",
+        lambda url, target, **kw: make_paged_download(tmp_path, [3, 3, 3, 3], page_size=3)(url, target),
+    )
+    source = ExcelBackfillSource(page_size=3, rate_limit=0, max_pages=2, cache_dir=tmp_path / "cache")
+    records = list(source.iter_conclusions())
+    assert len(records) == 6  # только 2 страницы
+    assert source.report["finished"] is False
+    assert source.report["last_skip"] == 3
+
+
+def test_backfill_resumes_from_start_skip(tmp_path, monkeypatch):
+    """Продолжение с сохранённой позиции не должно перечитывать уже пройденное."""
+    monkeypatch.setattr(
+        excel_module, "download_with_retries",
+        lambda url, target, **kw: make_paged_download(tmp_path, [3, 3, 1], page_size=3)(url, target),
+    )
+    source = ExcelBackfillSource(page_size=3, rate_limit=0, start_skip=3, cache_dir=tmp_path / "cache")
+    records = list(source.iter_conclusions())
+    assert len(records) == 4  # страницы на skip=3 и skip=6, страница skip=0 пропущена
+    assert source.report["pages"] == 2
+
+
+def test_backfill_cleans_up_temp_files(tmp_path, monkeypatch):
+    """Не копим сотни временных .xlsx на диске при обходе всей истории."""
+    monkeypatch.setattr(
+        excel_module, "download_with_retries",
+        lambda url, target, **kw: make_paged_download(tmp_path, [3, 1], page_size=3)(url, target),
+    )
+    cache_dir = tmp_path / "cache"
+    source = ExcelBackfillSource(page_size=3, rate_limit=0, cache_dir=cache_dir)
+    list(source.iter_conclusions())
+    assert list(cache_dir.glob("*.xlsx")) == []
+
+
+def test_backfill_is_lazy_generator(tmp_path, monkeypatch):
+    """Записи отдаются по одной — на 700 000+ записей это единственный
+    безопасный по памяти вариант, а не сборка всего списка сразу."""
+    calls = {"n": 0}
+
+    def counting_download(url, target, **kw):
+        calls["n"] += 1
+        make_paged_download(tmp_path, [3, 3, 1], page_size=3)(url, target)
+
+    monkeypatch.setattr(excel_module, "download_with_retries", counting_download)
+    source = ExcelBackfillSource(page_size=3, rate_limit=0, cache_dir=tmp_path / "cache")
+
+    generator = source.iter_conclusions()
+    next(generator)  # взяли только первую запись
+    assert calls["n"] == 1  # вторая и третья страницы ещё не скачивались

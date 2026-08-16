@@ -3,6 +3,7 @@
     egrz sync      — забрать данные из источника в локальную базу
     egrz export    — собрать витрину для дашборда
     egrz daily     — sync + export одной командой (то, что крутится по расписанию)
+    egrz backfill  — один раз догрузить всю историю целиком (сотни тысяч записей)
     egrz discover  — разведка API, когда выгрузка перестала работать
     egrz stats     — что сейчас лежит в базе
     egrz serve     — локальный просмотр дашборда
@@ -97,6 +98,73 @@ def cmd_daily(args: argparse.Namespace) -> int:
     return cmd_export(args)
 
 
+def cmd_backfill(args: argparse.Namespace) -> int:
+    """Догружает всю историю реестра постранично — отдельно от ежедневного sync.
+
+    Ежедневный `sync` берёт только свежие записи (top-N) — этого достаточно
+    для поддержания базы в актуальном состоянии, но не даёт глубины истории.
+    `backfill` проходит всю историю целиком (сотни тысяч записей — десятки-
+    сотни отдельных запросов, у сервера нет потоковой выдачи файла целиком).
+    Позиция сохраняется в базе после каждой успешной страницы: прерванный
+    обход (сеть, Ctrl+C, перезапуск) продолжается со следующего запуска
+    с того же места, а не с нуля.
+    """
+    from .excel import ExcelBackfillSource
+
+    with Store(args.db) as store:
+        if args.restart:
+            store.set_meta("backfill_next_skip", "0")
+            store.set_meta("backfill_done", "")
+            _log("Полный перезапуск истории (--restart) — начинаем с $skip=0")
+        elif store.get_meta("backfill_done") == "1":
+            _log("Вся история уже была загружена ранее. Для повтора используйте --restart.")
+            _log(f"Всего в базе: {store.count()}")
+            return 0
+
+        start_skip = int(store.get_meta("backfill_next_skip", "0") or "0")
+        if start_skip:
+            _log(f"Продолжаем обход с $skip={start_skip} (сохранённая позиция)")
+        else:
+            _log("Начинаем обход истории с начала")
+
+        def on_page(skip: int, count: int) -> None:
+            # skip + фактическое число записей на странице, а не настроенный
+            # page_size: так возобновление корректно работает, даже если между
+            # запусками поменяли --page-size.
+            store.set_meta("backfill_next_skip", str(skip + count))
+            store.conn.commit()
+            _log(f"  $skip={skip}: {count} записей")
+
+        source = ExcelBackfillSource(
+            page_size=args.page_size,
+            start_skip=start_skip,
+            max_pages=args.max_pages,
+            rate_limit=args.rate_limit,
+            on_page=on_page,
+        )
+
+        with store.run(source="excel-backfill", since=None) as stats:
+            store.upsert_many(source.iter_conclusions(), stats=stats)
+            store.set_meta("last_source_kind", "excel-backfill")
+
+        finished = source.report.get("finished", False)
+        if finished:
+            store.set_meta("backfill_done", "1")
+            store.conn.commit()
+            _log(f"Готово: вся история загружена. Страниц пройдено: {source.report.get('pages')}")
+        else:
+            _log(
+                f"Остановлено на $skip={source.report.get('last_skip')} "
+                f"(--max-pages={args.max_pages}). Запустите `egrz backfill` ещё раз, чтобы продолжить."
+            )
+        _log(
+            f"За этот запуск: получено {stats.fetched}, новых {stats.inserted}, "
+            f"обновлено {stats.updated}, без изменений {stats.unchanged}"
+        )
+        _log(f"Всего в базе: {store.count()}")
+    return 0
+
+
 def cmd_discover(args: argparse.Namespace) -> int:
     from .discover import probe, write_report
     from .source import SourceConfig
@@ -123,6 +191,8 @@ def cmd_stats(args: argparse.Namespace) -> int:
             "date_max": store.max_date_registered(),
             "last_sync_at": store.get_meta("last_sync_at"),
             "last_source_kind": store.get_meta("last_source_kind"),
+            "backfill_done": store.get_meta("backfill_done") == "1",
+            "backfill_next_skip": store.get_meta("backfill_next_skip"),
             "recent_runs": store.recent_runs(10),
         }
     print(json.dumps(payload, ensure_ascii=False, indent=2, default=str))
@@ -207,6 +277,17 @@ def build_parser() -> argparse.ArgumentParser:
     add_sync_args(daily)
     add_export_args(daily)
     daily.set_defaults(func=cmd_daily)
+
+    backfill = subparsers.add_parser(
+        "backfill", help="один раз догрузить всю историю целиком (сотни тысяч записей)"
+    )
+    backfill.add_argument("--page-size", type=int, default=5000, help="записей на страницу")
+    backfill.add_argument("--max-pages", type=int, help="ограничить число страниц за этот запуск")
+    backfill.add_argument("--rate-limit", type=float, default=1.0,
+                          help="пауза между страницами, секунды (не перегружать сервер ЕГРЗ)")
+    backfill.add_argument("--restart", action="store_true",
+                          help="начать обход заново с $skip=0, а не продолжать сохранённую позицию")
+    backfill.set_defaults(func=cmd_backfill)
 
     discover = subparsers.add_parser("discover", help="разведка API источника")
     discover.add_argument("--config", help="путь к YAML-описанию источника")

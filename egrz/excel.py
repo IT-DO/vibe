@@ -15,10 +15,12 @@
 from __future__ import annotations
 
 import re
+import time
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Iterator
+from typing import Any, Callable, Iterator
+from urllib.parse import urlencode
 
 from .models import Conclusion
 from .normalize import build_conclusion
@@ -225,6 +227,32 @@ def download(url: str, target: str | Path, *, timeout: float = 180.0) -> Path:
     return destination
 
 
+def download_with_retries(
+    url: str,
+    target: str | Path,
+    *,
+    timeout: float = 180.0,
+    retries: int = 3,
+    backoff: float = 3.0,
+) -> Path:
+    """То же самое, но с повторами при сетевых сбоях.
+
+    Обход всей истории — это десятки-сотни последовательных запросов; один
+    транзитный сбой (обрыв связи, таймаут) не должен ронять весь прогон,
+    когда до конца ещё далеко.
+    """
+    last_error: Exception | None = None
+    for attempt in range(retries + 1):
+        try:
+            return download(url, target, timeout=timeout)
+        except Exception as exc:  # noqa: BLE001 — ретраим любую сетевую беду
+            last_error = exc
+            if attempt == retries:
+                break
+            time.sleep(backoff * (2**attempt))
+    raise RuntimeError(f"Не удалось скачать {url}: {last_error}") from last_error
+
+
 @dataclass
 class ExcelSource:
     """Источник поверх Excel-выгрузки реестра.
@@ -271,3 +299,90 @@ class ExcelSource:
             produced += 1
             if limit is not None and produced >= limit:
                 return
+
+
+#: Тот же контроллер, что и в ссылке-примере с сайта — без него не собрать URL.
+DEFAULT_BACKFILL_BASE_URL = "https://open-api.egrz.ru/api/PublicRegistrationBook/excelDataFile"
+
+
+@dataclass
+class ExcelBackfillSource:
+    """Постраничный обход ВСЕЙ истории реестра (сотни тысяч записей).
+
+    У сервера нет потоковой выдачи — каждая страница это отдельный HTTP-запрос,
+    генерирующий отдельный .xlsx-файл на его стороне. Полная история по всей
+    стране (700 000+ записей) — это не один файл, а десятки-сотни
+    последовательных запросов по ``page_size`` записей, отсортированных по
+    дате заключения (``$orderby``) и сдвинутых ``$skip``.
+
+    Спроектировано так, чтобы длинный обход переживал обрыв: временный файл
+    каждой страницы удаляется сразу после разбора (не копим сотни МБ на
+    диске), записи отдаются по одной генератором (не копим 700 000+ записей
+    в памяти), а ``on_page`` вызывается после каждой успешно обработанной
+    страницы — CLI использует это, чтобы сохранить позицию в БД и продолжить
+    прерванный обход с того же места, а не с нуля.
+    """
+
+    base_url: str = DEFAULT_BACKFILL_BASE_URL
+    order_by: str = "ExpertiseDate desc"
+    page_size: int = 5000
+    start_skip: int = 0
+    max_pages: int | None = None
+    rate_limit: float = 1.0
+    cache_dir: str | Path = "data/downloads"
+    #: Вызывается как on_page(skip_этой_страницы, число_записей_на_ней).
+    on_page: Callable[[int, int], None] | None = None
+    report: dict[str, Any] = field(default_factory=dict)
+
+    def _page_url(self, skip: int) -> str:
+        # safe="$" — иначе urlencode экранирует его в %24. Сервер, скорее
+        # всего, понял бы и так (%24 — стандартная запись для $ в query string),
+        # но литеральный $ читаем в логах и совпадает с проверенным вручную
+        # примером ссылки, так что незачем полагаться на декодирование.
+        query = urlencode(
+            {"$orderby": self.order_by, "$count": "true", "$top": self.page_size, "$skip": skip},
+            safe="$",
+        )
+        return f"{self.base_url}?{query}"
+
+    def iter_conclusions(self) -> Iterator[Conclusion]:
+        skip = self.start_skip
+        pages_done = 0
+        total_records = 0
+        cache_dir = Path(self.cache_dir)
+        cache_dir.mkdir(parents=True, exist_ok=True)
+
+        while self.max_pages is None or pages_done < self.max_pages:
+            target = cache_dir / f"backfill-{skip}.xlsx"
+            try:
+                download_with_retries(self._page_url(skip), target)
+                raw_records, unmapped = read_rows(target)
+            finally:
+                target.unlink(missing_ok=True)
+
+            for item in raw_records:
+                yield build_conclusion(dict(item), raw={})
+
+            total_records += len(raw_records)
+            pages_done += 1
+            self.report = {
+                "pages": pages_done,
+                "records": total_records,
+                "last_skip": skip,
+                "unmapped_columns": unmapped,
+            }
+
+            if self.on_page:
+                self.on_page(skip, len(raw_records))
+
+            # Короче полного размера страницы — это последняя страница истории.
+            if len(raw_records) < self.page_size:
+                self.report["finished"] = True
+                return
+
+            skip += self.page_size
+            if self.rate_limit:
+                time.sleep(self.rate_limit)
+
+        # Обход остановлен по max_pages — истории могло остаться ещё много.
+        self.report["finished"] = False
