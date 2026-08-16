@@ -53,6 +53,14 @@ fi
 "$APP_DIR/.venv/bin/pip" install -q --upgrade pip
 "$APP_DIR/.venv/bin/pip" install -q -e "$APP_DIR"
 
+log "Устанавливаю обход TLS-особенности open-api.egrz.ru…"
+# Сервер ЕГРЗ не поддерживает безопасное согласование TLS (RFC 5746), а
+# OpenSSL 3.0+ (в этом дистрибутиве — по умолчанию) такие соединения рвёт:
+# [SSL: UNSAFE_LEGACY_RENEGOTIATION_DISABLED]. Кладём готовый конфиг и
+# подключаем его через OPENSSL_CONF — это единственный способ починить это
+# на уровне библиотеки, в коде egrz такой проблемы нет и чинить нечего.
+cp "$APP_DIR/deploy/openssl-legacy-renegotiation.cnf" "$APP_DIR/openssl-legacy-renegotiation.cnf"
+
 if [ ! -f "$APP_DIR/.env" ]; then
   echo
   echo "Ссылка на выгрузку реестра выглядит так:"
@@ -62,7 +70,12 @@ if [ ! -f "$APP_DIR/.env" ]; then
     echo "# Ссылка на Excel-выгрузку ЕГРЗ. Изменить можно в любой момент,"
     echo "# перезапуск таймера не требуется — файл читается при каждом запуске."
     echo "EGRZ_EXCEL_URL=${EXCEL_URL}"
+    echo "OPENSSL_CONF=${APP_DIR}/openssl-legacy-renegotiation.cnf"
   } > "$APP_DIR/.env"
+elif ! grep -q '^OPENSSL_CONF=' "$APP_DIR/.env"; then
+  # .env уже существовал (например, после ручной правки или прерванной
+  # установки) — дописываем недостающую строку, не трогая остальное.
+  echo "OPENSSL_CONF=${APP_DIR}/openssl-legacy-renegotiation.cnf" >> "$APP_DIR/.env"
 fi
 
 mkdir -p "$APP_DIR/data"

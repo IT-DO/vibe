@@ -1,0 +1,24 @@
+# TLS-сервер open-api.egrz.ru использует небезопасное согласование
+# (legacy renegotiation, RFC 5746 не поддерживается). OpenSSL 3.0+
+# (Debian 12/Ubuntu 22.04 и новее) с 2022 года отключает такое согласование
+# по умолчанию — соединение падает с:
+#
+#   [SSL: UNSAFE_LEGACY_RENEGOTIATION_DISABLED] unsafe legacy renegotiation disabled
+#
+# Это не уязвимость нашего кода и не то, что чинится в Python: ограничение
+# стоит в самой библиотеке OpenSSL и снимается только через её конфиг.
+# Файл подключается переменной окружения OPENSSL_CONF (см. install.sh и
+# EnvironmentFile в deploy/systemd/egrz-daily.service) — без нужды
+# этот флаг ничего не портит и не понижает защиту для нормальных серверов,
+# просто разрешает соединяться и с такими, у которых TLS настроен по-старому.
+
+openssl_conf = openssl_init
+
+[openssl_init]
+ssl_conf = ssl_sect
+
+[ssl_sect]
+system_default = system_default_sect
+
+[system_default_sect]
+Options = UnsafeLegacyRenegotiation

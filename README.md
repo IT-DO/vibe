@@ -264,3 +264,14 @@ python -m pytest -q          # 150 тестов
   «Прочее».
 * Соблюдайте нагрузку на источник: в конфиге заданы пауза между запросами и
   повторы с экспоненциальным откатом.
+* **`open-api.egrz.ru` не поддерживает безопасное согласование TLS** (RFC 5746).
+  На системах с OpenSSL 3.0+ (Debian 12/Ubuntu 22.04 и новее — то есть везде,
+  где вы, скорее всего, разворачиваете) это ломает соединение ошибкой
+  `[SSL: UNSAFE_LEGACY_RENEGOTIATION_DISABLED]`. Это ограничение самой
+  библиотеки OpenSSL, а не баг в коде проекта. `deploy/install.sh`
+  разворачивает обход автоматически ([`deploy/openssl-legacy-renegotiation.cnf`](deploy/openssl-legacy-renegotiation.cnf)
+  через `OPENSSL_CONF`); при ручном запуске CLI вне systemd задайте ту же
+  переменную сами:
+  ```bash
+  export OPENSSL_CONF=/opt/egrz/openssl-legacy-renegotiation.cnf
+  ```
