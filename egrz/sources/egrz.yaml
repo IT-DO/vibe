@@ -12,7 +12,7 @@
 
 name: egrz
 title: ЕГРЗ — реестр заключений экспертизы
-base_url: https://egrz.ru
+base_url: https://open-api.egrz.ru
 # Ссылка на карточку заключения; {id} подставляется из записи.
 record_url_template: "https://egrz.ru/organisation/reestr/detail/{id}"
 
@@ -27,63 +27,72 @@ http:
     User-Agent: "egrz-daily/0.1 (+https://github.com/it-do/vibe)"
 
 # Основной запрос списка. Плейсхолдеры: {page}, {page_size}, {offset}, {since}.
+#
+# Реестр отдаётся по OData: тот же контроллер, что и у ссылки на выгрузку
+# в Excel (.../PublicRegistrationBook/excelDataFile?$orderby=...&$top=...&$skip=...),
+# только без суффикса `excelDataFile` — тогда вместо файла приходит JSON.
+# Постраничность OData — через $skip/$top, поэтому page_size и offset
+# подставляются прямо в них.
 request:
-  method: POST
-  path: /api/publicRegistry/list
-  query: {}
-  json_body:
-    pageNum: "{page}"
-    pageSize: "{page_size}"
-    sortField: "dateRegistration"
-    sortOrder: "desc"
+  method: GET
+  path: /api/PublicRegistrationBook
+  query:
+    $orderby: "ExpertiseDate desc"
+    $count: "true"
+    $top: "{page_size}"
+    $skip: "{offset}"
 
-# Где в ответе лежат записи и общее количество.
+# Где в ответе лежат записи и общее количество (соглашение OData).
 response:
   items_path: "value"
   total_path: "@odata.count"
 
 paging:
-  mode: page            # page | offset
+  mode: offset          # page | offset — у OData это $skip
   page_size: 100
   start_page: 1
-  max_pages: 2000
+  max_pages: 5000
 
 # Сопоставление полей. Значение — список путей-кандидатов: берётся первый
 # непустой. Точка разделяет уровни вложенности, число — индекс в массиве.
+# Поиск ключа нечувствителен к регистру, так что PascalCase (.NET/OData) и
+# camelCase взаимозаменяемы; порядок задан по убыванию вероятности.
+# Достоверно известно только `ExpertiseDate` — оно из вашей ссылки; остальные
+# имена уточняются командой `egrz discover`.
 field_map:
-  id: ["id", "Id", "objectId", "documentId"]
-  registry_number: ["registryNumber", "numberInRegistry", "regNumber"]
-  conclusion_number: ["conclusionNumber", "number", "documentNumber"]
-  date_registered: ["dateRegistration", "registrationDate", "dateInclusion", "createDate"]
-  date_issued: ["dateConclusion", "conclusionDate", "documentDate"]
-  expertise_type: ["expertiseType", "typeExpertise", "expertiseTypeName", "kindExpertise"]
-  result: ["conclusionResult", "result", "resultName", "conclusionType"]
-  subject_matter: ["objectExpertise", "subjectExpertise", "expertiseSubject", "documentKind"]
-  is_repeat: ["isRepeat", "repeat", "isRepeated"]
-  object_name: ["objectName", "name", "nameObject", "objectFullName"]
-  address: ["objectAddress", "address", "addressObject", "location"]
-  region: ["regionName", "region", "subjectRf", "subjectName"]
-  region_code: ["regionCode", "codeRegion", "subjectRfCode"]
-  purpose: ["objectPurpose", "purpose", "assignment"]
-  organization: ["expertOrganizationName", "organizationName", "expertOrganization", "orgName"]
-  organization_inn: ["expertOrganizationInn", "organizationInn", "orgInn", "inn"]
-  developer: ["developerName", "developer", "customerName", "applicantName"]
-  developer_inn: ["developerInn", "customerInn", "applicantInn"]
-  cost: ["estimatedCost", "cost", "sumCost", "costTotal", "smetnayaStoimost"]
+  id: ["Id", "ObjectId", "DocumentId", "Guid"]
+  registry_number: ["RegistrationNumber", "RegistryNumber", "NumberInRegistry"]
+  conclusion_number: ["ConclusionNumber", "Number", "DocumentNumber"]
+  date_registered: ["RegistrationDate", "DateRegistration", "DateInclusion", "CreateDate"]
+  date_issued: ["ExpertiseDate", "ConclusionDate", "DateConclusion", "DocumentDate"]
+  expertise_type: ["ExpertiseType", "TypeExpertise", "KindExpertise", "ExpertiseTypeName"]
+  result: ["ExpertiseResult", "ConclusionResult", "Result", "ResultName"]
+  subject_matter: ["ExpertiseSubject", "ObjectExpertise", "SubjectExpertise", "DocumentKind"]
+  is_repeat: ["IsRepeat", "Repeat", "IsRepeated"]
+  object_name: ["ObjectName", "NameObject", "ObjectFullName", "Name"]
+  address: ["ObjectAddress", "AddressObject", "Address", "Location"]
+  region: ["SubjectRf", "RegionName", "SubjectName", "Region"]
+  region_code: ["SubjectRfCode", "RegionCode", "CodeRegion"]
+  purpose: ["ObjectPurpose", "Purpose", "Assignment"]
+  organization: ["ExpertOrganization", "ExpertOrganizationName", "OrganizationName", "OrgName"]
+  organization_inn: ["ExpertOrganizationInn", "OrganizationInn", "OrgInn"]
+  developer: ["Developer", "DeveloperName", "CustomerName", "ApplicantName"]
+  developer_inn: ["DeveloperInn", "CustomerInn", "ApplicantInn"]
+  cost: ["EstimatedCost", "Cost", "CostTotal", "SumCost"]
 
 # Кандидаты для `egrz discover`: пробуются по очереди, отчёт покажет,
 # какой из них отвечает JSON со списком записей.
+# Первый кандидат — тот же контроллер, что и в ссылке на Excel-выгрузку,
+# только без `excelDataFile`: у OData-контроллера это и есть JSON-список.
 discovery_candidates:
-  - { method: GET,  path: /api/publicRegistry/list, query: { pageNum: 1, pageSize: 5 } }
-  - { method: POST, path: /api/publicRegistry/list, json_body: { pageNum: 1, pageSize: 5 } }
-  - { method: GET,  path: /api/PublicRegistry/GetList, query: { page: 1, size: 5 } }
-  - { method: GET,  path: /api/registry/list, query: { page: 1, size: 5 } }
-  - { method: GET,  path: /api/reestr/list, query: { page: 1, size: 5 } }
-  - { method: GET,  path: /api/sections/reestr/list, query: { page: 1, size: 5 } }
-  - { method: GET,  path: /swagger/v1/swagger.json }
-  - { method: GET,  path: /swagger/index.html }
-  # open-api.egrz.ru — отдельный хост аналитики и открытых данных ЕГРЗ.
-  - { method: GET,  base_url: "https://open-api.egrz.ru", path: /swagger/v1/swagger.json }
-  - { method: GET,  base_url: "https://open-api.egrz.ru", path: /api/File/analytics }
-  - { method: GET,  base_url: "https://open-api.egrz.ru", path: /api/Analytics }
-  - { method: GET,  base_url: "https://open-api.egrz.ru", path: /api/Registry, query: { page: 1, size: 5 } }
+  - { method: GET, path: /api/PublicRegistrationBook, query: { $top: 5, $skip: 0, $count: "true", $orderby: "ExpertiseDate desc" } }
+  - { method: GET, path: /api/PublicRegistrationBook, query: { $top: 5 } }
+  - { method: GET, path: /api/PublicRegistrationBook/odata, query: { $top: 5 } }
+  - { method: GET, path: /odata/PublicRegistrationBook, query: { $top: 5 } }
+  - { method: GET, path: /api/PublicRegistrationBook/$metadata }
+  - { method: GET, path: /swagger/v1/swagger.json }
+  - { method: GET, path: /$metadata }
+  - { method: GET, path: /api/Analytics }
+  # Старый публичный сайт — на случай, если open-api окажется недоступен.
+  - { method: GET,  base_url: "https://egrz.ru", path: /api/publicRegistry/list, query: { pageNum: 1, pageSize: 5 } }
+  - { method: POST, base_url: "https://egrz.ru", path: /api/publicRegistry/list, json_body: { pageNum: 1, pageSize: 5 } }

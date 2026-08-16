@@ -9,8 +9,12 @@ on:
       source:
         description: "Источник данных"
         type: choice
-        options: [api, demo]
-        default: api
+        options: [excel, api, demo]
+        default: excel
+      file:
+        description: "Для excel: ссылка на excelDataFile или путь к .xlsx"
+        type: string
+        default: ""
       full:
         description: "Полная выгрузка вместо инкрементальной"
         type: boolean
@@ -48,11 +52,27 @@ jobs:
           key: egrz-db-${{ github.run_id }}
           restore-keys: egrz-db-
 
+      # Ссылка на выгрузку живёт в переменной репозитория EGRZ_EXCEL_URL
+      # (Settings → Secrets and variables → Actions → Variables): так её
+      # можно поменять, не трогая workflow. Пример значения:
+      # https://open-api.egrz.ru/api/PublicRegistrationBook/excelDataFile?$orderby=ExpertiseDate desc&$top=5000&$skip=0
       - name: Выгрузка и сборка витрины
+        env:
+          SOURCE: ${{ inputs.source || 'excel' }}
+          FILE: ${{ inputs.file || vars.EGRZ_EXCEL_URL }}
+          FULL: ${{ inputs.full && '--full' || '' }}
         run: |
-          python -m egrz.cli daily \
-            --source "${{ inputs.source || 'api' }}" \
-            ${{ inputs.full && '--full' || '' }}
+          set -euo pipefail
+          if [ "$SOURCE" = "excel" ] && [ -z "$FILE" ]; then
+            echo "::error::Для источника excel задайте переменную EGRZ_EXCEL_URL или вход file"
+            exit 1
+          fi
+          # Ссылка содержит & и пробелы — подставляем её только в кавычках.
+          if [ -n "$FILE" ]; then
+            python -m egrz.cli daily --source "$SOURCE" --file "$FILE" $FULL
+          else
+            python -m egrz.cli daily --source "$SOURCE" $FULL
+          fi
 
       - name: Сохранить базу
         if: always()

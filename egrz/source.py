@@ -402,12 +402,20 @@ class DemoSource:
 
 
 def get_source(kind: str, *, config_path: str | Path | None = None, **kwargs: Any) -> Source:
-    """Фабрика источников: ``api`` — живой ЕГРЗ, ``demo`` — офлайн-данные."""
+    """Фабрика источников.
+
+    ``excel`` — Excel-выгрузка реестра (файл или ссылка на него),
+    ``api`` — живой OData-эндпоинт, ``demo`` — офлайн-данные.
+    """
     if kind == "demo":
         return DemoSource(**kwargs)
     if kind == "api":
         return EgrzApiSource(SourceConfig.load(config_path))
-    raise ValueError(f"Неизвестный источник: {kind!r} (доступны: api, demo)")
+    if kind == "excel":
+        from .excel import ExcelSource
+
+        return ExcelSource(**kwargs)
+    raise ValueError(f"Неизвестный источник: {kind!r} (доступны: api, excel, demo)")
 
 
 def load_jsonl(path: str | Path) -> Iterable[Conclusion]:

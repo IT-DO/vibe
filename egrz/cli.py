@@ -47,9 +47,14 @@ def cmd_sync(args: argparse.Namespace) -> int:
             since = None
             _log("Полная выгрузка (--full)")
 
-        source_kwargs = {}
+        source_kwargs: dict[str, object] = {}
         if args.source == "demo":
             source_kwargs = {"count": args.demo_count}
+        elif args.source == "excel":
+            if not args.file:
+                _log("Для --source excel укажите --file: путь к .xlsx или ссылку на выгрузку")
+                return 1
+            source_kwargs = {"source": args.file, "sheet": args.sheet}
         source = get_source(args.source, config_path=args.config, **source_kwargs)
 
         with store.run(source=args.source, since=since) as stats:
@@ -57,6 +62,13 @@ def cmd_sync(args: argparse.Namespace) -> int:
                 source.iter_conclusions(since=since, limit=args.limit), stats=stats
             )
             store.set_meta("last_source_kind", args.source)
+
+        # Нераспознанные колонки — единственный признак того, что выгрузка
+        # изменилась, поэтому о них нужно сказать вслух, а не прятать в отчёт.
+        report = getattr(source, "report", None)
+        if report and report.get("unmapped_columns"):
+            _log(f"Не распознаны колонки: {', '.join(report['unmapped_columns'][:12])}")
+            _log("Добавьте для них правило в HEADER_RULES (egrz/excel.py), если они нужны")
 
         _log(
             f"Готово: получено {stats.fetched}, новых {stats.inserted}, "
@@ -161,9 +173,15 @@ def build_parser() -> argparse.ArgumentParser:
 
     def add_sync_args(sub: argparse.ArgumentParser) -> None:
         sub.add_argument(
-            "--source", choices=("api", "demo"), default="api",
-            help="api — живой ЕГРЗ; demo — синтетические данные для офлайн-проверки",
+            "--source", choices=("api", "excel", "demo"), default="api",
+            help="api — OData-эндпоинт ЕГРЗ; excel — скачанная выгрузка .xlsx; "
+                 "demo — синтетические данные для офлайн-проверки",
         )
+        sub.add_argument(
+            "--file",
+            help="для --source excel: путь к .xlsx или ссылка на excelDataFile",
+        )
+        sub.add_argument("--sheet", help="лист книги Excel (по умолчанию первый)")
         sub.add_argument("--since", help="дата в формате YYYY-MM-DD; по умолчанию — авто")
         sub.add_argument("--full", action="store_true", help="полная выгрузка вместо инкрементальной")
         sub.add_argument("--overlap", type=int, default=3,

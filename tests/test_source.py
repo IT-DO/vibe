@@ -122,12 +122,34 @@ def test_pagination_respects_limit():
     assert len(list(source.iter_raw_items(limit=4))) == 4
 
 
-def test_page_placeholder_is_rendered_as_number():
+def test_odata_placeholders_render_as_numbers():
+    """$top/$skip должны уходить числами, а не строками «3»/«0»."""
     source, client = build_source([{"value": [make_item(1)]}])
     list(source.iter_raw_items())
-    body = client.calls[0][2]["json"]
-    assert body["pageNum"] == 1 and isinstance(body["pageNum"], int)
-    assert body["pageSize"] == 3
+    params = client.calls[0][2]["params"]
+    assert params["$top"] == 3 and isinstance(params["$top"], int)
+    assert params["$skip"] == 0 and isinstance(params["$skip"], int)
+    assert params["$count"] == "true"
+
+
+def test_odata_skip_advances_between_pages():
+    pages = [
+        {"value": [make_item(1), make_item(2), make_item(3)]},
+        {"value": [make_item(4), make_item(5), make_item(6)]},
+        {"value": [make_item(7)]},
+    ]
+    source, client = build_source(pages)
+    list(source.iter_raw_items())
+    assert [call[2]["params"]["$skip"] for call in client.calls] == [0, 3, 6]
+
+
+def test_request_targets_open_api_odata_endpoint():
+    """Конфиг должен указывать на тот же контроллер, что и ссылка на выгрузку."""
+    config = SourceConfig.load()
+    assert config.base_url == "https://open-api.egrz.ru"
+    assert config.request["path"] == "/api/PublicRegistrationBook"
+    assert config.response["items_path"] == "value"
+    assert config.response["total_path"] == "@odata.count"
 
 
 def test_iter_conclusions_normalizes():
