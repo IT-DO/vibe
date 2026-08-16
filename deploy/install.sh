@@ -78,6 +78,11 @@ elif ! grep -q '^OPENSSL_CONF=' "$APP_DIR/.env"; then
   echo "OPENSSL_CONF=${APP_DIR}/openssl-legacy-renegotiation.cnf" >> "$APP_DIR/.env"
 fi
 
+# Источник истины — сам файл, а не переменная из ветки выше: при повторном
+# запуске .env уже существовал, `read` не выполнялся, и без этой строки
+# скрипт решил бы, что ссылки нет, хотя она есть.
+EXCEL_URL="$(grep -m1 '^EGRZ_EXCEL_URL=' "$APP_DIR/.env" 2>/dev/null | cut -d= -f2-)"
+
 mkdir -p "$APP_DIR/data"
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 chmod 600 "$APP_DIR/.env"
@@ -122,6 +127,6 @@ if [ -n "${EXCEL_URL:-}" ]; then
     fi
   fi
 else
-  echo "Ссылка не задана — впишите её в ${APP_DIR}/.env и выполните:"
-  echo "  sudo systemctl start egrz-daily.service"
+  echo "Ссылка не задана — впишите её в ${APP_DIR}/.env (строка EGRZ_EXCEL_URL=)"
+  echo "и выполните: systemctl start egrz-daily.service"
 fi
