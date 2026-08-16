@@ -1,0 +1,28 @@
+[Unit]
+Description=ЕГРЗ — выгрузка реестра и сборка витрины дашборда
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=egrz
+Group=egrz
+WorkingDirectory=/opt/egrz
+# EGRZ_EXCEL_URL — ссылка на выгрузку, задаётся в /opt/egrz/.env
+# (install.sh спрашивает её и записывает; можно сменить в любой момент вручную).
+EnvironmentFile=-/opt/egrz/.env
+# /bin/sh -c нужен, чтобы систем-переменная EGRZ_EXCEL_URL раскрылась —
+# ExecStart сам по себе переменные окружения не подставляет.
+ExecStart=/bin/sh -c '/opt/egrz/.venv/bin/egrz daily --source excel --file "$EGRZ_EXCEL_URL"'
+# Если сеть до egrz.ru недоступна и ссылки нет — не роняем таймер насовсем,
+# следующий запуск попробует снова через сутки.
+Restart=no
+TimeoutStartSec=600
+
+# Список действует со systemd 232+ (Debian 10+/Ubuntu 18.04+ подходят);
+# на контейнере из шаблона Proxmox это выполняется по умолчанию.
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ReadWritePaths=/opt/egrz/data
+ProtectHome=true
