@@ -1,0 +1,32 @@
+@import "tailwindcss";
+
+@theme {
+  --color-ink: #14121a;
+  --color-muted: #6b6779;
+  --color-line: #e6e3ee;
+  --color-paper: #ffffff;
+  --color-canvas: #faf9fd;
+  --color-brand: #7b3fe4;
+  --color-brand-dark: #6430c4;
+  --color-brand-soft: #f2ecfe;
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue",
+    Arial, sans-serif;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-canvas);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Убираем стрелки у полей с числами - они тут только мешают. */
+input[type="number"]::-webkit-outer-spin-button,
+input[type="number"]::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
+}

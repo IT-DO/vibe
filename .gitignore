@@ -1,0 +1,20 @@
+node_modules/
+.next/
+out/
+build/
+next-env.d.ts
+*.tsbuildinfo
+
+# База данных и всё, что в ней. НИКОГДА не коммить.
+data/
+*.db
+*.db-shm
+*.db-wal
+
+# Секреты. НИКОГДА не коммить.
+.env
+.env.local
+.env.production
+
+.DS_Store
+npm-debug.log*
