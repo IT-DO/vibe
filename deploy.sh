@@ -8,15 +8,10 @@ set -e
 cd "$(dirname "$0")"
 
 echo "==> Бэкап базы"
-if [ -f data/app.db ]; then
-  mkdir -p backups
-  cp data/app.db "backups/app-$(date +%F-%H%M%S).db"
-  # Держим последние 20 копий, остальные удаляем.
-  ls -1t backups/app-*.db | tail -n +21 | xargs -r rm --
-  echo "    готово"
-else
-  echo "    базы ещё нет, пропускаю"
-fi
+# Логика бэкапа - в backup.sh. Просто "cp app.db" здесь был бы ошибкой:
+# база в режиме WAL, свежие транзакции лежат в отдельном файле,
+# и копия основного молча потеряла бы последние платежи.
+./backup.sh
 
 echo "==> Забираю изменения"
 git pull
