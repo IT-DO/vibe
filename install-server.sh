@@ -46,7 +46,9 @@ fi
 if [ ! -f package.json ] || [ ! -f docker-compose.yml ]; then
   echo "Рядом со скриптом нет файлов проекта (package.json, docker-compose.yml)."
   echo "Похоже, скрипт скопировали отдельно. Забери проект целиком:"
-  echo "  git clone АДРЕС_РЕПОЗИТОРИЯ /opt/app && cd /opt/app"
+  echo "  git clone -b claude/vibecoding-saas-service-mx3k2z \\"
+  echo "    https://github.com/IT-DO/vibe.git /opt/app"
+  echo "  cd /opt/app"
   exit 1
 fi
 

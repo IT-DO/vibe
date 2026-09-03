@@ -79,9 +79,13 @@ Docker — это способ запустить приложение вмес�
 
 ```bash
 apt update && apt install -y git
-git clone АДРЕС_ТВОЕГО_РЕПОЗИТОРИЯ /opt/app
+git clone -b claude/vibecoding-saas-service-mx3k2z \
+  https://github.com/IT-DO/vibe.git /opt/app
 cd /opt/app
 ```
+
+Репозиторий публичный, поэтому ключи и пароли для клонирования не нужны.
+`-b` обязателен: код в рабочей ветке, в `main` пока только README.
 
 ### 4. Настройки
 
