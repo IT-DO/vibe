@@ -13,6 +13,8 @@ cd "$(dirname "$0")" 2>/dev/null || true
 
 problems=0
 warnings=0
+AM_ROOT=0
+[ "$(id -u)" = "0" ] && AM_ROOT=1
 
 ok()   { echo "  [ ok ] $1"; }
 warn() { echo "  [ ?? ] $1"; warnings=$((warnings + 1)); }
@@ -21,6 +23,15 @@ info() { echo "         $1"; }
 head_() { echo; echo "$1"; echo "------------------------------"; }
 
 have() { command -v "$1" >/dev/null 2>&1; }
+
+if [ "$AM_ROOT" = "0" ]; then
+  echo
+  echo "ВНИМАНИЕ: запущено не от root."
+  echo "Файл .env закрыт правами 600, доступ к докеру тоже обычно у root."
+  echo "Часть проверок будет пропущена. Полный осмотр:"
+  echo
+  echo "    sudo ./check-server.sh"
+fi
 
 # --- Система ---------------------------------------------------------------
 head_ "Система"
@@ -95,6 +106,13 @@ head_ "Настройки (.env)"
 
 if [ ! -f .env ]; then
   bad "файла .env нет - скопируй: cp .env.example .env"
+elif [ ! -r .env ]; then
+  # Раньше здесь печаталось четыре бодрых [FAIL] про пустые переменные.
+  # Они были неправдой: файл просто не читался. Ложная тревога хуже,
+  # чем отсутствие проверки - по ней начинают чинить исправное.
+  ok "файл .env на месте"
+  warn "прочитать .env не удалось - не хватает прав"
+  info "Настройки не проверены. Полный осмотр: sudo ./check-server.sh"
 else
   ok "файл .env на месте"
 
@@ -137,8 +155,13 @@ else
   fi
 fi
 
-if git check-ignore -q .env 2>/dev/null; then
+if ! git rev-parse --git-dir >/dev/null 2>&1; then
+  warn "git не смог прочитать репозиторий - исключение .env не проверил"
+  info "Часто это права: попробуй sudo ./check-server.sh"
+elif git check-ignore -q .env 2>/dev/null; then
   ok ".env исключён из git"
+elif grep -qxF ".env" .gitignore 2>/dev/null; then
+  ok ".env исключён из git (по .gitignore)"
 else
   bad ".env НЕ исключён из git - ключи могут утечь в репозиторий"
 fi
@@ -146,7 +169,12 @@ fi
 # --- Приложение ------------------------------------------------------------
 head_ "Приложение"
 
-if have docker && docker compose ps 2>/dev/null | grep -q "Up\|running"; then
+if ! have docker; then
+  bad "docker не установлен"
+elif ! docker info >/dev/null 2>&1; then
+  warn "нет доступа к докеру - состояние контейнера не проверил"
+  info "Обычно это значит, что нужен sudo: sudo ./check-server.sh"
+elif docker compose ps 2>/dev/null | grep -q "Up\|running"; then
   ok "контейнер запущен"
 else
   warn "контейнер не запущен (docker compose up -d --build)"
