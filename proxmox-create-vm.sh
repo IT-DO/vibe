@@ -112,7 +112,17 @@ if [ -f "$IMAGE_FILE" ]; then
   echo "    уже скачан: $IMAGE_FILE"
 else
   run mkdir -p "$(dirname "$IMAGE_FILE")"
-  run wget -q --show-progress -O "$IMAGE_FILE" "$IMAGE_URL"
+  # На голом хосте Proxmox может не быть чего-то одного из двух,
+  # поэтому пробуем оба. Урок из практики: не предполагай, что
+  # привычная команда установлена.
+  if command -v wget >/dev/null 2>&1; then
+    run wget -q --show-progress -O "$IMAGE_FILE" "$IMAGE_URL"
+  elif command -v curl >/dev/null 2>&1; then
+    run curl -fL --progress-bar -o "$IMAGE_FILE" "$IMAGE_URL"
+  else
+    echo "Нет ни wget, ни curl. Поставь любой: apt install -y curl"
+    exit 1
+  fi
 fi
 
 # --- Создание ---------------------------------------------------------------

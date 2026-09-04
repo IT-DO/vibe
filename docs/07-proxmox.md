@@ -60,13 +60,23 @@ Docker внутри LXC — это контейнеры внутри конте�
 
 ### На хосте Proxmox
 
-```bash
-git clone -b claude/vibecoding-saas-service-mx3k2z \
-  https://github.com/IT-DO/vibe.git /root/vibe
-cd /root/vibe
+Хосту нужен только один файл — весь проект туда не нужен, и `git`
+на голом Proxmox обычно не установлен. Забираем скрипт напрямую:
 
-./proxmox-create-vm.sh --plan 192.168.10.100   # посмотреть, что будет
-./proxmox-create-vm.sh 192.168.10.100          # создать
+```bash
+curl -fsSL -o proxmox-create-vm.sh https://raw.githubusercontent.com/IT-DO/vibe/claude/vibecoding-saas-service-mx3k2z/proxmox-create-vm.sh && chmod +x proxmox-create-vm.sh
+```
+
+Посмотреть, что будет сделано:
+
+```bash
+./proxmox-create-vm.sh --plan 192.168.10.100
+```
+
+Создать:
+
+```bash
+./proxmox-create-vm.sh 192.168.10.100
 ```
 
 Вместо `192.168.10.100` подставь **свободный** адрес в своей сети.
@@ -83,19 +93,31 @@ cd /root/vibe
 ssh admin@192.168.10.100
 ```
 
+Дальше — четыре команды, каждая в одну строку:
+
 ```bash
 sudo apt update && sudo apt install -y git qemu-guest-agent
-sudo systemctl enable --now qemu-guest-agent
+```
 
-sudo git clone -b claude/vibecoding-saas-service-mx3k2z \
-  https://github.com/IT-DO/vibe.git /opt/app
-cd /opt/app
-sudo ./install-server.sh
+```bash
+sudo systemctl enable --now qemu-guest-agent
+```
+
+```bash
+sudo git clone -b claude/vibecoding-saas-service-mx3k2z https://github.com/IT-DO/vibe.git /opt/app
+```
+
+```bash
+cd /opt/app && sudo ./install-server.sh
 ```
 
 В конце установщик сам покажет состояние машины. Всё, что помечено
 `[FAIL]`, — это то, что надо чинить; `[ ?? ]` на этом этапе нормально
 (нет домена, нет ключей ЮKassa, тексты пока заглушка).
+
+> **Команды намеренно однострочные.** Перенос строки через `\` часто
+> ломается при копировании в терминал Windows: часть команды теряется,
+> и получаешь `command not found` на ровном месте.
 
 ### Посмотреть результат
 
