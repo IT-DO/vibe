@@ -1,5 +1,3 @@
-import Anthropic from "@anthropic-ai/sdk";
-
 /**
  * Слой между продуктом и моделью.
  *
@@ -125,6 +123,12 @@ export async function generateCard(input: CardInput): Promise<Card> {
 // --- Claude ----------------------------------------------------------------
 
 async function viaAnthropic(input: CardInput): Promise<Card> {
+  // SDK загружается только здесь, а не в начале файла.
+  // Зачем: при работе через OpenAI он не нужен вовсе, и без верхнего
+  // import этот файл запускается голым node - без npm install.
+  // Благодаря этому настройку промпта можно гонять на сервере,
+  // где из инструментов есть только Docker.
+  const { default: Anthropic } = await import("@anthropic-ai/sdk");
   const client = new Anthropic(); // ключ берётся из ANTHROPIC_API_KEY
 
   try {
