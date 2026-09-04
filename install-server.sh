@@ -120,18 +120,27 @@ fi
 # --- 4. Ночной бэкап --------------------------------------------------------
 
 step "Ночной бэкап в 4:00"
-CRON_LINE="0 4 * * * cd $(pwd) && ./backup.sh >> /var/log/kartochka-backup.log 2>&1"
+# Задание кладём файлом в /etc/cron.d, а не в crontab пользователя.
+# Причина: скрипт запускают через sudo, и чей именно crontab при этом
+# правится - зависит от системы. Файл в /etc/cron.d принадлежит системе,
+# его видно глазами (cat) и он не зависит от того, кто его создал.
+# Формат строки отличается от обычного crontab: после расписания
+# указывается пользователь, от которого выполнять.
+CRON_FILE="/etc/cron.d/kartochka-backup"
+CRON_LINE="0 4 * * * root cd $(pwd) && ./backup.sh >> /var/log/kartochka-backup.log 2>&1"
 
 if [ "$PLAN" = "1" ]; then
-  echo "    [план] добавлю в crontab: $CRON_LINE"
-elif crontab -l 2>/dev/null | grep -qF "backup.sh"; then
-  skip "задание уже в crontab"
+  echo "    [план] создам $CRON_FILE"
+  echo "    [план] $CRON_LINE"
+elif [ -f "$CRON_FILE" ] && grep -qF "backup.sh" "$CRON_FILE"; then
+  skip "задание уже стоит: $CRON_FILE"
 else
-  ( crontab -l 2>/dev/null; echo "$CRON_LINE" ) | crontab -
-  echo "    добавлено"
+  printf '%s\n' "$CRON_LINE" > "$CRON_FILE"
+  # cron игнорирует файлы с неверными правами и исполняемым битом.
+  chmod 644 "$CRON_FILE"
+  chown root:root "$CRON_FILE"
+  echo "    создано: $CRON_FILE"
 fi
-
-# --- 5. Сборка и запуск -----------------------------------------------------
 
 step "Папка для базы"
 # Контейнер работает от пользователя 10001 (см. Dockerfile) и пишет базу
@@ -171,15 +180,19 @@ done
 step "Осмотр результата"
 ./check-server.sh || true
 
-cat <<'NEXT'
+LOGIN="${SUDO_USER:-$(id -un)}"
+ADDR=$(hostname -I 2>/dev/null | awk '{print $1}')
+
+cat <<NEXT
 
 ──────────────────────────────────────────────────
 Что дальше
 
 1. Посмотреть сервис со своего ноутбука. Сервис намеренно не торчит
-   в сеть напрямую, поэтому пробрось порт по SSH - на НОУТБУКЕ выполни:
+   в сеть напрямую, поэтому пробрось порт по SSH. На НОУТБУКЕ, одной
+   строкой:
 
-       ssh -L 3000:127.0.0.1:3000 root@АДРЕС_ЭТОЙ_МАШИНЫ
+       ssh -L 3000:127.0.0.1:3000 $LOGIN@$ADDR
 
    и открой http://localhost:3000 в браузере.
 

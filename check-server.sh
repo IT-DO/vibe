@@ -248,12 +248,18 @@ else
   warn "бэкапов ещё не было - запусти ./backup.sh"
 fi
 
-if ! have crontab; then
-  warn "команды crontab нет, расписание не проверил (apt install -y cron)"
-elif crontab -l 2>/dev/null | grep -q "backup.sh"; then
-  ok "ночной бэкап стоит в cron"
+if [ -f /etc/cron.d/kartochka-backup ] && grep -qF "backup.sh" /etc/cron.d/kartochka-backup; then
+  ok "ночной бэкап стоит: /etc/cron.d/kartochka-backup"
+  # cron молча пропускает файлы с исполняемым битом - частая ловушка.
+  if [ -x /etc/cron.d/kartochka-backup ]; then
+    bad "у файла задания стоит исполняемый бит - cron такие пропускает"
+    info "Починить: chmod 644 /etc/cron.d/kartochka-backup"
+  fi
+elif have crontab && crontab -l 2>/dev/null | grep -q "backup.sh"; then
+  ok "ночной бэкап стоит в crontab пользователя"
 else
-  bad "ночного бэкапа в cron нет - см. docs/03-deploy.md"
+  bad "ночного бэкапа нет - запусти ./install-server.sh ещё раз"
+  info "Он создаст /etc/cron.d/kartochka-backup"
 fi
 
 if [ ! -d backups ] || [ -z "$(ls -1 backups/ 2>/dev/null)" ]; then
