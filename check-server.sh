@@ -158,6 +158,38 @@ if have curl; then
     || bad "приложение не отвечает на 127.0.0.1:3000 (код: ${code:-нет ответа})"
 fi
 
+# --- База данных -----------------------------------------------------------
+head_ "База данных"
+
+if grep -q "DATABASE_PATH: */data/app.db" docker-compose.yml 2>/dev/null; then
+  ok "docker-compose.yml задаёт путь к базе явно"
+else
+  bad "в docker-compose.yml нет строки DATABASE_PATH: /data/app.db"
+  info "Без неё значение из .env перекроет путь, и база уедет внутрь"
+  info "контейнера - там она стирается при каждой пересборке."
+fi
+
+if [ -d data ]; then
+  owner=$(stat -c %u data 2>/dev/null)
+  if [ "$owner" = "10001" ]; then
+    ok "папка data/ принадлежит пользователю сервиса (10001)"
+  else
+    bad "папка data/ принадлежит пользователю $owner, а нужен 10001"
+    info "Сервис не сможет писать базу. Починить: chown -R 10001:10001 data"
+  fi
+
+  if [ -f data/app.db ]; then
+    size=$(stat -c %s data/app.db 2>/dev/null)
+    ok "файл базы на месте: data/app.db ($size байт)"
+  else
+    warn "файла data/app.db ещё нет"
+    info "Если сервис уже запускался - значит, база пишется не сюда."
+    info "Проверь строку DATABASE_PATH в docker-compose.yml."
+  fi
+else
+  warn "папки data/ нет - сервис ещё не запускался"
+fi
+
 # --- Сеть ------------------------------------------------------------------
 head_ "Сеть"
 

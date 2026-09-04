@@ -94,12 +94,15 @@ function buildUserPrompt(input: CardInput): string {
 
 /** Ошибка, текст которой не стыдно показать пользователю. */
 export class LlmError extends Error {
-  constructor(
-    message: string,
-    readonly retryable: boolean,
-  ) {
+  // Поле объявлено и присвоено отдельно, а не сокращённой записью
+  // в конструкторе: сокращённая не переживает удаление типов, и тогда
+  // scripts/try-prompt.ts не смог бы загрузить этот файл напрямую.
+  readonly retryable: boolean;
+
+  constructor(message: string, retryable: boolean) {
     super(message);
     this.name = "LlmError";
+    this.retryable = retryable;
   }
 }
 

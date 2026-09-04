@@ -20,7 +20,24 @@ declare global {
 
 function open(): Database.Database {
   const file = process.env.DATABASE_PATH || "./data/app.db";
-  fs.mkdirSync(path.dirname(file), { recursive: true });
+  const dir = path.dirname(file);
+
+  try {
+    fs.mkdirSync(dir, { recursive: true });
+  } catch (error) {
+    // Голое "EACCES: permission denied, mkdir './data'" ничего не объясняет
+    // тому, кто это увидит в логах в первый раз. Объясняем.
+    const code = (error as NodeJS.ErrnoException).code;
+    if (code === "EACCES" || code === "EPERM") {
+      throw new Error(
+        `Нет прав создать папку для базы: ${dir}\n` +
+          `Путь взят из DATABASE_PATH (сейчас: ${process.env.DATABASE_PATH ?? "не задан"}).\n` +
+          `Если это Docker - папка data/ на сервере должна принадлежать ` +
+          `пользователю 10001. Починить: chown -R 10001:10001 data`,
+      );
+    }
+    throw error;
+  }
 
   const db = new Database(file);
   // WAL: читатели не блокируют писателя. Для веб-приложения - обязательно.

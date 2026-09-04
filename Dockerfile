@@ -27,7 +27,14 @@ ENV DATABASE_PATH=/data/app.db
 
 # Не запускаем от root: если приложение взломают, злоумышленник
 # получит права обычного пользователя, а не хозяина машины.
-RUN groupadd -r app && useradd -r -g app app && mkdir -p /data && chown app:app /data
+#
+# Номер пользователя закреплён (10001), а не выдан системой наугад.
+# Причина: папка data/ на диске сервера монтируется внутрь контейнера,
+# и её владелец должен совпадать с тем, от кого работает сервис.
+# Со случайным номером совпадение зависело бы от версии образа.
+RUN groupadd -r -g 10001 app \
+    && useradd -r -u 10001 -g app app \
+    && mkdir -p /data && chown app:app /data
 
 COPY --from=builder --chown=app:app /app/.next/standalone ./
 COPY --from=builder --chown=app:app /app/.next/static ./.next/static
