@@ -225,12 +225,9 @@ cat <<NEXT
 
     ssh $CIUSER@$IP
 
-Дальше - четыре команды внутри машины, каждая в одну строку:
+Дальше - одна строка внутри машины, целиком:
 
-    sudo apt update && sudo apt install -y git qemu-guest-agent
-    sudo systemctl enable --now qemu-guest-agent
-    sudo git clone -b claude/vibecoding-saas-service-mx3k2z https://github.com/IT-DO/vibe.git /opt/app
-    cd /opt/app && sudo ./install-server.sh
+sudo apt update && sudo apt install -y git qemu-guest-agent && sudo systemctl enable --now qemu-guest-agent && sudo git clone -b claude/vibecoding-saas-service-mx3k2z https://github.com/IT-DO/vibe.git /opt/app && cd /opt/app && sudo ./install-server.sh
 
 Удалить машину и начать заново:  qm stop $VMID && qm destroy $VMID
 NEXT
@@ -252,7 +249,7 @@ cat <<NEXT
 
 Шаг 2. Разреши вход по паролю - одной строкой:
 
-    echo 'PasswordAuthentication yes' | sudo tee /etc/ssh/sshd_config.d/01-password.conf && sudo systemctl restart ssh
+echo 'PasswordAuthentication yes' | sudo tee /etc/ssh/sshd_config.d/01-password.conf && sudo systemctl restart ssh
 
 Имя файла начинается с 01 не случайно: настройки читаются по порядку,
 и побеждает первая встреченная - файл с меньшим номером перекрывает
@@ -262,12 +259,9 @@ cat <<NEXT
 
 Теперь с ноутбука работает:  ssh $CIUSER@$IP
 
-Дальше - четыре команды внутри машины, каждая в одну строку:
+Дальше - одна строка внутри машины, целиком:
 
-    sudo apt update && sudo apt install -y git qemu-guest-agent
-    sudo systemctl enable --now qemu-guest-agent
-    sudo git clone -b claude/vibecoding-saas-service-mx3k2z https://github.com/IT-DO/vibe.git /opt/app
-    cd /opt/app && sudo ./install-server.sh
+sudo apt update && sudo apt install -y git qemu-guest-agent && sudo systemctl enable --now qemu-guest-agent && sudo git clone -b claude/vibecoding-saas-service-mx3k2z https://github.com/IT-DO/vibe.git /opt/app && cd /opt/app && sudo ./install-server.sh
 
 В следующий раз проще сразу с ключом - тогда этих шагов не будет:
 

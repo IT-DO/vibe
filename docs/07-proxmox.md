@@ -61,16 +61,11 @@ Docker внутри LXC — это контейнеры внутри конте�
 ### На хосте Proxmox
 
 Хосту нужен только один файл — весь проект туда не нужен, и `git`
-на голом Proxmox обычно не установлен. Забираем скрипт напрямую:
+на голом Proxmox обычно не установлен. Скачать и посмотреть план —
+одна строка:
 
 ```bash
-curl -fsSL -o proxmox-create-vm.sh https://raw.githubusercontent.com/IT-DO/vibe/claude/vibecoding-saas-service-mx3k2z/proxmox-create-vm.sh && chmod +x proxmox-create-vm.sh
-```
-
-Посмотреть, что будет сделано:
-
-```bash
-./proxmox-create-vm.sh --plan 192.168.10.100
+curl -fsSL -o proxmox-create-vm.sh https://raw.githubusercontent.com/IT-DO/vibe/claude/vibecoding-saas-service-mx3k2z/proxmox-create-vm.sh && chmod +x proxmox-create-vm.sh && ./proxmox-create-vm.sh --plan 192.168.10.100
 ```
 
 Создать:
@@ -139,22 +134,10 @@ echo 'PasswordAuthentication yes' | sudo tee /etc/ssh/sshd_config.d/01-password.
 ssh admin@192.168.10.100
 ```
 
-Дальше — четыре команды, каждая в одну строку:
+Дальше — одна строка, целиком:
 
 ```bash
-sudo apt update && sudo apt install -y git qemu-guest-agent
-```
-
-```bash
-sudo systemctl enable --now qemu-guest-agent
-```
-
-```bash
-sudo git clone -b claude/vibecoding-saas-service-mx3k2z https://github.com/IT-DO/vibe.git /opt/app
-```
-
-```bash
-cd /opt/app && sudo ./install-server.sh
+sudo apt update && sudo apt install -y git qemu-guest-agent && sudo systemctl enable --now qemu-guest-agent && sudo git clone -b claude/vibecoding-saas-service-mx3k2z https://github.com/IT-DO/vibe.git /opt/app && cd /opt/app && sudo ./install-server.sh
 ```
 
 В конце установщик сам покажет состояние машины. Всё, что помечено
