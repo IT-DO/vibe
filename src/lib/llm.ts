@@ -111,6 +111,8 @@ export async function generateCard(input: CardInput): Promise<Card> {
   switch (provider) {
     case "anthropic":
       return viaAnthropic(input);
+    case "openai":
+      return viaOpenAi(input);
     case "openai-compatible":
       return viaOpenAiCompatible(input);
     case "mock":
@@ -159,6 +161,122 @@ async function viaAnthropic(input: CardInput): Promise<Card> {
     }
     throw new LlmError("Не удалось связаться с моделью. Проверь интернет.", true);
   }
+}
+
+// --- OpenAI ----------------------------------------------------------------
+
+/**
+ * Отдельный провайдер именно для OpenAI, а не общий openai-compatible.
+ *
+ * Причина в двух местах, где настоящий OpenAI разошёлся с тем, что
+ * понимают совместимые сервисы:
+ *   - у него max_completion_tokens вместо max_tokens (модели GPT-5.x
+ *     на max_tokens отвечают ошибкой);
+ *   - у него есть строгий режим по схеме: модель обязана вернуть
+ *     ответ нужной формы, а не просто валидный JSON.
+ *
+ * Российские шлюзы этих новшеств обычно не знают, поэтому старый
+ * openai-compatible оставлен нетронутым - он рабочий путь отхода,
+ * если аккаунт OpenAI однажды отключат.
+ */
+
+/**
+ * Строгий режим OpenAI понимает не весь JSON Schema: ограничения на
+ * длину массивов он отвергает. Выкидываем их, а требование "ровно пять
+ * буллетов" и так написано словами в описаниях полей и в промпте.
+ */
+function toStrictSchema(node: unknown): unknown {
+  if (Array.isArray(node)) return node.map(toStrictSchema);
+  if (node === null || typeof node !== "object") return node;
+
+  const out: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+    if (key === "minItems" || key === "maxItems" || key === "minLength" || key === "maxLength") {
+      continue;
+    }
+    out[key] = toStrictSchema(value);
+  }
+  return out;
+}
+
+async function viaOpenAi(input: CardInput): Promise<Card> {
+  const key = process.env.LLM_API_KEY;
+  const model = process.env.LLM_MODEL;
+  const base = process.env.LLM_BASE_URL || "https://api.openai.com/v1";
+
+  if (!key) throw new LlmError("Не заполнен LLM_API_KEY в .env", false);
+  if (!model) {
+    throw new LlmError(
+      "Не заполнен LLM_MODEL в .env. Список доступных моделей покажет ./check-llm.sh",
+      false,
+    );
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`${base.replace(/\/$/, "")}/chat/completions`, {
+      method: "POST",
+      headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+      body: JSON.stringify({
+        model,
+        max_completion_tokens: 4000,
+        response_format: {
+          type: "json_schema",
+          json_schema: {
+            name: "product_card",
+            strict: true,
+            schema: toStrictSchema(CARD_SCHEMA),
+          },
+        },
+        messages: [
+          { role: "system", content: SYSTEM_PROMPT },
+          { role: "user", content: buildUserPrompt(input) },
+        ],
+      }),
+      signal: AbortSignal.timeout(120_000),
+    });
+  } catch {
+    throw new LlmError("OpenAI не отвечает. Проверь интернет на сервере.", true);
+  }
+
+  if (response.status === 401) {
+    throw new LlmError("OpenAI не принял ключ. Проверь LLM_API_KEY в .env", false);
+  }
+  if (response.status === 403) {
+    // Самая частая причина именно у нас: OpenAI не обслуживает регион.
+    throw new LlmError(
+      "OpenAI отказал в доступе (403). Обычно это блокировка по стране: " +
+        "сервер должен выходить в интернет из поддерживаемого региона.",
+      false,
+    );
+  }
+  if (response.status === 429) {
+    throw new LlmError("Слишком много запросов или кончились кредиты OpenAI.", true);
+  }
+  if (!response.ok) {
+    // Текст ошибки OpenAI обычно объясняет причину точнее любых догадок.
+    const detail = await response.text().catch(() => "");
+    throw new LlmError(
+      `OpenAI вернул ошибку ${response.status}. ${detail.slice(0, 300)}`,
+      response.status >= 500,
+    );
+  }
+
+  const data = (await response.json()) as {
+    choices?: { message?: { content?: string; refusal?: string | null }; finish_reason?: string }[];
+  };
+  const choice = data.choices?.[0];
+
+  if (choice?.message?.refusal) {
+    throw new LlmError("Модель отказалась обрабатывать этот запрос. Измени формулировку.", false);
+  }
+  if (choice?.finish_reason === "length") {
+    throw new LlmError("Ответ не поместился в лимит. Сократи характеристики товара.", true);
+  }
+
+  const content = choice?.message?.content;
+  if (!content) throw new LlmError("OpenAI вернул пустой ответ. Попробуй ещё раз.", true);
+  return parseCard(content);
 }
 
 // --- Любой сервис с OpenAI-совместимым API ---------------------------------

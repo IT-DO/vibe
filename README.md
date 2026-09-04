@@ -68,6 +68,7 @@ npm run smoke
 | Значение | Что это | Что заполнить |
 |---|---|---|
 | `mock` | Заглушка. Работает без ключей и бесплатно | ничего |
+| `openai` | Настоящий OpenAI, строгий режим по схеме | `LLM_API_KEY`, `LLM_MODEL` |
 | `anthropic` | Claude — лучшее качество текстов | `ANTHROPIC_API_KEY` |
 | `openai-compatible` | Любой сервис с OpenAI-совместимым API, включая российские шлюзы | `LLM_BASE_URL`, `LLM_API_KEY`, `LLM_MODEL` |
 
@@ -157,6 +158,7 @@ scripts/smoke.mjs           Тест «всё ли работает»
 npm run dev        # разработка, сайт на localhost:3000
 npm run smoke      # проверить, что всё работает
 npm run try-prompt # прогнать промпт по 10 товарам и сравнить результат
+npm run test-llm   # проверить слой модели на поддельном OpenAI, без трат
 npm run build      # собрать для сервера
 npm start          # запустить собранное
 npm run typecheck  # проверить код на ошибки, не запуская
@@ -170,6 +172,7 @@ npm run typecheck  # проверить код на ошибки, не запу�
 ./install-server.sh --plan   # что установщик собирается сделать
 ./install-server.sh          # поставить всё на чистую виртуалку
 ./check-server.sh  # осмотреть сервер: что готово, чего не хватает
+./check-llm.sh     # пускает ли OpenAI и какие модели доступны
 ./deploy.sh        # обновить сервис (сам делает бэкап перед обновлением)
 ./backup.sh        # бэкап базы прямо сейчас
 ```

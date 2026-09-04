@@ -135,6 +135,15 @@ else
     mock) warn "LLM_PROVIDER=mock - тексты будут заглушкой, не настоящими" ;;
     anthropic) [ -n "$(val ANTHROPIC_API_KEY)" ] && ok "LLM_PROVIDER=anthropic, ключ задан" \
                  || bad "LLM_PROVIDER=anthropic, но ANTHROPIC_API_KEY пустой" ;;
+    openai)
+      if [ -n "$(val LLM_API_KEY)" ] && [ -n "$(val LLM_MODEL)" ]; then
+        ok "LLM_PROVIDER=openai, ключ и модель заданы"
+        info "Проверить связь с OpenAI: sudo ./check-llm.sh"
+      elif [ -z "$(val LLM_API_KEY)" ]; then
+        bad "LLM_PROVIDER=openai, но LLM_API_KEY пустой"
+      else
+        bad "LLM_PROVIDER=openai, но LLM_MODEL не задан - покажет ./check-llm.sh"
+      fi ;;
     openai-compatible)
       if [ -n "$(val LLM_BASE_URL)" ] && [ -n "$(val LLM_API_KEY)" ] && [ -n "$(val LLM_MODEL)" ]; then
         ok "LLM_PROVIDER=openai-compatible, все три значения заданы"

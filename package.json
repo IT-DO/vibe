@@ -9,8 +9,9 @@
     "start": "next start",
     "lint": "next lint",
     "typecheck": "tsc --noEmit",
-    "smoke": "node scripts/smoke.mjs",
-    "try-prompt": "node scripts/try-prompt.ts"
+    "smoke": "node scripts/smoke.mjs && node scripts/test-llm.mjs",
+    "try-prompt": "node scripts/try-prompt.ts",
+    "test-llm": "node scripts/test-llm.mjs"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.122.0",
