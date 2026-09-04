@@ -14,7 +14,14 @@
 set -e
 
 PLAN=0
-if [ "${1:-}" = "--plan" ]; then PLAN=1; shift; fi
+SSHKEY=""
+while true; do
+  case "${1:-}" in
+    --plan)   PLAN=1; shift ;;
+    --sshkey) SSHKEY="${2:-}"; shift 2 ;;
+    *) break ;;
+  esac
+done
 
 IP="${1:-}"
 VMID="${2:-}"
@@ -44,6 +51,9 @@ if [ -z "$IP" ]; then
   echo "  ./proxmox-create-vm.sh --plan 192.168.10.100    посмотреть план"
   echo "  ./proxmox-create-vm.sh 192.168.10.100           создать"
   echo
+  echo "Вход по SSH-ключу (надёжнее и без возни с паролями):"
+  echo "  ./proxmox-create-vm.sh --sshkey /root/my.pub 192.168.10.100"
+  echo
   echo "Бери свободный адрес в своей сети. Занятые видно в панели роутера."
   exit 1
 fi
@@ -54,6 +64,11 @@ case "$IP" in
 esac
 
 # Номер машины: следующий свободный, если не задан вторым аргументом.
+if [ -n "$SSHKEY" ] && [ ! -f "$SSHKEY" ]; then
+  echo "Файла с ключом нет: $SSHKEY"
+  exit 1
+fi
+
 if [ -z "$VMID" ]; then
   VMID=$(pvesh get /cluster/nextid 2>/dev/null || echo "")
   [ -z "$VMID" ] && { echo "Не удалось подобрать свободный номер. Задай вторым аргументом."; exit 1; }
@@ -98,11 +113,16 @@ echo
 
 # --- Пароль -----------------------------------------------------------------
 
-if [ "$PLAN" = "0" ]; then
+if [ "$PLAN" = "0" ] && [ -z "$SSHKEY" ]; then
   echo "Придумай пароль для пользователя $CIUSER (вводится не отображаясь):"
   read -rs CIPASS
   echo
   [ ${#CIPASS} -lt 8 ] && { echo "Пароль короче 8 символов - так не пойдёт."; exit 1; }
+  echo
+  echo "ВНИМАНИЕ: облачный образ Debian по умолчанию запрещает вход по SSH"
+  echo "с паролем - принимает только ключи. Пароль пригодится для входа"
+  echo "через консоль, а как открыть вход по паролю - скрипт скажет в конце."
+  echo
 fi
 
 # --- Образ ------------------------------------------------------------------
@@ -152,7 +172,19 @@ run qm set "$VMID" --boot order=scsi0 --serial0 socket --vga serial0
 
 echo "==> Пользователь и сеть"
 if [ "$PLAN" = "1" ]; then
-  echo "    [план] qm set $VMID --ciuser $CIUSER --cipassword <пароль> --ipconfig0 ip=$IP/24,gw=$GATEWAY"
+  if [ -n "$SSHKEY" ]; then
+    echo "    [план] qm set $VMID --ciuser $CIUSER --sshkeys $SSHKEY --ipconfig0 ip=$IP/24,gw=$GATEWAY"
+  else
+    echo "    [план] qm set $VMID --ciuser $CIUSER --cipassword <пароль> --ipconfig0 ip=$IP/24,gw=$GATEWAY"
+  fi
+elif [ -n "$SSHKEY" ]; then
+  qm set "$VMID" \
+    --ciuser "$CIUSER" \
+    --sshkeys "$SSHKEY" \
+    --ipconfig0 "ip=$IP/24,gw=$GATEWAY" \
+    --nameserver "$GATEWAY" \
+    --ciupgrade 0
+  echo "    + настроено, вход по ключу"
 else
   qm set "$VMID" \
     --ciuser "$CIUSER" \
@@ -160,7 +192,7 @@ else
     --ipconfig0 "ip=$IP/24,gw=$GATEWAY" \
     --nameserver "$GATEWAY" \
     --ciupgrade 0
-  echo "    + настроено"
+  echo "    + настроено, вход по паролю (через консоль)"
 fi
 
 echo "==> Автозапуск при включении хоста"
@@ -183,25 +215,64 @@ for i in $(seq 1 60); do
   sleep 2
 done
 
+if [ -n "$SSHKEY" ]; then
 cat <<NEXT
 
 ════════════════════════════════════════════════════
 Машина $VMID создана и работает на $IP
 
-Дальше - зайти в неё и поставить сервис. Выполни:
+Заходи по ключу:
 
     ssh $CIUSER@$IP
 
-и уже внутри машины:
+Дальше - четыре команды внутри машины, каждая в одну строку:
 
     sudo apt update && sudo apt install -y git qemu-guest-agent
     sudo systemctl enable --now qemu-guest-agent
-    sudo git clone -b claude/vibecoding-saas-service-mx3k2z \\
-      https://github.com/IT-DO/vibe.git /opt/app
-    cd /opt/app
-    sudo ./install-server.sh
+    sudo git clone -b claude/vibecoding-saas-service-mx3k2z https://github.com/IT-DO/vibe.git /opt/app
+    cd /opt/app && sudo ./install-server.sh
 
-Если что-то пойдёт не так - удалить машину и начать заново:
-
-    qm stop $VMID && qm destroy $VMID
+Удалить машину и начать заново:  qm stop $VMID && qm destroy $VMID
 NEXT
+else
+cat <<NEXT
+
+════════════════════════════════════════════════════
+Машина $VMID создана и работает на $IP
+
+ВАЖНО: по SSH с паролем она пока не пустит. Облачный образ Debian
+принимает только вход по ключу - это его настройка по умолчанию,
+не поломка. Открыть вход по паролю можно из консоли машины.
+
+Шаг 1. Зайди в консоль (прямо здесь, на хосте Proxmox):
+
+    qm terminal $VMID
+
+Нажми Enter, войди как $CIUSER с паролем, который придумал.
+
+Шаг 2. Разреши вход по паролю - одной строкой:
+
+    echo 'PasswordAuthentication yes' | sudo tee /etc/ssh/sshd_config.d/01-password.conf && sudo systemctl restart ssh
+
+Имя файла начинается с 01 не случайно: настройки читаются по порядку,
+и побеждает первая встреченная - файл с меньшим номером перекрывает
+запрет, заданный образом.
+
+Шаг 3. Выйди из консоли: Ctrl+O
+
+Теперь с ноутбука работает:  ssh $CIUSER@$IP
+
+Дальше - четыре команды внутри машины, каждая в одну строку:
+
+    sudo apt update && sudo apt install -y git qemu-guest-agent
+    sudo systemctl enable --now qemu-guest-agent
+    sudo git clone -b claude/vibecoding-saas-service-mx3k2z https://github.com/IT-DO/vibe.git /opt/app
+    cd /opt/app && sudo ./install-server.sh
+
+В следующий раз проще сразу с ключом - тогда этих шагов не будет:
+
+    ./proxmox-create-vm.sh --sshkey /root/my.pub $IP
+
+Удалить машину и начать заново:  qm stop $VMID && qm destroy $VMID
+NEXT
+fi
