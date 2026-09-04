@@ -20,16 +20,36 @@ fi
 
 val() { grep -E "^$1=" .env 2>/dev/null | head -1 | cut -d= -f2- | tr -d '"'"'"' '; }
 
-KEY=$(val LLM_API_KEY)
-BASE=$(val LLM_BASE_URL)
+PROVIDER=$(val LLM_PROVIDER)
 MODEL=$(val LLM_MODEL)
-[ -z "$BASE" ] && BASE="https://api.openai.com/v1"
+
+# У Claude свой ключ и свои заголовки, у остальных - схема OpenAI.
+if [ "$PROVIDER" = "anthropic" ]; then
+  KEY=$(val ANTHROPIC_API_KEY)
+  BASE="https://api.anthropic.com/v1"
+  MODEL=$(val ANTHROPIC_MODEL)
+  AUTH_ARGS=(-H "x-api-key: $KEY" -H "anthropic-version: 2023-06-01")
+  SERVICE="Anthropic"
+else
+  KEY=$(val LLM_API_KEY)
+  BASE=$(val LLM_BASE_URL)
+  [ -z "$BASE" ] && BASE="https://api.openai.com/v1"
+  AUTH_ARGS=(-H "Authorization: Bearer $KEY")
+  case "$BASE" in
+    *deepseek*) SERVICE="DeepSeek" ;;
+    *openai.com*) SERVICE="OpenAI" ;;
+    *) SERVICE="сервис моделей" ;;
+  esac
+fi
 
 if [ -z "$KEY" ]; then
-  echo "В .env пустой LLM_API_KEY. Впиши ключ и запусти снова."
+  echo "Ключ не задан в .env. Впиши его и запусти снова."
+  [ "$PROVIDER" = "anthropic" ] && echo "Для Claude это строка ANTHROPIC_API_KEY." \
+    || echo "Это строка LLM_API_KEY."
   exit 1
 fi
 
+echo "Провайдер : ${PROVIDER:-не задан} ($SERVICE)"
 echo "Адрес API : $BASE"
 echo "Ключ      : задан, ${#KEY} символов (сам ключ не печатаю)"
 echo "Модель    : ${MODEL:-не задана}"
@@ -38,11 +58,11 @@ echo
 echo "Спрашиваю список моделей…"
 BODY=$(mktemp)
 CODE=$(curl -s -o "$BODY" -w "%{http_code}" --max-time 30 \
-  -H "Authorization: Bearer $KEY" "${BASE%/}/models" 2>/dev/null)
+  "${AUTH_ARGS[@]}" "${BASE%/}/models" 2>/dev/null)
 
 case "$CODE" in
   200)
-    echo "Доступ есть. OpenAI отвечает."
+    echo "Доступ есть — $SERVICE отвечает."
     echo
     echo "Модели, доступные твоему ключу:"
     if command -v python3 >/dev/null 2>&1; then
@@ -67,23 +87,28 @@ print('Всего моделей:', len(ids))
     ;;
   401)
     echo "ОТКАЗ 401: ключ неверный или отозван."
-    echo "Выпусти новый ключ в панели OpenAI и впиши в .env."
+    echo "Выпусти новый ключ в панели $SERVICE и впиши в .env."
     ;;
   403)
     echo "ОТКАЗ 403. Скорее всего блокировка по стране."
     echo
-    echo "Ответ OpenAI:"
+    echo "Ответ сервиса:"
     head -c 400 "$BODY"; echo
     echo
     echo "Это значит, что запросы уходят с адреса в неподдерживаемом регионе."
-    echo "Варианты: выпускать трафик к OpenAI через другую страну либо"
-    echo "перейти на российского провайдера моделей (LLM_PROVIDER=openai-compatible)."
+    echo "OpenAI и Anthropic Россию не обслуживают, DeepSeek - обслуживает."
+    echo "Варианты: выпускать трафик через другую страну либо сменить"
+    echo "провайдера (заготовки лежат в .env.example)."
     ;;
   429)
     echo "ОТКАЗ 429: превышены лимиты или закончились кредиты."
     ;;
+  404)
+    echo "ОТКАЗ 404: по адресу $BASE нет списка моделей."
+    echo "Проверь LLM_BASE_URL - часто теряется или лишний /v1 на конце."
+    ;;
   000)
-    echo "Соединения нет вообще - OpenAI не ответил."
+    echo "Соединения нет вообще — $SERVICE не ответил."
     echo "Или нет интернета, или адрес заблокирован на уровне сети."
     ;;
   *)

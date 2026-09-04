@@ -41,6 +41,23 @@ echo "Провайдер из .env: ${PROVIDER:-не задан}"
 if [ "$PROVIDER" != "mock" ] && [ -n "$PROVIDER" ]; then
   echo "Это настоящая модель - прогон стоит денег."
 fi
+# Claude работает через свой SDK, а он живёт в node_modules. На сервере
+# их нет: приложение крутится в готовом образе. Без этой проверки
+# получилось бы невнятное MODULE_NOT_FOUND.
+if [ "$PROVIDER" = "anthropic" ] && [ ! -d node_modules/@anthropic-ai/sdk ]; then
+  echo "Для Claude нужен его SDK, а в $(pwd) нет папки node_modules."
+  echo
+  echo "Поставить один раз (полминуты):"
+  echo
+  echo "    sudo docker run --rm -v $(pwd):/work -w /work node:22-slim \\"
+  echo "      npm install --no-save --no-package-lock @anthropic-ai/sdk"
+  echo
+  echo "После этого запусти ./try-prompt.sh снова."
+  echo
+  echo "Для DeepSeek и OpenAI ничего ставить не надо - им SDK не нужен."
+  exit 1
+fi
+
 echo
 
 # --env-file передаёт настройки внутрь; --network host не нужен,
