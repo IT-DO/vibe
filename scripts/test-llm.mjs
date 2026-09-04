@@ -177,6 +177,45 @@ await expectError(
   (e) => e.message.includes("не-JSON"),
 );
 
+console.log("\nЗапуск без доступа к .env");
+console.log("──────────────────────────────");
+{
+  // Так бывает при запуске через try-prompt.sh: .env читает docker на
+  // хосте от root и передаёт значения внутрь, а процесс в контейнере
+  // работает от обычного пользователя и файл открыть не может.
+  // Раньше скрипт на этом падал с EACCES.
+  const { execFileSync } = await import("node:child_process");
+  const fs = await import("node:fs");
+  const os = await import("node:os");
+  const path = await import("node:path");
+
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "noenv-"));
+  fs.cpSync("src", path.join(dir, "src"), { recursive: true });
+  fs.cpSync("scripts", path.join(dir, "scripts"), { recursive: true });
+  // .env нет вовсе - тот же путь в коде, что и при закрытом правами файле
+
+  let ok = true;
+  let detail = "";
+  try {
+    execFileSync(process.execPath, ["scripts/try-prompt.ts", "--only", "1"], {
+      cwd: dir,
+      env: { ...process.env, LLM_PROVIDER: "mock" },
+      stdio: "pipe",
+    });
+  } catch (error) {
+    ok = false;
+    detail = String(error.stderr ?? error).slice(0, 120);
+  }
+  check("прогон промпта переживает недоступный .env", ok, detail);
+
+  const runs = path.join(dir, "prompt-runs");
+  check(
+    "отчёт всё равно создан",
+    fs.existsSync(runs) && fs.readdirSync(runs).length > 0,
+  );
+  fs.rmSync(dir, { recursive: true, force: true });
+}
+
 console.log(`\n${"─".repeat(50)}`);
 if (failures.length === 0) {
   console.log(`Слой модели в порядке: ${passed} проверок пройдено.`);

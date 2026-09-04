@@ -24,8 +24,19 @@ import { generateCard, LlmError, type Card, type CardInput } from "../src/lib/ll
 // Читаем .env сами: этот скрипт запускается без Next, который обычно
 // делает это за нас.
 function loadEnv() {
-  if (!fs.existsSync(".env")) return;
-  for (const line of fs.readFileSync(".env", "utf8").split("\n")) {
+  let text: string;
+  try {
+    text = fs.readFileSync(".env", "utf8");
+  } catch {
+    // Файла нет либо он закрыт правами - и это нормально.
+    // При запуске через try-prompt.sh файл читает docker на хосте
+    // (от root) и передаёт значения внутрь контейнера, а там процесс
+    // работает от обычного пользователя и файл уже не откроет.
+    // Нужные значения к этому моменту лежат в process.env.
+    return;
+  }
+
+  for (const line of text.split("\n")) {
     const m = line.match(/^\s*([A-Z_][A-Z0-9_]*)\s*=\s*(.*)$/);
     if (!m) continue;
     const value = m[2].trim().replace(/^["']|["']$/g, "");
