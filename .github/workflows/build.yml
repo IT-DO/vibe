@@ -1,0 +1,120 @@
+name: Сборка
+
+# APK собирается здесь, а не только на машине разработчика: планшет на
+# мероприятие часто готовит не тот, кто писал код, и требовать от него
+# установленную Android Studio неразумно. Готовый файл лежит во вкладке
+# Actions и ставится на планшет как есть.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  # Логика печати, геометрия и сценарий проверяются без эмулятора и принтера,
+  # поэтому эта работа быстрая и идёт первой: нет смысла собирать APK из кода,
+  # который не проходит тесты.
+  checks:
+    name: Типы, линт, тесты
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Проверка типов
+        run: npm run typecheck
+
+      - name: Линтер
+        run: npm run lint
+
+      - name: Тесты
+        run: npm test
+
+  android:
+    name: APK для Android
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # React Native 0.76 собирается на JDK 17.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      # Skia и VisionCamera компилируют свой C++, поэтому нужны NDK и CMake.
+      # Версия NDK должна совпадать с android/build.gradle.
+      - name: Установка NDK и CMake
+        run: |
+          sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1" "platforms;android-35" "build-tools;35.0.0"
+
+      - run: npm ci
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Сборка релизного APK
+        working-directory: android
+        # Собираем только под arm64: все планшеты последних лет на нём, а
+        # четыре архитектуры утраивают время сборки и вес файла.
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
+
+      - name: Переименовать по номеру сборки
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk \
+             "dist/photo-na-pamyat-${GITHUB_RUN_NUMBER}.apk"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: dist/*.apk
+          retention-days: 30
+
+  # Собрать приложение для iPad можно только на macOS, и только с сертификатом
+  # разработчика. Здесь мы проверяем, что проект компилируется под симулятор:
+  # это ловит ошибки в нативных модулях, не требуя ни ключей, ни устройства.
+  # Установка на настоящий iPad описана в docs/BUILD.md.
+  ios:
+    name: Сборка под симулятор iOS
+    needs: checks
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Установка подов
+        working-directory: ios
+        run: pod install --repo-update
+
+      - name: Компиляция
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -workspace PhotoNaPamyat.xcworkspace \
+            -scheme PhotoNaPamyat \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPad (10th generation)' \
+            CODE_SIGNING_ALLOWED=NO \
+            build

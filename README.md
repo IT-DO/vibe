@@ -46,7 +46,8 @@
 | Конечный автомат сценария гостя | Готов, 36 тестов |
 | Экраны киоска и админка | Написаны, типизированы |
 | Сборка листа на Skia | Написана |
-| Нативные модули Android и iOS | Написаны |
+| Нативные модули Android и iOS | Написаны и подключены к проектам |
+| Платформенные проекты Android и iOS | Настроены, собираются одной командой |
 
 **Проверено:** 337 юнит-тестов (полтора секунды на прогон), чистые
 `tsc --noEmit` и `eslint`.
@@ -72,26 +73,30 @@ npm run verify        # tsc --noEmit + eslint + jest
 
 ### Сборка приложения
 
-В репозитории лежит код приложения и нативные модули, но не служебные файлы
-платформенных проектов (Gradle-скрипты, `MainActivity`, проект Xcode,
-`Podfile`). Их генерирует стандартный шаблон React Native:
+Платформенные проекты лежат в репозитории и настроены: нативные модули
+подключены к целям сборки, разрешения прописаны. Генерировать шаблон не нужно.
+
+**APK без установки инструментов** — вкладка **Actions** в GitHub, работа
+«Сборка» → артефакт `apk`. Готовый файл ставится на планшет как есть.
+
+**APK на своей машине** (нужны JDK 17, Android SDK 35, NDK 26.1.10909125):
 
 ```bash
-# 1. Сгенерировать платформенные проекты во временной папке
-npx @react-native-community/cli init PhotoNaPamyat --version 0.76.5 --skip-install
-
-# 2. Скопировать из неё в этот репозиторий:
-#    android/  — всё, кроме app/src/main/java/com/photonapamyat/ и AndroidManifest.xml
-#    ios/      — проект Xcode и Podfile
-
-# 3. В android/app/build.gradle задать applicationId "com.photonapamyat"
-# 4. В MainApplication добавить пакет: new PhotoKioskPackage()
-# 5. В Xcode добавить файлы из ios/PhotoNaPamyat/ и подключить Info.plist
-# 6. Установить зависимости и запустить
 npm install
-cd ios && pod install && cd ..
-npm run android      # или npm run ios
+cd android && ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a
+# android/app/build/outputs/apk/release/app-release.apk
 ```
+
+**Для iPad** нужен Mac с Xcode:
+
+```bash
+npm install
+cd ios && pod install
+open PhotoNaPamyat.xcworkspace   # Signing & Capabilities -> выбрать команду -> Run
+```
+
+Подробно — включая подпись релиза, TestFlight и разбор ошибок сборки —
+в [`docs/BUILD.md`](docs/BUILD.md).
 
 Дальше — [`docs/KIOSK-SETUP.md`](docs/KIOSK-SETUP.md): как превратить планшет
 в киоск, из которого нельзя выйти.
@@ -134,6 +139,7 @@ npm run android      # или npm run ios
 | [`docs/prototype.html`](docs/prototype.html) | Кликабельный прототип экрана гостя |
 | [`docs/PRINTER.md`](docs/PRINTER.md) | Протокол, топологии сети, проверка на железе, диагностика |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Устройство кода и почему логика отделена от React Native |
+| [`docs/BUILD.md`](docs/BUILD.md) | Сборка APK и приложения для iPad, подпись, ошибки сборки |
 | [`docs/KIOSK-SETUP.md`](docs/KIOSK-SETUP.md) | Подготовка планшета и физическая установка |
 | [`docs/EVENT-CHECKLIST.md`](docs/EVENT-CHECKLIST.md) | Чек-лист организатора и типичные неприятности |
 

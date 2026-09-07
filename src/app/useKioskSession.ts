@@ -289,12 +289,16 @@ export function useKioskSession(
   };
 }
 
-/** Имя задания в журнале принтера — помогает разбирать спорные случаи. */
-function jobNameFor(eventTitle: string): string {
-  const stamp = new Date().toLocaleTimeString('ru-RU', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
+/**
+ * Имя задания в журнале принтера — помогает разбирать спорные случаи
+ * («а моё фото вообще ушло на печать?»).
+ *
+ * Время собираем вручную, а не через `toLocaleTimeString`: поддержка Intl в
+ * Hermes зависит от сборки и платформы, а падать на формировании имени
+ * задания посреди мероприятия — недопустимо.
+ */
+function jobNameFor(eventTitle: string, now: Date = new Date()): string {
+  const pad = (value: number) => String(value).padStart(2, '0');
+  const stamp = `${pad(now.getHours())}:${pad(now.getMinutes())}:${pad(now.getSeconds())}`;
   return eventTitle ? `${eventTitle} · ${stamp}` : `Фото на память · ${stamp}`;
 }

@@ -10,14 +10,19 @@ android/.gradle/
 android/app/build/
 android/build/
 android/local.properties
+android/app/src/main/assets/index.android.bundle*
 *.keystore
 !debug.keystore
 
 # iOS
 ios/Pods/
 ios/build/
-ios/*.xcworkspace/xcuserdata/
+ios/Podfile.lock
+ios/*.xcworkspace
+ios/*.xcodeproj/xcuserdata/
+ios/*.xcodeproj/project.xcworkspace/xcuserdata/
 ios/DerivedData/
+ios/.xcode.env.local
 
 # Метро/сборка
 .metro-health-check*
