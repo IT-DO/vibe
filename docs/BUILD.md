@@ -188,6 +188,8 @@ PHOTO_UPLOAD_KEY_PASSWORD=...
 | `newArchEnabled` | **false** | `react-native-fs` и `react-native-zeroconf` — модули старого поколения; под новой архитектурой они идут через слой совместимости и ломаются на обновлениях. Skia, VisionCamera и MMKV поддерживают обе, так что вернуть можно — но эти два надо проверить |
 | `VisionCamera_disableFrameProcessors` | **true** | Приложение только снимает кадры и не обрабатывает видеопоток. Отключение убирает зависимость от `react-native-worklets-core` и заметно сокращает сборку |
 | Ориентация | только портрет | Планшет закреплён вертикально, лист 10×15 тоже портретный |
+| `react-native-svg` | закреплён на **15.8.0**, без каретки | Версии 15.15+ рассчитаны на более новую Yoga (`StyleSizeLength`), чем поставляется с RN 0.76.5 — сборка Fabric падает на компиляции |
+| `RCT_NEW_ARCH_ENABLED=0` в Podfile | выключена | Иначе iOS собирался бы с Fabric, а Android без него, и ошибки вылезали бы только на одной платформе |
 | `UIRequiresFullScreen` | true | Киоску не нужны Split View и Slide Over |
 
 Нативные модули (`PhotoKiosk`, `PhotoNetworkInfo`, `PhotoSystemPrint`) живут
@@ -210,4 +212,6 @@ PHOTO_UPLOAD_KEY_PASSWORD=...
 | Сборка идёт очень долго | Собираются все четыре ABI | Добавьте `-PreactNativeArchitectures=arm64-v8a` |
 | iOS: `Undefined symbol: PhotoKiosk` | Файлы модулей выпали из цели | `cd ios && ruby setup-project.rb` |
 | iOS: `pod install` падает | Устаревшие спеки CocoaPods | `pod install --repo-update` |
+| `cannot find symbol: PrintHelper` | Нет зависимости `androidx.print:print` | Она есть в `android/app/build.gradle`; проверьте, что блок `dependencies` не правился |
+| iOS: `no member named 'StyleSizeLength'` | `react-native-svg` новее, чем RN | Держите версию `15.8.0` точно, без каретки |
 | APK ставится, но белый экран | Отладочная сборка без Metro | Соберите `assembleRelease` или запустите `npm start` |

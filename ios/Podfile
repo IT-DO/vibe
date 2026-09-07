@@ -6,6 +6,13 @@ require Pod::Executable.execute_command('node', ['-p',
   )', __dir__]).strip
 
 platform :ios, min_ios_version_supported
+
+# Новая архитектура выключена и здесь — ровно по той же причине, что в
+# android/gradle.properties: в зависимостях есть модули старого поколения.
+# Без этой строки iOS собирался бы с Fabric, а Android без него: платформы
+# вели бы себя по-разному, и ошибки вылезали бы только на одной из них.
+ENV['RCT_NEW_ARCH_ENABLED'] = '0'
+
 prepare_react_native_project!
 
 linkage = ENV['USE_FRAMEWORKS']
