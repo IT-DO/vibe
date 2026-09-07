@@ -62,5 +62,23 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!--
+          Права администратора устройства. Нужны только для «настоящего»
+          киоска: назначенное владельцем устройства приложение закрепляет
+          экран без запроса, и выйти из него нельзя.
+          Порядок назначения — в docs/KIOSK-SETUP.md.
+        -->
+        <receiver
+            android:name=".KioskDeviceAdminReceiver"
+            android:exported="true"
+            android:permission="android.permission.BIND_DEVICE_ADMIN">
+            <meta-data
+                android:name="android.app.device_admin"
+                android:resource="@xml/device_admin" />
+            <intent-filter>
+                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
+            </intent-filter>
+        </receiver>
     </application>
 </manifest>

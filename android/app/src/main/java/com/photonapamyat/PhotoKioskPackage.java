@@ -11,7 +11,12 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 
-/** Регистрация нативных модулей приложения. */
+/**
+ * Регистрация нативных модулей приложения.
+ *
+ * KioskDeviceAdminReceiver сюда не входит: это системный получатель
+ * широковещательных сообщений, он объявляется в манифесте.
+ */
 public class PhotoKioskPackage implements ReactPackage {
 
     @NonNull
