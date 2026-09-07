@@ -113,6 +113,8 @@ npm run android      # или npm run ios
 
 Разбор каждого экрана и обоснование решений —
 [`docs/UI-SPEC.md`](docs/UI-SPEC.md).
+Кликабельный прототип, который проходит сценарий целиком, —
+[`docs/prototype.html`](docs/prototype.html): откройте файл в браузере.
 
 ## Форматы отпечатка
 
@@ -129,6 +131,7 @@ npm run android      # или npm run ios
 | Файл | О чём |
 |---|---|
 | [`docs/UI-SPEC.md`](docs/UI-SPEC.md) | Интерфейс: каждый экран и почему он такой |
+| [`docs/prototype.html`](docs/prototype.html) | Кликабельный прототип экрана гостя |
 | [`docs/PRINTER.md`](docs/PRINTER.md) | Протокол, топологии сети, проверка на железе, диагностика |
 | [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) | Устройство кода и почему логика отделена от React Native |
 | [`docs/KIOSK-SETUP.md`](docs/KIOSK-SETUP.md) | Подготовка планшета и физическая установка |

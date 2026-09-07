@@ -1,0 +1,1201 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  html { color-scheme: light dark; }
+  body { margin: 0; font: 14px system-ui, sans-serif; }
+  img { max-width: 100%; }
+  [hidden] { display: none !important; }
+</style>
+<title>Фото на память</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600&family=Golos+Text:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500&display=swap">
+
+<style>
+  /* ─────────────────────────────────────────────────────────────
+     Палитра: фотолаборатория. Нейтральные серые с холодным сдвигом
+     (цвет подложки фотобумаги и кювет), коралловый акцент самого
+     приложения и «сигнальные» цвета состояний принтера.
+     Экран планшета всегда тёмный: это устройство, а не страница,
+     и от темы читателя он не зависит.
+     ───────────────────────────────────────────────────────────── */
+  :root {
+    --paper:      #E7E9EC;
+    --surface:    #FFFFFF;
+    --surface-2:  #F3F4F6;
+    --ink:        #14161B;
+    --ink-soft:   #565D67;
+    --ink-faint:  #878E98;
+    --rule:       #C7CBD1;
+    --rule-soft:  #DDE0E4;
+
+    --coral:      #E8484D;
+    --coral-soft: #FFE9EA;
+    --go:         #2F9E6B;
+    --hold:       #C98A16;
+    --stop:       #D93F3F;
+
+    --device:     #0B0B10;
+    --device-2:   #16161F;
+    --device-3:   #22222E;
+    --device-ink: #FFFFFF;
+    --device-mut: #A0A0B0;
+    --device-acc: #FF5A5F;
+
+    --sans: 'Golos Text', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    --cond: 'Oswald', 'Golos Text', Impact, sans-serif;
+    --mono: 'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace;
+
+    --shell: 1180px;
+  }
+
+  @media (prefers-color-scheme: dark) {
+    :root:not([data-theme="light"]) {
+      --paper:      #131519;
+      --surface:    #1B1E24;
+      --surface-2:  #23262D;
+      --ink:        #EDEFF2;
+      --ink-soft:   #A3AAB4;
+      --ink-faint:  #79808A;
+      --rule:       #333841;
+      --rule-soft:  #292D34;
+      --coral:      #FF6B70;
+      --coral-soft: #38222A;
+      --go:         #4CC08A;
+      --hold:       #E0A93C;
+      --stop:       #F26060;
+    }
+  }
+
+  :root[data-theme="dark"] {
+    --paper:      #131519;
+    --surface:    #1B1E24;
+    --surface-2:  #23262D;
+    --ink:        #EDEFF2;
+    --ink-soft:   #A3AAB4;
+    --ink-faint:  #79808A;
+    --rule:       #333841;
+    --rule-soft:  #292D34;
+    --coral:      #FF6B70;
+    --coral-soft: #38222A;
+    --go:         #4CC08A;
+    --hold:       #E0A93C;
+    --stop:       #F26060;
+  }
+
+  * { box-sizing: border-box; }
+
+  body {
+    margin: 0;
+    background: var(--paper);
+    color: var(--ink);
+    font-family: var(--sans);
+    font-size: 15px;
+    line-height: 1.55;
+    -webkit-font-smoothing: antialiased;
+  }
+
+  .shell { max-width: var(--shell); margin: 0 auto; padding: 0 24px; }
+
+  /* ── Шапка: бланк заказа фотопечати ─────────────────────────── */
+  .masthead {
+    border-bottom: 2px solid var(--ink);
+    padding: 34px 0 18px;
+  }
+  .masthead__eyebrow {
+    font-family: var(--cond);
+    font-size: 13px;
+    font-weight: 500;
+    letter-spacing: .18em;
+    text-transform: uppercase;
+    color: var(--coral);
+    margin: 0 0 10px;
+  }
+  .masthead__title {
+    font-family: var(--cond);
+    font-weight: 600;
+    font-size: clamp(40px, 7vw, 68px);
+    line-height: .96;
+    letter-spacing: -.005em;
+    margin: 0 0 12px;
+    text-wrap: balance;
+  }
+  .masthead__lede {
+    max-width: 62ch;
+    color: var(--ink-soft);
+    margin: 0 0 22px;
+    font-size: 16px;
+  }
+
+  .specline {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0;
+    border-top: 1px solid var(--rule);
+    margin-top: 4px;
+  }
+  .specline__item {
+    flex: 1 1 130px;
+    padding: 12px 16px 12px 0;
+    border-right: 1px solid var(--rule-soft);
+  }
+  .specline__item:last-child { border-right: 0; }
+  .specline__k {
+    font-family: var(--cond);
+    font-size: 11px;
+    letter-spacing: .14em;
+    text-transform: uppercase;
+    color: var(--ink-faint);
+    display: block;
+  }
+  .specline__v {
+    font-family: var(--mono);
+    font-size: 15px;
+    font-weight: 500;
+    font-variant-numeric: tabular-nums;
+    color: var(--ink);
+  }
+
+  /* ── Рабочая область ────────────────────────────────────────── */
+  .stage {
+    display: grid;
+    grid-template-columns: minmax(0, 440px) minmax(0, 1fr);
+    gap: 40px;
+    align-items: start;
+    padding: 40px 0 12px;
+  }
+  @media (max-width: 900px) {
+    .stage { grid-template-columns: 1fr; gap: 28px; }
+  }
+
+  /* Планшет */
+  .rig { display: flex; flex-direction: column; gap: 16px; }
+
+  .tablet {
+    background: #05050A;
+    border-radius: 26px;
+    padding: 16px 14px;
+    box-shadow: 0 18px 44px rgba(8, 10, 16, .28), 0 2px 0 rgba(255,255,255,.06) inset;
+    position: relative;
+  }
+  .tablet::after {
+    content: "";
+    position: absolute;
+    top: 26px; left: 50%;
+    width: 6px; height: 6px;
+    margin-left: -3px;
+    border-radius: 50%;
+    background: #2A2A34;
+    box-shadow: 0 0 0 1px rgba(255,255,255,.06);
+  }
+  .screen {
+    position: relative;
+    aspect-ratio: 3 / 4;
+    background: var(--device);
+    border-radius: 12px;
+    overflow: hidden;
+    color: var(--device-ink);
+    cursor: pointer;
+    user-select: none;
+  }
+  .screen:focus-visible { outline: 3px solid var(--device-acc); outline-offset: 3px; }
+
+  /* Живое превью камеры */
+  .preview { position: absolute; inset: 0; }
+  .preview svg { width: 100%; height: 100%; display: block; }
+  .scrim { position: absolute; inset: 0; background: rgba(11,11,16,.56); transition: background .35s ease; }
+
+  .layer {
+    position: absolute; inset: 0;
+    display: flex; flex-direction: column;
+    padding: 26px 20px;
+    gap: 10px;
+  }
+
+  /* Типографика внутри приложения */
+  .app-title   { font-family: var(--sans); font-weight: 700; font-size: 30px; line-height: 1.06; text-align: center; color: var(--device-acc); margin: 0; }
+  .app-sub     { font-size: 13px; color: var(--device-mut); text-align: center; margin: 0; }
+  .app-tap     { font-size: 17px; font-weight: 700; text-align: center; margin: 0; }
+  .app-hint    { font-size: 12px; color: var(--device-mut); text-align: center; margin: 0; max-width: 26ch; }
+  .app-h       { font-size: 22px; font-weight: 700; text-align: center; margin: 0; }
+  .app-note    { font-size: 12px; color: var(--device-mut); text-align: center; margin: 0; }
+
+  .spacer { flex: 1; }
+
+  .tap-pill {
+    border: 2px solid var(--device-acc);
+    border-radius: 999px;
+    padding: 13px 22px;
+    animation: pulse 2.8s ease-in-out infinite;
+  }
+  @keyframes pulse {
+    0%, 100% { transform: scale(1);    opacity: .86; }
+    50%      { transform: scale(1.04); opacity: 1; }
+  }
+
+  .cta-wrap { display: flex; flex-direction: column; align-items: center; gap: 14px; }
+
+  .badge {
+    position: absolute; top: 12px; right: 12px;
+    display: flex; align-items: center; gap: 7px;
+    background: var(--device-2);
+    border-radius: 999px;
+    padding: 5px 11px 5px 8px;
+    font-size: 11px; font-weight: 600;
+  }
+  .badge__dot { width: 9px; height: 9px; border-radius: 50%; }
+
+  .lang {
+    position: absolute; bottom: 10px; right: 12px;
+    font-size: 11px; font-weight: 700; color: var(--device-mut);
+    letter-spacing: .06em;
+  }
+  .secret {
+    position: absolute; top: 0; left: 0;
+    width: 62px; height: 62px;
+    border: 1px dashed transparent;
+    border-radius: 0 0 10px 0;
+  }
+  .screen.reveal .secret {
+    border-color: rgba(255,90,95,.5);
+    background: rgba(255,90,95,.09);
+  }
+  .screen.reveal .secret::after {
+    content: "админка";
+    position: absolute; bottom: 4px; left: 5px;
+    font-family: var(--mono); font-size: 8px;
+    color: var(--device-acc);
+  }
+
+  /* Карточки форматов внутри приложения */
+  .fmt-row { display: flex; gap: 9px; justify-content: center; flex-wrap: wrap; }
+  .fmt {
+    width: 84px;
+    background: var(--device-2);
+    border: 2px solid var(--device-3);
+    border-radius: 12px;
+    padding: 8px 7px;
+    display: flex; flex-direction: column; align-items: center; gap: 5px;
+    cursor: pointer;
+    transition: border-color .16s ease;
+  }
+  .fmt[aria-pressed="true"] { border-color: var(--device-acc); }
+  .fmt__name { font-size: 10.5px; font-weight: 700; text-align: center; line-height: 1.15; }
+  .fmt__meta { font-size: 9px; color: var(--device-mut); }
+  .fmt__thumb {
+    width: 100%; aspect-ratio: 2 / 3;
+    background: var(--device-3);
+    border-radius: 4px;
+    padding: 4px;
+    display: flex; gap: 3px;
+  }
+  .fmt__col { flex: 1; display: flex; flex-direction: column; gap: 3px; }
+  .fmt__cell { flex: 1; background: var(--device-acc); opacity: .82; border-radius: 2px; }
+  .fmt__grid { flex-wrap: wrap; gap: 3px; }
+  .fmt__grid .fmt__cell { flex: 0 0 calc(50% - 1.5px); }
+  .fmt__pola { flex-direction: column; }
+  .fmt__pola .fmt__cell { flex: 1; }
+  .fmt__polabar { height: 26%; background: var(--device-2); border-radius: 2px; }
+
+  /* Обратный отсчёт */
+  .count {
+    font-size: 118px; font-weight: 800; line-height: 1;
+    color: var(--device-acc);
+    text-shadow: 0 6px 30px rgba(0,0,0,.5);
+    animation: pop .42s cubic-bezier(.2,1.4,.4,1);
+  }
+  @keyframes pop { from { transform: scale(.55); opacity: .3; } to { transform: scale(1); opacity: 1; } }
+
+  .flash { position: absolute; inset: 0; background: #fff; animation: flashout .34s ease-out forwards; }
+  @keyframes flashout { from { opacity: 1; } to { opacity: 0; } }
+
+  .dots { display: flex; gap: 7px; justify-content: center; }
+  .dots i { width: 9px; height: 9px; border-radius: 50%; background: var(--device-3); display: block; }
+  .dots i.on { background: var(--device-acc); }
+
+  /* Лист на просмотре */
+  .sheet-wrap { flex: 1; display: flex; align-items: center; justify-content: center; min-height: 0; }
+  .sheet {
+    background: #fff;
+    height: 100%;
+    aspect-ratio: 2 / 3;
+    border-radius: 3px;
+    box-shadow: 0 6px 22px rgba(0,0,0,.45);
+    padding: 5px;
+    display: flex; gap: 4px;
+    position: relative;
+  }
+  .sheet__col { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+  .sheet__cell { flex: 1; border-radius: 2px; overflow: hidden; background: #C9D3DA; position: relative; }
+  .sheet__cell svg { width: 100%; height: 100%; display: block; }
+  .sheet__grid { flex-wrap: wrap; align-content: stretch; }
+  .sheet__grid .sheet__cell { flex: 0 0 calc(50% - 2px); height: calc(50% - 2px); }
+  .sheet__cap {
+    position: absolute; left: 0; right: 0; bottom: 4px;
+    text-align: center;
+    font-size: 7px; font-weight: 600; color: #2A2A32;
+    letter-spacing: .02em;
+  }
+  .sheet__tear {
+    position: absolute; top: 4px; bottom: 4px; left: 50%;
+    border-left: 1px dashed #B9BEC6;
+  }
+
+  .btn-row { display: flex; gap: 10px; justify-content: center; }
+  .app-btn {
+    border-radius: 999px;
+    padding: 11px 20px;
+    font-size: 14px; font-weight: 700;
+    border: 2px solid var(--device-acc);
+    background: var(--device-acc);
+    color: #fff;
+    cursor: pointer;
+    font-family: var(--sans);
+  }
+  .app-btn--ghost { background: transparent; border-color: var(--device-mut); color: var(--device-ink); }
+
+  .qr { background: #fff; padding: 6px; border-radius: 4px; }
+  .qr svg { display: block; }
+
+  .spin {
+    width: 34px; height: 34px;
+    border: 3px solid var(--device-3);
+    border-top-color: var(--device-acc);
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  /* Панель админки внутри планшета */
+  .admin { position: absolute; inset: 0; background: var(--device); padding: 14px; overflow: hidden; }
+  .admin__bar { display: flex; justify-content: space-between; align-items: center; padding-bottom: 9px; border-bottom: 1px solid var(--device-3); }
+  .admin__t { font-size: 14px; font-weight: 700; }
+  .admin__x { font-size: 11px; color: var(--device-acc); font-weight: 600; }
+  .admin__sec { font-family: var(--cond); font-size: 9px; letter-spacing: .16em; text-transform: uppercase; color: var(--device-mut); margin: 12px 0 5px; }
+  .admin__card { background: var(--device-2); border-radius: 8px; padding: 2px 10px; }
+  .admin__row { display: flex; justify-content: space-between; align-items: center; gap: 10px; padding: 7px 0; border-bottom: 1px solid var(--device-3); font-size: 11px; }
+  .admin__row:last-child { border-bottom: 0; }
+  .admin__v { color: var(--device-mut); font-family: var(--mono); font-size: 10px; }
+  .admin__chips { display: flex; gap: 4px; }
+  .admin__chip { font-size: 9px; padding: 3px 7px; border-radius: 999px; background: var(--device-3); color: var(--device-mut); }
+  .admin__chip.on { background: var(--device-acc); color: #fff; font-weight: 700; }
+
+  /* Управление под планшетом */
+  .rail {
+    display: flex; flex-wrap: wrap; gap: 5px;
+    border-top: 1px solid var(--rule);
+    padding-top: 14px;
+  }
+  .rail__btn {
+    font-family: var(--cond);
+    font-size: 11px; letter-spacing: .09em; text-transform: uppercase;
+    padding: 6px 10px;
+    border: 1px solid var(--rule);
+    background: transparent;
+    color: var(--ink-soft);
+    border-radius: 3px;
+    cursor: pointer;
+    font-weight: 500;
+  }
+  .rail__btn:hover { border-color: var(--ink-soft); color: var(--ink); }
+  .rail__btn[aria-current="true"] {
+    background: var(--ink); color: var(--paper); border-color: var(--ink);
+  }
+  .rail__btn:focus-visible { outline: 2px solid var(--coral); outline-offset: 2px; }
+
+  .toggles { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .toggle {
+    font-size: 12px;
+    display: inline-flex; align-items: center; gap: 6px;
+    color: var(--ink-soft);
+    cursor: pointer;
+  }
+  .toggle input { accent-color: var(--coral); width: 15px; height: 15px; }
+
+  /* ── Колонка разбора ────────────────────────────────────────── */
+  .notes { min-width: 0; }
+  .notes__step {
+    font-family: var(--mono);
+    font-size: 12px;
+    color: var(--coral);
+    font-variant-numeric: tabular-nums;
+    margin: 0 0 6px;
+  }
+  .notes__h {
+    font-family: var(--cond);
+    font-weight: 600;
+    font-size: clamp(26px, 3.2vw, 36px);
+    line-height: 1.04;
+    margin: 0 0 10px;
+  }
+  .notes__job {
+    font-size: 16px;
+    color: var(--ink);
+    margin: 0 0 22px;
+    max-width: 58ch;
+    padding-left: 14px;
+    border-left: 3px solid var(--coral);
+  }
+  .notes__list { list-style: none; margin: 0 0 22px; padding: 0; display: flex; flex-direction: column; }
+  .notes__item {
+    display: grid;
+    grid-template-columns: 92px minmax(0, 1fr);
+    gap: 18px;
+    padding: 13px 0;
+    border-top: 1px solid var(--rule-soft);
+    align-items: start;
+  }
+  .notes__item:last-child { border-bottom: 1px solid var(--rule-soft); }
+  .notes__metric {
+    font-family: var(--mono);
+    font-size: 13px;
+    font-weight: 500;
+    color: var(--coral);
+    font-variant-numeric: tabular-nums;
+    line-height: 1.35;
+    padding-top: 1px;
+  }
+  .notes__body { margin: 0; font-size: 14.5px; color: var(--ink-soft); max-width: 56ch; }
+  .notes__body b { color: var(--ink); font-weight: 600; }
+
+  .why {
+    background: var(--surface);
+    border: 1px solid var(--rule-soft);
+    border-left: 3px solid var(--ink);
+    border-radius: 0 6px 6px 0;
+    padding: 15px 18px;
+  }
+  .why__k {
+    font-family: var(--cond);
+    font-size: 10.5px; letter-spacing: .18em; text-transform: uppercase;
+    color: var(--ink-faint);
+    display: block; margin-bottom: 5px;
+  }
+  .why__v { margin: 0; font-size: 14.5px; max-width: 58ch; }
+
+  /* ── Полосы ниже ────────────────────────────────────────────── */
+  .band { padding: 46px 0; border-top: 2px solid var(--ink); margin-top: 44px; }
+  .band__h {
+    font-family: var(--cond); font-weight: 600;
+    font-size: clamp(24px, 3vw, 32px);
+    margin: 0 0 6px;
+  }
+  .band__lede { color: var(--ink-soft); max-width: 62ch; margin: 0 0 28px; }
+
+  .fmts { display: grid; grid-template-columns: repeat(auto-fit, minmax(158px, 1fr)); gap: 22px; }
+  .fmts__card { display: flex; flex-direction: column; gap: 10px; }
+  .fmts__sheet {
+    aspect-ratio: 2 / 3;
+    background: var(--surface);
+    border: 1px solid var(--rule);
+    border-radius: 2px;
+    padding: 7px;
+    display: flex; gap: 5px;
+    position: relative;
+    box-shadow: 0 2px 10px rgba(10,14,20,.07);
+  }
+  .fmts__col { flex: 1; display: flex; flex-direction: column; gap: 5px; min-width: 0; }
+  .fmts__cell { flex: 1; background: var(--surface-2); border: 1px solid var(--rule-soft); border-radius: 1px; overflow: hidden; }
+  .fmts__cell svg { width: 100%; height: 100%; display: block; }
+  .fmts__grid { flex-wrap: wrap; }
+  .fmts__grid .fmts__cell { flex: 0 0 calc(50% - 2.5px); height: calc(50% - 2.5px); }
+  .fmts__tear { position: absolute; top: 7px; bottom: 7px; left: 50%; border-left: 1px dashed var(--rule); }
+  .fmts__cap { position: absolute; left: 7px; right: 7px; bottom: 8px; text-align: center; font-size: 7.5px; color: var(--ink-faint); }
+  .fmts__name { font-family: var(--cond); font-size: 16px; font-weight: 500; margin: 0; }
+  .fmts__meta { font-family: var(--mono); font-size: 11px; color: var(--coral); margin: 0; }
+  .fmts__note { font-size: 13px; color: var(--ink-soft); margin: 0; }
+
+  .states { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .states th {
+    font-family: var(--cond); font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+    color: var(--ink-faint); text-align: left; font-weight: 500;
+    padding: 0 14px 9px 0; border-bottom: 1px solid var(--rule);
+  }
+  .states td { padding: 12px 14px 12px 0; border-bottom: 1px solid var(--rule-soft); vertical-align: top; color: var(--ink-soft); }
+  .states td:first-child { color: var(--ink); white-space: nowrap; }
+  .states__chip { display: inline-flex; align-items: center; gap: 7px; font-weight: 600; }
+  .states__dot { width: 10px; height: 10px; border-radius: 50%; flex: none; }
+  .scrollx { overflow-x: auto; }
+
+  .colophon {
+    border-top: 2px solid var(--ink);
+    margin-top: 44px;
+    padding: 26px 0 60px;
+    display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 24px;
+    font-size: 13.5px; color: var(--ink-soft);
+  }
+  .colophon h3 {
+    font-family: var(--cond); font-size: 11px; letter-spacing: .16em; text-transform: uppercase;
+    color: var(--ink-faint); margin: 0 0 7px; font-weight: 500;
+  }
+  .colophon p { margin: 0; max-width: 42ch; }
+
+  @media (prefers-reduced-motion: reduce) {
+    * { animation-duration: .001ms !important; animation-iteration-count: 1 !important; transition-duration: .001ms !important; }
+  }
+</style>
+
+</head>
+<body>
+<header class="masthead">
+  <div class="shell">
+    <p class="masthead__eyebrow">Киоск-фотобудка · Android + iOS</p>
+    <h1 class="masthead__title">Фото на память</h1>
+    <p class="masthead__lede">
+      Планшет на стойке снимает гостей мероприятия и сразу печатает снимок на портативном
+      фотопринтере. Ниже — рабочий прототип экрана гостя: нажимайте на планшет и проходите
+      сценарий так, как это делает человек с бокалом в руке.
+    </p>
+    <div class="specline">
+      <div class="specline__item"><span class="specline__k">Принтер</span><span class="specline__v">Xiaomi 1S</span></div>
+      <div class="specline__item"><span class="specline__k">Лист</span><span class="specline__v">10 × 15 см</span></div>
+      <div class="specline__item"><span class="specline__k">Растр</span><span class="specline__v">1200 × 1800</span></div>
+      <div class="specline__item"><span class="specline__k">Плотность</span><span class="specline__v">300 dpi</span></div>
+      <div class="specline__item"><span class="specline__k">Отпечаток</span><span class="specline__v">≈ 57 с</span></div>
+      <div class="specline__item"><span class="specline__k">Лента</span><span class="specline__v">40 листов</span></div>
+    </div>
+  </div>
+</header>
+
+<main class="shell">
+  <section class="stage">
+    <div class="rig">
+      <div class="tablet">
+        <div class="screen" id="screen" role="button" tabindex="0" aria-label="Экран планшета — нажмите, чтобы продолжить сценарий"></div>
+      </div>
+
+      <div class="rail" id="rail"></div>
+
+      <div class="toggles">
+        <label class="toggle">
+          <input type="checkbox" id="tglBlocked"> принтер без бумаги
+        </label>
+        <label class="toggle">
+          <input type="checkbox" id="tglSecret"> показать скрытую зону
+        </label>
+      </div>
+    </div>
+
+    <div class="notes" id="notes"></div>
+  </section>
+
+  <section class="band">
+    <h2 class="band__h">Пять форматов отпечатка</h2>
+    <p class="band__lede">
+      Формат определяет, сколько кадров снимает камера и как они лягут на лист. Схемы ниже
+      нарисованы в реальной пропорции листа 10×15.
+    </p>
+    <div class="fmts" id="fmts"></div>
+  </section>
+
+  <section class="band">
+    <h2 class="band__h">Что видит оператор</h2>
+    <p class="band__lede">
+      Индикатор в углу заставки — единственное, что связывает будку с организатором.
+      Он появляется, только когда есть что сказать, и читается с другого конца зала.
+    </p>
+    <div class="scrollx">
+      <table class="states">
+        <thead>
+          <tr><th>Индикатор</th><th>Что происходит</th><th>Что делает приложение</th><th>Что делать человеку</th></tr>
+        </thead>
+        <tbody id="statesBody"></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="colophon">
+    <div>
+      <h3>Что здесь настоящее</h3>
+      <p>Сценарий, тайминги, размеры и тексты взяты из кода приложения. Конечный автомат
+         сценария покрыт 36 тестами, вся логика печати — ещё 301.</p>
+    </div>
+    <div>
+      <h3>Чего здесь нет</h3>
+      <p>Живой камеры и живого принтера. Силуэты нарисованы, «печать» имитируется.
+         На реальном железе приложение ещё не проверялось.</p>
+    </div>
+    <div>
+      <h3>О масштабе</h3>
+      <p>Текст в макете увеличен, чтобы читаться в браузере. Настоящие кегли указаны
+         в разборе справа: от 24 pt для гостя.</p>
+    </div>
+  </div>
+</main>
+
+<script>
+(function () {
+  'use strict';
+
+  /* ── Рисованные «фотографии»: силуэты на мягком фоне ───────── */
+  var TONES = [
+    ['#7E93A8', '#2E3D4C'],
+    ['#A88F7E', '#4C3B2E'],
+    ['#8AA890', '#2E4C39'],
+    ['#9A8AA8', '#3E2E4C']
+  ];
+
+  /*
+     Силуэты держатся в полосе x 27–73 и y 38–100. Ячейки листа бывают и
+     узкими, и широкими, а срез (slice) кадрирует по большей стороне — при
+     крупной фигуре её съедало бы краем. Мелкая и центрированная переживает
+     кадрирование в обе стороны.
+  */
+  function figures(seed, forPaper) {
+    var t = TONES[seed % TONES.length];
+    var bg = forPaper ? '#E4EAEF' : t[0];
+    var fg = forPaper ? '#8496A5' : t[1];
+    var id = 'g' + seed + (forPaper ? 'p' : 's');
+    var two = seed % 2 === 0;
+
+    var body = two
+      ? '<circle cx="39" cy="47" r="7.5"/><circle cx="61" cy="49" r="7"/>' +
+        '<path d="M27 100c0-16 5-24 12-24s12 8 12 24z"/>' +
+        '<path d="M49 100c0-15 5-23 12-23s12 8 12 23z"/>'
+      : '<circle cx="50" cy="46" r="8.5"/>' +
+        '<path d="M32 100c0-18 8-27 18-27s18 9 18 27z"/>';
+
+    return '<svg viewBox="0 0 100 100" preserveAspectRatio="xMidYMid slice" aria-hidden="true">' +
+      '<defs><radialGradient id="' + id + '" cx="50%" cy="34%" r="80%">' +
+      '<stop offset="0" stop-color="' + bg + '"/>' +
+      '<stop offset="1" stop-color="' + shade(bg) + '"/>' +
+      '</radialGradient></defs>' +
+      '<rect width="100" height="100" fill="url(#' + id + ')"/>' +
+      '<g fill="' + fg + '">' + body + '</g></svg>';
+  }
+
+  function shade(hex) {
+    var n = parseInt(hex.slice(1), 16);
+    var r = Math.max(0, (n >> 16) - 26);
+    var g = Math.max(0, ((n >> 8) & 255) - 26);
+    var b = Math.max(0, (n & 255) - 26);
+    return '#' + ((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1);
+  }
+
+  /* ── Форматы отпечатка ─────────────────────────────────────── */
+  var FORMATS = [
+    { id: 'single', name: 'Одно фото', shots: 1, cells: 1,
+      note: 'Снимок во весь лист. Самый быстрый сценарий — очередь не копится.' },
+    { id: 'twin', name: 'Полоска на двоих', shots: 3, cells: 6, tear: true,
+      note: 'Лист печатается двумя одинаковыми половинами с пунктиром. Гости разрывают его и забирают по полосе.' },
+    { id: 'grid', name: 'Четыре кадра', shots: 4, cells: 4,
+      note: 'Сетка 2×2 с подписью мероприятия внизу.' },
+    { id: 'polaroid', name: 'Полароид', shots: 1, cells: 1, polaroid: true,
+      note: 'Кадр с широким белым полем снизу — узнаваемая пропорция.' },
+    { id: 'duo', name: 'Два кадра', shots: 2, cells: 2,
+      note: '«До» и «после»: пауза между кадрами 1,5 секунды.' }
+  ];
+
+  function formatById(id) {
+    for (var i = 0; i < FORMATS.length; i++) { if (FORMATS[i].id === id) return FORMATS[i]; }
+    return FORMATS[0];
+  }
+
+  /* ── Разбор экранов ────────────────────────────────────────── */
+  var NOTES = {
+    attract: {
+      n: '01', h: 'Заставка',
+      job: 'Заставка решает одну задачу: заставить человека подойти.',
+      items: [
+        ['зеркало', 'Весь экран — <b>живое превью фронтальной камеры</b>, затемнённое на 55 %. Человек видит себя ещё на подходе и невольно останавливается. Это работает лучше любого призыва.'],
+        ['1,4 с', 'Пульсация рамки медленная, амплитуда 4 %. Движение на периферии зрения замечают даже те, кто идёт мимо и на экран не смотрит.'],
+        ['весь экран', 'Касание срабатывает в любой точке. Гость не должен искать кнопку.'],
+        ['110 × 110', 'Прозрачная зона входа в админку — левый верхний угол, удержание 5 секунд плюс ПИН.']
+      ],
+      why: 'Кнопка «Настройки» на виду — приглашение потыкать в неё для любого гостя. Удержание угла случайно не выходит, а оператор запоминает с первого раза.'
+    },
+    blocked: {
+      n: '01', h: 'Принтер недоступен',
+      job: 'Пока печатать нечем, будка не должна принимать гостей.',
+      items: [
+        ['не принимает', 'Заставка перестаёт реагировать на касания и прямо говорит, что случилось.'],
+        ['красный', 'Индикатор виден организатору с другого конца зала — это его единственная связь с будкой.'],
+        ['0 потерь', 'Задания, уже стоящие в очереди, не теряются. Очередь встаёт на паузу и продолжит сама.']
+      ],
+      why: 'Дать гостю сфотографироваться и только потом сообщить, что печати не будет, — худший из возможных сценариев.'
+    },
+    layout: {
+      n: '02', h: 'Выбор формата',
+      job: 'Единственный экран, где гость что-то решает. Значит — за две секунды.',
+      items: [
+        ['схемы', 'Форматы показаны рисунком, а не описаны словами: разглядывать текст в очереди никто не будет.'],
+        ['2 : 3', 'Карточки нарисованы в пропорции реального листа 10×15 — гость видит, что получит.'],
+        ['30 с', 'Таймаут до возврата на заставку. Гость ушёл, не выбрав, — будка освободилась.'],
+        ['пропуск', 'Если оператор оставил один формат, экран не показывается вовсе. Лишний экран на входе отпугивает.']
+      ],
+      why: '«Полоска на двоих» — единственная функция, из-за которой к будке возвращаются по второму разу. Она стоит того, чтобы быть в списке.'
+    },
+    ready: {
+      n: '03', h: 'Приготовьтесь',
+      job: 'Полторы секунды на то, чтобы люди встали в кадр и посмотрели в объектив.',
+      items: [
+        ['1,5 с', 'Короткая пауза перед отсчётом. Без неё первый кадр уходит в момент, когда гость ещё поворачивается.'],
+        ['15 %', 'Затемнение снижается с 55 % до 15 %: теперь гость должен хорошо себя видеть.'],
+        ['0 монтажей', 'Слой камеры живёт под всеми экранами и не перемонтируется.']
+      ],
+      why: 'Камера поднимается около секунды. Инициализируй её на каждом шаге — и гость увидит чёрный прямоугольник ровно тогда, когда позирует.'
+    },
+    count: {
+      n: '04', h: 'Обратный отсчёт',
+      job: 'Чтобы человек смотрел в объектив именно в тот момент, когда сработает затвор.',
+      items: [
+        ['280 pt', 'Цифра занимает пол-экрана и лежит поверх изображения. Её должно быть видно тому, кто стоит в двух метрах и смотрит в камеру, а не в экран.'],
+        ['звук', 'Каждая секунда — тик. В шумном зале человек ориентируется на звук, если отвернулся к друзьям.'],
+        ['220 мс', 'Белая вспышка вместо физической: настоящая пересветила бы лица с такого расстояния. Это единственный понятный сигнал «снято».'],
+        ['1,2 с', 'Пауза между кадрами серии. Люди успевают сменить позу, но не успевают разойтись.']
+      ],
+      why: 'Кнопка «Отмена» есть, но она меньше обычной и внизу: выход должен быть, но не должен притягивать взгляд.'
+    },
+    review: {
+      n: '05', h: 'Просмотр',
+      job: 'Дать одобрить снимок — и не дать зависнуть.',
+      items: [
+        ['весь лист', 'Показываем <b>готовый лист целиком</b>: та же раскладка, рамка и подпись, что выйдут из принтера. Иначе гость видит одно, а забирает другое.'],
+        ['20 с', 'Видимый таймер до автопечати. Он не давит — он объясняет, что будет, если просто отойти.'],
+        ['справа', '«Печатать» — акцентная и под правой рукой. «Переснять» — контурная, вторичная.']
+      ],
+      why: 'Без таймера люди либо стоят и думают, либо уходят, оставив будку занятой. Лишний отпечаток дешевле, чем очередь за спиной.'
+    },
+    printing: {
+      n: '06', h: 'Отправка',
+      job: 'Секунда-две, пока лист собирается и уходит в очередь.',
+      items: [
+        ['1200×1800', 'Лист собирается на офскрин-холсте точно под размер бумаги, а не отдаётся принтеру на масштабирование.'],
+        ['+2 %', 'Припуск под обрез. Механика подачи даёт разброс в доли миллиметра — без припуска по краю проступает белая полоска.'],
+        ['фон', 'Дальше очередь работает сама. Экран освобождается сразу, а не через 57 секунд.']
+      ],
+      why: 'Если бы приложение ждало конца печати, гость стоял бы у планшета минуту, а за ним копилась очередь.'
+    },
+    thanks: {
+      n: '07', h: 'Благодарность',
+      job: 'Отправить гостя к принтеру и освободить будку.',
+      items: [
+        ['«заберите»', 'Главное сообщение экрана. Гость не должен гадать, появится ли снимок сам: пока он стоит у планшета, будка занята.'],
+        ['57 с', 'Время ожидания называется честно. Названная минута ощущается короче безымянной — человек отходит и возвращается, а не решает, что всё зависло.'],
+        ['6 с', 'Автовозврат на заставку; касание ускоряет его, чтобы следующий гость не ждал таймаута.'],
+        ['QR', 'Цифровая копия — по желанию. Выключена по умолчанию: чужие фотографии требуют осознанной политики хранения.']
+      ],
+      why: 'Если в очереди несколько заданий, показывается место в очереди — иначе «через 57 секунд» окажется неправдой.'
+    },
+    admin: {
+      n: '08', h: 'Админка',
+      job: 'Чтобы человек, впервые увидевший будку за пятнадцать минут до начала, успел её настроить.',
+      items: [
+        ['5 с + ПИН', 'Вход — удержание левого верхнего угла и четыре цифры. Защита не от взлома, а от любопытства.'],
+        ['15 pt', 'Здесь действуют обратные правила вёрстки: плотность важнее размера. Оператор стоит вплотную и торопится.'],
+        ['порядок', 'Сначала принтер — без него ничего не работает. Потом оформление, потом тонкости сценария. Очередь и статистика внизу: они нужны уже по ходу.'],
+        ['очередь', 'Видно, что печатается и что не удалось, с кнопками «повторить» и «отменить».']
+      ],
+      why: 'Приватность тоже здесь: кнопка «Стереть все снимки» для конца мероприятия. Планшет не должен увозить с площадки архив чужих лиц.'
+    }
+  };
+
+  var STATES = [
+    ['ready',  'Готов',                'var(--go)',   'Принтер отвечает, бумага есть',            'Индикатор скрыт — не отвлекает',                      'Ничего'],
+    ['queue',  'Очередь',              'var(--hold)', 'Печатается предыдущий снимок',              'Показывает число заданий',                            'Ничего: 57 с на лист — это норма'],
+    ['low',    'Заканчивается',        'var(--hold)', 'Бумага или лента на исходе',                'Продолжает печатать',                                 'Приготовить запас'],
+    ['empty',  'Нет бумаги',           'var(--stop)', 'Кончилась бумага или лента',                'Очередь встаёт на паузу, попытка не тратится',        'Вставить бумагу — печать продолжится сама'],
+    ['open',   'Открыта крышка',       'var(--stop)', 'Крышка или лоток открыты',                  'То же: пауза без потери заданий',                     'Закрыть крышку'],
+    ['gone',   'Не отвечает',          'var(--ink-faint)', 'Планшет потерял принтер по сети',      'Повторяет с растущей задержкой, до 5 раз',            'Проверить Wi-Fi планшета и принтера']
+  ];
+
+  /* ── Состояние прототипа ───────────────────────────────────── */
+  var state = {
+    step: 'attract',
+    format: 'twin',
+    count: 3,
+    shot: 0,
+    flash: false,
+    blocked: false,
+    secret: false,
+    timer: null
+  };
+
+  var screen = document.getElementById('screen');
+  var notes  = document.getElementById('notes');
+  var rail   = document.getElementById('rail');
+
+  var RAIL = [
+    ['attract',  'Заставка'],
+    ['layout',   'Формат'],
+    ['ready',    'Приготовьтесь'],
+    ['count',    'Отсчёт'],
+    ['review',   'Просмотр'],
+    ['printing', 'Отправка'],
+    ['thanks',   'Спасибо'],
+    ['admin',    'Админка']
+  ];
+
+  function clearTimer() {
+    if (state.timer) { clearTimeout(state.timer); state.timer = null; }
+  }
+
+  function go(step) {
+    clearTimer();
+    state.step = step;
+    if (step === 'count') { state.count = 3; state.flash = false; }
+    if (step === 'attract') { state.shot = 0; }
+    render();
+    schedule();
+  }
+
+  /* Автопереходы там, где в приложении их делают таймеры. */
+  function schedule() {
+    if (state.step === 'ready') {
+      state.timer = setTimeout(function () { go('count'); }, 1500);
+    } else if (state.step === 'count') {
+      state.timer = setTimeout(tickCount, 900);
+    } else if (state.step === 'printing') {
+      state.timer = setTimeout(function () { go('thanks'); }, 1600);
+    }
+  }
+
+  function tickCount() {
+    if (state.count > 1) {
+      state.count -= 1;
+      render();
+      state.timer = setTimeout(tickCount, 900);
+      return;
+    }
+    state.flash = true;
+    render();
+    state.timer = setTimeout(function () {
+      state.flash = false;
+      var fmt = formatById(state.format);
+      state.shot += 1;
+      if (state.shot < fmt.shots) {
+        state.count = 3;
+        render();
+        state.timer = setTimeout(tickCount, 1100);
+      } else {
+        go('review');
+      }
+    }, 420);
+  }
+
+  /* Касание планшета ведёт себя как в приложении. */
+  screen.addEventListener('click', function (event) {
+    var act = event.target.closest('[data-act]');
+    if (act) {
+      var a = act.getAttribute('data-act');
+      if (a === 'pick')     { state.format = act.getAttribute('data-fmt'); state.shot = 0; go('ready'); }
+      else if (a === 'print')  { go('printing'); }
+      else if (a === 'retake') { state.shot = 0; go('ready'); }
+      else if (a === 'cancel') { go('attract'); }
+      else if (a === 'closeAdmin') { go('attract'); }
+      return;
+    }
+    if (state.step === 'attract' && !state.blocked) { go('layout'); }
+    else if (state.step === 'thanks') { go('attract'); }
+  });
+
+  screen.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' || event.key === ' ') {
+      event.preventDefault();
+      screen.click();
+    }
+  });
+
+  document.getElementById('tglBlocked').addEventListener('change', function (e) {
+    state.blocked = e.target.checked;
+    go('attract');
+  });
+  document.getElementById('tglSecret').addEventListener('change', function (e) {
+    state.secret = e.target.checked;
+    render();
+  });
+
+  /* ── Отрисовка экрана планшета ─────────────────────────────── */
+  function render() {
+    screen.className = 'screen' + (state.secret ? ' reveal' : '');
+    screen.innerHTML = view();
+    renderNotes();
+    renderRail();
+  }
+
+  function preview(dim) {
+    return '<div class="preview">' + figures(0, false) + '</div>' +
+           '<div class="scrim" style="background: rgba(11,11,16,' + dim + ')"></div>';
+  }
+
+  function badge() {
+    if (state.blocked) {
+      return '<div class="badge"><span class="badge__dot" style="background:var(--stop)"></span>Закончилась бумага</div>';
+    }
+    return '<div class="badge"><span class="badge__dot" style="background:var(--hold)"></span>2</div>';
+  }
+
+  function view() {
+    var s = state.step;
+
+    if (s === 'attract') {
+      return preview(0.55) +
+        '<div class="layer">' +
+          '<div style="display:flex;flex-direction:column;gap:6px;align-items:center">' +
+            '<h2 class="app-title">Свадьба Ани и&nbsp;Пети</h2>' +
+            '<p class="app-sub">12 сентября 2026</p>' +
+          '</div>' +
+          '<div class="spacer"></div>' +
+          '<div class="cta-wrap">' +
+            (state.blocked
+              ? '<p class="app-tap" style="color:var(--stop)">Принтер недоступен —<br>позовите организатора</p>'
+              : '<div class="tap-pill"><p class="app-tap">Нажмите, чтобы<br>сфотографироваться</p></div>') +
+            '<p class="app-hint">Фотография напечатается сразу — заберите её на память</p>' +
+          '</div>' +
+          '<div class="spacer"></div>' +
+        '</div>' +
+        badge() +
+        '<span class="lang">EN</span>' +
+        '<div class="secret"></div>';
+    }
+
+    if (s === 'layout') {
+      var cards = FORMATS.slice(0, 4).map(function (f) {
+        return '<div class="fmt" role="button" tabindex="0" data-act="pick" data-fmt="' + f.id + '" ' +
+               'aria-pressed="' + (state.format === f.id) + '">' +
+               fmtThumb(f) +
+               '<span class="fmt__name">' + f.name + '</span>' +
+               '<span class="fmt__meta">' + f.shots + ' ' + plural(f.shots) + '</span>' +
+               '</div>';
+      }).join('');
+      return '<div class="layer">' +
+          '<h2 class="app-h">Выберите формат</h2>' +
+          '<div class="spacer"></div>' +
+          '<div class="fmt-row">' + cards + '</div>' +
+          '<div class="spacer"></div>' +
+          '<p class="app-note">Печатается две одинаковые полоски — разорвите и поделитесь</p>' +
+          '<div class="btn-row"><button class="app-btn app-btn--ghost" data-act="cancel">Отмена</button></div>' +
+        '</div>';
+    }
+
+    if (s === 'ready') {
+      var f0 = formatById(state.format);
+      return preview(0.15) +
+        '<div class="layer" style="justify-content:center;align-items:center;gap:8px">' +
+          '<h2 class="app-title" style="font-size:34px">Приготовьтесь!</h2>' +
+          (f0.shots > 1 ? '<p class="app-h" style="font-size:16px">Снимаем ' + f0.shots + ' ' + plural(f0.shots) + ' подряд</p>' : '') +
+        '</div>';
+    }
+
+    if (s === 'count') {
+      var fc = formatById(state.format);
+      var dots = '';
+      for (var i = 0; i < fc.shots; i++) {
+        dots += '<i class="' + (i <= state.shot ? 'on' : '') + '"></i>';
+      }
+      return preview(0.15) +
+        '<div class="layer" style="justify-content:center;align-items:center">' +
+          (state.flash ? '' : '<div class="count">' + state.count + '</div>') +
+        '</div>' +
+        (fc.shots > 1
+          ? '<div style="position:absolute;top:22px;left:0;right:0;display:flex;flex-direction:column;align-items:center;gap:8px">' +
+            '<span style="font-size:12px;font-weight:600;text-shadow:0 2px 8px rgba(0,0,0,.7)">Кадр ' + (state.shot + 1) + ' из ' + fc.shots + '</span>' +
+            '<div class="dots">' + dots + '</div></div>'
+          : '') +
+        '<div style="position:absolute;bottom:20px;left:0;right:0;display:flex;justify-content:center">' +
+          '<button class="app-btn app-btn--ghost" style="padding:8px 16px;font-size:12px" data-act="cancel">Отмена</button></div>' +
+        (state.flash ? '<div class="flash"></div>' : '');
+    }
+
+    if (s === 'review') {
+      return '<div class="layer">' +
+          '<h2 class="app-h">Как вам?</h2>' +
+          '<div class="sheet-wrap">' + sheet(state.format) + '</div>' +
+          '<div class="btn-row">' +
+            '<button class="app-btn app-btn--ghost" data-act="retake">Переснять</button>' +
+            '<button class="app-btn" data-act="print">Печатать</button>' +
+          '</div>' +
+          '<p class="app-note">Печать через 14 с</p>' +
+        '</div>';
+    }
+
+    if (s === 'printing') {
+      return '<div class="layer" style="justify-content:center;align-items:center;gap:18px">' +
+          '<div class="spin"></div>' +
+          '<h2 class="app-h">Отправляем на принтер…</h2>' +
+        '</div>';
+    }
+
+    if (s === 'thanks') {
+      return '<div class="layer" style="justify-content:center;align-items:center;gap:12px">' +
+          '<h2 class="app-title" style="font-size:40px">Спасибо!</h2>' +
+          '<p class="app-h">Заберите фотографию<br>из принтера</p>' +
+          '<p class="app-note">Ваша фотография 2-я в очереди</p>' +
+          '<p class="app-note">Будет готова примерно через 114 с</p>' +
+          '<div class="qr">' + qr() + '</div>' +
+          '<p class="app-note">Наведите камеру, чтобы забрать цифровую копию</p>' +
+        '</div>';
+    }
+
+    /* Админка */
+    return '<div class="admin">' +
+        '<div class="admin__bar"><span class="admin__t">Настройки</span>' +
+        '<span class="admin__x" data-act="closeAdmin" role="button" tabindex="0">Закрыть</span></div>' +
+        '<p class="admin__sec">Принтер</p>' +
+        '<div class="admin__card">' +
+          '<div class="admin__row"><span>Состояние</span><span class="admin__v" style="color:var(--go)">Готов</span></div>' +
+          '<div class="admin__row"><span>Подключён</span><span class="admin__v">Xiaomi 1S</span></div>' +
+          '<div class="admin__row"><span>Адрес</span><span class="admin__v">192.168.223.1:631</span></div>' +
+          '<div class="admin__row"><span>Остаток ленты</span><span class="admin__v">37 %</span></div>' +
+          '<div class="admin__row"><span>Формат бумаги</span>' +
+            '<span class="admin__chips"><span class="admin__chip on">10×15</span><span class="admin__chip">7,6×7,6</span></span></div>' +
+        '</div>' +
+        '<p class="admin__sec">Очередь печати</p>' +
+        '<div class="admin__card">' +
+          '<div class="admin__row"><span>В очереди</span><span class="admin__v">2</span></div>' +
+          '<div class="admin__row"><span>Свадьба · 21:14:07</span><span class="admin__v">печатается</span></div>' +
+          '<div class="admin__row"><span>Свадьба · 21:15:32</span><span class="admin__v">в очереди</span></div>' +
+        '</div>' +
+        '<p class="admin__sec">Статистика</p>' +
+        '<div class="admin__card">' +
+          '<div class="admin__row"><span>Напечатано</span><span class="admin__v">63</span></div>' +
+          '<div class="admin__row"><span>Пересъёмок</span><span class="admin__v">11</span></div>' +
+        '</div>' +
+      '</div>';
+  }
+
+  function plural(n) {
+    if (n === 1) return 'кадр';
+    if (n < 5) return 'кадра';
+    return 'кадров';
+  }
+
+  function fmtThumb(f) {
+    if (f.polaroid) {
+      return '<div class="fmt__thumb fmt__pola"><div class="fmt__cell"></div><div class="fmt__polabar"></div></div>';
+    }
+    if (f.id === 'grid') {
+      return '<div class="fmt__thumb fmt__grid"><div class="fmt__cell"></div><div class="fmt__cell"></div>' +
+             '<div class="fmt__cell"></div><div class="fmt__cell"></div></div>';
+    }
+    if (f.id === 'twin') {
+      return '<div class="fmt__thumb">' +
+        '<div class="fmt__col"><div class="fmt__cell"></div><div class="fmt__cell"></div><div class="fmt__cell"></div></div>' +
+        '<div class="fmt__col"><div class="fmt__cell"></div><div class="fmt__cell"></div><div class="fmt__cell"></div></div>' +
+      '</div>';
+    }
+    var inner = '';
+    for (var i = 0; i < f.cells; i++) { inner += '<div class="fmt__cell"></div>'; }
+    return '<div class="fmt__thumb"><div class="fmt__col">' + inner + '</div></div>';
+  }
+
+  /* Лист в том виде, в каком он выйдет из принтера. */
+  function sheet(id) {
+    var f = formatById(id);
+    var cap = '<span class="sheet__cap">Свадьба Ани и Пети · 12.09.2026</span>';
+
+    if (f.id === 'twin') {
+      var col = '';
+      for (var i = 0; i < 3; i++) { col += '<div class="sheet__cell">' + figures(i, true) + '</div>'; }
+      return '<div class="sheet"><div class="sheet__col">' + col + '</div>' +
+             '<div class="sheet__col">' + col + '</div>' +
+             '<div class="sheet__tear"></div></div>';
+    }
+    if (f.id === 'grid') {
+      var g = '';
+      for (var j = 0; j < 4; j++) { g += '<div class="sheet__cell">' + figures(j, true) + '</div>'; }
+      return '<div class="sheet"><div class="sheet__col sheet__grid">' + g + '</div>' + cap + '</div>';
+    }
+    if (f.id === 'polaroid') {
+      return '<div class="sheet"><div class="sheet__col" style="padding-bottom:16%">' +
+             '<div class="sheet__cell">' + figures(0, true) + '</div></div>' + cap + '</div>';
+    }
+    var c = '';
+    for (var k = 0; k < f.cells; k++) { c += '<div class="sheet__cell">' + figures(k, true) + '</div>'; }
+    return '<div class="sheet"><div class="sheet__col">' + c + '</div>' +
+           (f.id === 'single' ? '' : cap) + '</div>';
+  }
+
+  /* Условный QR: узор фиксирован, содержимое здесь не важно. */
+  function qr() {
+    var n = 21, cell = 3, out = '';
+    for (var y = 0; y < n; y++) {
+      for (var x = 0; x < n; x++) {
+        var finder = (x < 7 && y < 7) || (x > n - 8 && y < 7) || (x < 7 && y > n - 8);
+        var ring = finder && (x % 6 === 0 || y % 6 === 0 || (x > 1 && x < 5 && y > 1 && y < 5) ||
+                   (x > n - 6 && x < n - 2 && y > 1 && y < 5) || (x > 1 && x < 5 && y > n - 6 && y < n - 2));
+        var dark = finder ? ring : ((x * 7 + y * 13 + x * y) % 3 === 0);
+        if (dark) { out += '<rect x="' + (x * cell) + '" y="' + (y * cell) + '" width="' + cell + '" height="' + cell + '"/>'; }
+      }
+    }
+    return '<svg width="63" height="63" viewBox="0 0 63 63" aria-hidden="true"><g fill="#0B0B10">' + out + '</g></svg>';
+  }
+
+  /* ── Разбор справа ─────────────────────────────────────────── */
+  function renderNotes() {
+    var key = state.step;
+    if (key === 'attract' && state.blocked) { key = 'blocked'; }
+    var n = NOTES[key] || NOTES.attract;
+
+    var items = n.items.map(function (row) {
+      return '<li class="notes__item">' +
+             '<span class="notes__metric">' + row[0] + '</span>' +
+             '<p class="notes__body">' + row[1] + '</p></li>';
+    }).join('');
+
+    notes.innerHTML =
+      '<p class="notes__step">Шаг ' + n.n + ' / 08</p>' +
+      '<h2 class="notes__h">' + n.h + '</h2>' +
+      '<p class="notes__job">' + n.job + '</p>' +
+      '<ul class="notes__list">' + items + '</ul>' +
+      '<div class="why"><span class="why__k">Почему так</span><p class="why__v">' + n.why + '</p></div>';
+  }
+
+  function renderRail() {
+    rail.innerHTML = RAIL.map(function (r) {
+      return '<button class="rail__btn" data-step="' + r[0] + '" ' +
+             'aria-current="' + (state.step === r[0]) + '">' + r[1] + '</button>';
+    }).join('');
+  }
+
+  rail.addEventListener('click', function (event) {
+    var btn = event.target.closest('[data-step]');
+    if (btn) { go(btn.getAttribute('data-step')); }
+  });
+
+  /* ── Полосы ниже ───────────────────────────────────────────── */
+  document.getElementById('fmts').innerHTML = FORMATS.map(function (f) {
+    var body;
+    if (f.id === 'twin') {
+      var col = '';
+      for (var i = 0; i < 3; i++) { col += '<div class="fmts__cell">' + figures(i, true) + '</div>'; }
+      body = '<div class="fmts__col">' + col + '</div><div class="fmts__col">' + col + '</div>' +
+             '<div class="fmts__tear"></div>';
+    } else if (f.id === 'grid') {
+      var g = '';
+      for (var j = 0; j < 4; j++) { g += '<div class="fmts__cell">' + figures(j, true) + '</div>'; }
+      body = '<div class="fmts__col fmts__grid">' + g + '</div><span class="fmts__cap">Свадьба Ани и Пети</span>';
+    } else if (f.id === 'polaroid') {
+      body = '<div class="fmts__col" style="padding-bottom:17%"><div class="fmts__cell">' + figures(0, true) +
+             '</div></div><span class="fmts__cap">Свадьба Ани и Пети</span>';
+    } else {
+      var c = '';
+      for (var k = 0; k < f.cells; k++) { c += '<div class="fmts__cell">' + figures(k, true) + '</div>'; }
+      body = '<div class="fmts__col">' + c + '</div>';
+    }
+    return '<div class="fmts__card">' +
+      '<div class="fmts__sheet">' + body + '</div>' +
+      '<div>' +
+        '<p class="fmts__name">' + f.name + '</p>' +
+        '<p class="fmts__meta">' + f.shots + ' ' + plural(f.shots) + ' → ' + f.cells +
+        (f.cells === 1 ? ' ячейка' : f.cells < 5 ? ' ячейки' : ' ячеек') + '</p>' +
+      '</div>' +
+      '<p class="fmts__note">' + f.note + '</p>' +
+    '</div>';
+  }).join('');
+
+  document.getElementById('statesBody').innerHTML = STATES.map(function (s) {
+    return '<tr>' +
+      '<td><span class="states__chip"><span class="states__dot" style="background:' + s[2] + '"></span>' + s[1] + '</span></td>' +
+      '<td>' + s[3] + '</td><td>' + s[4] + '</td><td>' + s[5] + '</td></tr>';
+  }).join('');
+
+  render();
+})();
+</script>
+
+</body>
+</html>
