@@ -71,7 +71,7 @@ export function AttractScreen({
           {logoPath ? (
             <Image source={{uri: logoPath}} style={styles.logo} resizeMode="contain" />
           ) : null}
-          <Text style={[styles.title, {color: accent}]} numberOfLines={2}>
+          <Text style={[styles.title, {color: accent}]} numberOfLines={3} adjustsFontSizeToFit>
             {title}
           </Text>
           {subtitle ? <Text style={styles.subtitle}>{subtitle}</Text> : null}

@@ -12,7 +12,7 @@ import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {KioskScreen} from '../components/KioskScreen';
 import {stringsFor, type Locale} from '../i18n/strings';
 import {layoutById, type LayoutId} from '../imaging/layouts';
-import {palette, radius, spacing, typography} from '../theme/theme';
+import {palette, radius, screenScale, spacing, typography} from '../theme/theme';
 
 export interface LayoutScreenProps {
   readonly locale: Locale;
@@ -144,8 +144,10 @@ function labelFor(id: LayoutId, locale: Locale): string {
   }
 }
 
-const THUMB_WIDTH = 180;
-const THUMB_HEIGHT = 270; // пропорция листа 10×15
+// Пропорция листа 10×15 сохраняется на любом экране; на телефоне карточки
+// пропорционально мельче, чтобы в ряд было видно больше одной.
+const THUMB_WIDTH = Math.round(180 * screenScale);
+const THUMB_HEIGHT = Math.round(THUMB_WIDTH * 1.5);
 
 const styles = StyleSheet.create({
   container: {

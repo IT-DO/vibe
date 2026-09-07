@@ -13,6 +13,24 @@
  *  - один акцентный цвет, который меняется под мероприятие.
  */
 
+import {Dimensions} from 'react-native';
+
+import {isPhoneSized, scaleAll, scaleFactorFor} from './scale';
+
+/**
+ * Короткая сторона экрана. Ориентация зафиксирована портретной, но берём
+ * минимум из сторон — так значение не зависит от того, в какой момент
+ * жизненного цикла приложение спросило размеры.
+ */
+const {width, height} = Dimensions.get('window');
+const shortestSide = Math.min(width, height);
+
+/** Во сколько раз интерфейс отличается от эталонного планшета. */
+export const screenScale = scaleFactorFor(shortestSide);
+
+/** Приложение запущено на телефоне — раскладки становятся компактнее. */
+export const isCompact = isPhoneSized(shortestSide);
+
 export interface Palette {
   readonly background: string;
   readonly surface: string;
@@ -43,8 +61,11 @@ export const palette: Palette = {
   overlay: 'rgba(11, 11, 16, 0.82)',
 };
 
-/** Размеры шрифтов. Экран гостя начинается с `body`; ничего мельче на нём нет. */
-export const typography = {
+/**
+ * Базовые размеры шрифтов под планшет. Наружу отдаются уже масштабированные:
+ * на телефоне те же значения, умноженные на `screenScale`.
+ */
+const BASE_TYPOGRAPHY = {
   /** Обратный отсчёт — во весь экран. */
   countdown: 280,
   display: 72,
@@ -57,7 +78,10 @@ export const typography = {
   admin: 15,
 } as const;
 
-export const spacing = {
+/** Размеры шрифтов для текущего экрана. */
+export const typography = scaleAll(BASE_TYPOGRAPHY, screenScale);
+
+const BASE_SPACING = {
   xs: 6,
   sm: 12,
   md: 20,
@@ -65,6 +89,9 @@ export const spacing = {
   xl: 48,
   xxl: 72,
 } as const;
+
+/** Отступы для текущего экрана. */
+export const spacing = scaleAll(BASE_SPACING, screenScale);
 
 export const radius = {
   sm: 12,
@@ -75,13 +102,17 @@ export const radius = {
 
 /**
  * Минимальные размеры целей нажатия. Системные рекомендации (44 pt) рассчитаны
- * на телефон в руке; здесь человек тянется к вертикальному экрану издалека.
+ * на телефон в руке; здесь человек тянется к закреплённому экрану издалека,
+ * поэтому даже после масштабирования цели остаются заметно крупнее.
  */
-export const touch = {
+const BASE_TOUCH = {
   minSize: 96,
   primaryHeight: 120,
   primaryMinWidth: 320,
 } as const;
+
+/** Размеры целей нажатия для текущего экрана. */
+export const touch = scaleAll(BASE_TOUCH, screenScale);
 
 export const timing = {
   fast: 150,

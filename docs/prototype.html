@@ -174,6 +174,14 @@
   /* Планшет */
   .rig { display: flex; flex-direction: column; gap: 16px; }
 
+  /* Телефон: короткая сторона 430 dp против 800 у планшета. */
+  /* Ширина именно фиксированная: с max-width и auto-полями флекс-элемент
+     перестаёт растягиваться, а экран внутри задан только пропорцией и
+     схлопывается в нулевую ширину. */
+  .tablet.is-phone { width: 236px; margin: 0 auto; border-radius: 34px; }
+  .tablet.is-phone .screen { aspect-ratio: 9 / 19.5; --u: 0.77; }
+  .tablet.is-phone .layer { padding: 18px 13px; }
+
   .tablet {
     background: #05050A;
     border-radius: 26px;
@@ -192,6 +200,9 @@
     box-shadow: 0 0 0 1px rgba(255,255,255,.06);
   }
   .screen {
+    /* Коэффициент повторяет scaleFactorFor() из src/theme/scale.ts:
+       0.5 + 0.5 * (короткая сторона / 800). */
+    --u: 1;
     position: relative;
     aspect-ratio: 3 / 4;
     background: var(--device);
@@ -216,12 +227,12 @@
   }
 
   /* Типографика внутри приложения */
-  .app-title   { font-family: var(--sans); font-weight: 700; font-size: 30px; line-height: 1.06; text-align: center; color: var(--device-acc); margin: 0; }
-  .app-sub     { font-size: 13px; color: var(--device-mut); text-align: center; margin: 0; }
-  .app-tap     { font-size: 17px; font-weight: 700; text-align: center; margin: 0; }
-  .app-hint    { font-size: 12px; color: var(--device-mut); text-align: center; margin: 0; max-width: 26ch; }
-  .app-h       { font-size: 22px; font-weight: 700; text-align: center; margin: 0; }
-  .app-note    { font-size: 12px; color: var(--device-mut); text-align: center; margin: 0; }
+  .app-title   { font-family: var(--sans); font-weight: 700; font-size: calc(30px * var(--u)); line-height: 1.06; text-align: center; color: var(--device-acc); margin: 0; }
+  .app-sub     { font-size: calc(13px * var(--u)); color: var(--device-mut); text-align: center; margin: 0; }
+  .app-tap     { font-size: calc(17px * var(--u)); font-weight: 700; text-align: center; margin: 0; }
+  .app-hint    { font-size: calc(12px * var(--u)); color: var(--device-mut); text-align: center; margin: 0; max-width: 26ch; }
+  .app-h       { font-size: calc(22px * var(--u)); font-weight: 700; text-align: center; margin: 0; }
+  .app-note    { font-size: calc(12px * var(--u)); color: var(--device-mut); text-align: center; margin: 0; }
 
   .spacer { flex: 1; }
 
@@ -273,7 +284,7 @@
   /* Карточки форматов внутри приложения */
   .fmt-row { display: flex; gap: 9px; justify-content: center; flex-wrap: wrap; }
   .fmt {
-    width: 84px;
+    width: calc(84px * var(--u));
     background: var(--device-2);
     border: 2px solid var(--device-3);
     border-radius: 12px;
@@ -283,8 +294,8 @@
     transition: border-color .16s ease;
   }
   .fmt[aria-pressed="true"] { border-color: var(--device-acc); }
-  .fmt__name { font-size: 10.5px; font-weight: 700; text-align: center; line-height: 1.15; }
-  .fmt__meta { font-size: 9px; color: var(--device-mut); }
+  .fmt__name { font-size: calc(10.5px * var(--u)); font-weight: 700; text-align: center; line-height: 1.15; }
+  .fmt__meta { font-size: calc(9px * var(--u)); color: var(--device-mut); }
   .fmt__thumb {
     width: 100%; aspect-ratio: 2 / 3;
     background: var(--device-3);
@@ -302,7 +313,7 @@
 
   /* Обратный отсчёт */
   .count {
-    font-size: 118px; font-weight: 800; line-height: 1;
+    font-size: calc(118px * var(--u)); font-weight: 800; line-height: 1;
     color: var(--device-acc);
     text-shadow: 0 6px 30px rgba(0,0,0,.5);
     animation: pop .42s cubic-bezier(.2,1.4,.4,1);
@@ -348,7 +359,7 @@
   .app-btn {
     border-radius: 999px;
     padding: 11px 20px;
-    font-size: 14px; font-weight: 700;
+    font-size: calc(14px * var(--u)); font-weight: 700;
     border: 2px solid var(--device-acc);
     background: var(--device-acc);
     color: #fff;
@@ -570,6 +581,9 @@
       <div class="rail" id="rail"></div>
 
       <div class="toggles">
+        <label class="toggle">
+          <input type="checkbox" id="tglPhone"> телефон вместо планшета
+        </label>
         <label class="toggle">
           <input type="checkbox" id="tglBlocked"> принтер без бумаги
         </label>
@@ -811,6 +825,7 @@
     flash: false,
     blocked: false,
     secret: false,
+    phone: false,
     timer: null
   };
 
@@ -906,6 +921,11 @@
   document.getElementById('tglSecret').addEventListener('change', function (e) {
     state.secret = e.target.checked;
     render();
+  });
+  document.getElementById('tglPhone').addEventListener('change', function (e) {
+    state.phone = e.target.checked;
+    document.querySelector('.tablet').classList.toggle('is-phone', state.phone);
+    renderNotes();
   });
 
   /* ── Отрисовка экрана планшета ─────────────────────────────── */
@@ -1136,7 +1156,18 @@
              '<p class="notes__body">' + row[1] + '</p></li>';
     }).join('');
 
+    var phoneNote = state.phone
+      ? '<div class="why" style="border-left-color: var(--coral); margin-bottom: 20px">' +
+        '<span class="why__k">Телефон вместо планшета</span>' +
+        '<p class="why__v">Тот же APK, ограничений «только планшет» нет. Размеры ' +
+        'пересчитываются по короткой стороне экрана: 430 dp против 800 у планшета ' +
+        'дают коэффициент 0,77. Цели нажатия остаются вдвое крупнее системного ' +
+        'минимума, отсчёт — крупным. Камера у телефона обычно лучше планшетной, ' +
+        'но «зеркало» на заставке заметно меньше и хуже притягивает гостей.</p></div>'
+      : '';
+
     notes.innerHTML =
+      phoneNote +
       '<p class="notes__step">Шаг ' + n.n + ' / 08</p>' +
       '<h2 class="notes__h">' + n.h + '</h2>' +
       '<p class="notes__job">' + n.job + '</p>' +
