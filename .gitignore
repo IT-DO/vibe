@@ -1,0 +1,24 @@
+node_modules/
+npm-debug.log
+yarn-error.log
+coverage/
+.DS_Store
+*.log
+
+# Android
+android/.gradle/
+android/app/build/
+android/build/
+android/local.properties
+*.keystore
+!debug.keystore
+
+# iOS
+ios/Pods/
+ios/build/
+ios/*.xcworkspace/xcuserdata/
+ios/DerivedData/
+
+# Метро/сборка
+.metro-health-check*
+dist/

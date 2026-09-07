@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDisplayName</key>
+	<string>Фото на память</string>
+	<key>CFBundleName</key>
+	<string>PhotoNaPamyat</string>
+	<key>CFBundleIdentifier</key>
+	<string>$(PRODUCT_BUNDLE_IDENTIFIER)</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+
+	<!-- Съёмка гостей. -->
+	<key>NSCameraUsageDescription</key>
+	<string>Камера нужна, чтобы фотографировать гостей и печатать снимки на память.</string>
+
+	<!--
+	  КЛЮЧЕВОЙ ПУНКТ ДЛЯ iOS 14 И ВЫШЕ.
+	  Без NSLocalNetworkUsageDescription и NSBonjourServices система молча
+	  блокирует любые обращения к устройствам в локальной сети. Приложение
+	  при этом не выдаёт ошибку — принтер просто «не находится».
+	-->
+	<key>NSLocalNetworkUsageDescription</key>
+	<string>Доступ к локальной сети нужен, чтобы найти фотопринтер и отправить на него снимок.</string>
+	<key>NSBonjourServices</key>
+	<array>
+		<string>_ipp._tcp</string>
+		<string>_ipps._tcp</string>
+	</array>
+
+	<!-- Микрофон не используется; ключ не нужен. -->
+
+	<key>UILaunchStoryboardName</key>
+	<string>LaunchScreen</string>
+	<key>UIRequiredDeviceCapabilities</key>
+	<array>
+		<string>armv7</string>
+	</array>
+	<!-- Планшет закреплён на стойке: интерфейс рассчитан на портрет. -->
+	<key>UISupportedInterfaceOrientations~ipad</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+		<string>UIInterfaceOrientationPortraitUpsideDown</string>
+	</array>
+	<key>UISupportedInterfaceOrientations</key>
+	<array>
+		<string>UIInterfaceOrientationPortrait</string>
+	</array>
+	<!-- Экран киоска занимает всё; системная строка состояния скрыта. -->
+	<key>UIStatusBarHidden</key>
+	<true/>
+	<key>UIViewControllerBasedStatusBarAppearance</key>
+	<false/>
+	<key>UIRequiresFullScreen</key>
+	<true/>
+</dict>
+</plist>
