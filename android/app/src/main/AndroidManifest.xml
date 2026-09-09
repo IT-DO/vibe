@@ -28,6 +28,14 @@
     <!-- Экран не должен гаснуть всё мероприятие. -->
     <uses-permission android:name="android.permission.WAKE_LOCK" />
 
+    <!--
+      Тактильный отклик на касание. Без этого разрешения Vibrator.vibrate()
+      бросает SecurityException в нативном потоке и роняет приложение — со
+      стороны это выглядит как «свернулось при нажатии». Разрешение обычное:
+      выдаётся при установке, ничего у человека не спрашивает.
+    -->
+    <uses-permission android:name="android.permission.VIBRATE" />
+
     <uses-feature android:name="android.hardware.camera" android:required="true" />
 
     <application
@@ -55,16 +63,15 @@
             </intent-filter>
 
             <!--
-              Планшет-фотобудка должен запускаться сам после перезагрузки и
-              не показывать лаунчер: категория HOME делает приложение
-              оболочкой устройства. Оператор задаёт его лаунчером по
-              умолчанию — порядок в docs/KIOSK-SETUP.md.
+              Категории HOME здесь намеренно нет.
+              Она делает приложение оболочкой устройства: планшет-фотобудка
+              после перезагрузки сам возвращается в будку, минуя лаунчер. Для
+              выделенного планшета это правильно, но на личном телефоне
+              приложение попадает в список «выберите приложение главного
+              экрана», и случайный выбор превращает телефон в фотобудку —
+              откатить это неочевидно.
+              Как включить на выделенном устройстве — в docs/KIOSK-SETUP.md.
             -->
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
         </activity>
 
         <!--

@@ -85,31 +85,54 @@ export function useKioskSession(
     [settings],
   );
 
-  /** Выполняет побочные действия, порождённые переходом. */
+  /**
+   * Выполняет побочные действия, порождённые переходом.
+   *
+   * Каждое действие изолировано. Иначе сбой второстепенного отменял бы
+   * главное: на нуле отсчёта список — [звук, снимок], и упавший звук унёс бы
+   * с собой сам кадр. Ровно так и вело себя приложение, когда вибрация
+   * падала без разрешения VIBRATE.
+   */
   const runEffects = useCallback(
     async (effects: readonly SessionEffect[]) => {
       for (const effect of effects) {
-        switch (effect.type) {
-          case 'haptic':
-            haptic();
-            break;
-          case 'sound':
-            playCue(effect.name);
-            break;
-          case 'discardShots':
-            await Promise.all(effect.shots.map(shot => removeFile(shot.path)));
-            setPreviewUri(null);
-            break;
-          case 'capture':
-            await handleCapture();
-            break;
-          case 'enqueuePrint':
-            await handleEnqueue(effect.layoutId, effect.shots);
-            break;
-          case 'openGallery':
-            await handlePickPhoto();
-            break;
+        try {
+          await runEffect(effect);
+        } catch (error) {
+          // Действие не удалось — сценарий продолжается. Те действия, чей
+          // провал важен для гостя (съёмка, печать), сообщают о себе сами,
+          // отправляя событие в автомат.
+          console.warn('Побочное действие не выполнено:', effect.type, error);
         }
+      }
+    },
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [settings],
+  );
+
+  /** Одно побочное действие. */
+  const runEffect = useCallback(
+    async (effect: SessionEffect) => {
+      switch (effect.type) {
+        case 'haptic':
+          haptic();
+          break;
+        case 'sound':
+          playCue(effect.name);
+          break;
+        case 'discardShots':
+          await Promise.all(effect.shots.map(shot => removeFile(shot.path)));
+          setPreviewUri(null);
+          break;
+        case 'capture':
+          await handleCapture();
+          break;
+        case 'enqueuePrint':
+          await handleEnqueue(effect.layoutId, effect.shots);
+          break;
+        case 'openGallery':
+          await handlePickPhoto();
+          break;
       }
     },
     // handleCapture/handleEnqueue объявлены ниже и стабильны в пределах
