@@ -19,8 +19,15 @@ import {DEFAULT_EVENT_THEME, type EventTheme} from '../theme/theme';
 
 const storage = new MMKV({id: 'photo-na-pamyat'});
 
-/** Формат отпечатка. */
-export type MediaChoice = '4x6' | '3x3';
+/**
+ * Формат отпечатка.
+ *
+ * `2x3` — карманная бумага 50 × 76 мм компактных Xiaomi; `4x6` — привычные
+ * 10 × 15 см; `3x3` — квадрат. Точный размер принтер сообщает сам при
+ * подключении, и админка подставляет подходящий вариант, но оставить
+ * выбор человеку всё равно нужно: картридж меняют между мероприятиями.
+ */
+export type MediaChoice = '4x6' | '3x3' | '2x3';
 
 /** Какой канал печати использовать. */
 export type TransportChoice = 'ipp' | 'system' | 'mock';
@@ -170,7 +177,14 @@ export const useSettings = create<SettingsStore>()(
 
 /** Размер листа под выбранный формат. */
 export function mediaSizeOf(choice: MediaChoice): {widthMm: number; heightMm: number} {
-  return choice === '3x3'
-    ? {widthMm: 76.2, heightMm: 76.2}
-    : {widthMm: 101.6, heightMm: 152.4};
+  switch (choice) {
+    case '3x3':
+      return {widthMm: 76.2, heightMm: 76.2};
+    case '2x3':
+      // Карманная бумага компактных Xiaomi: 2 × 3 дюйма.
+      return {widthMm: 50.8, heightMm: 76.2};
+    case '4x6':
+    default:
+      return {widthMm: 101.6, heightMm: 152.4};
+  }
 }

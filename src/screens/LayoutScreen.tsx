@@ -12,7 +12,7 @@ import {Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
 import {KioskScreen} from '../components/KioskScreen';
 import {stringsFor, type Locale} from '../i18n/strings';
 import {layoutById, type LayoutId} from '../imaging/layouts';
-import {palette, radius, screenScale, spacing, typography} from '../theme/theme';
+import {fonts, palette, radius, screenScale, spacing, typography} from '../theme/theme';
 
 export interface LayoutScreenProps {
   readonly locale: Locale;
@@ -156,8 +156,8 @@ const styles = StyleSheet.create({
     justifyContent: 'space-between',
   },
   title: {
+    ...fonts.display,
     fontSize: typography.title,
-    fontWeight: '800',
     color: palette.text,
     textAlign: 'center',
     marginBottom: spacing.lg,

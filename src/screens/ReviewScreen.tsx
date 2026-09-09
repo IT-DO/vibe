@@ -16,7 +16,7 @@ import {Image, StyleSheet, Text, View} from 'react-native';
 import {BigButton} from '../components/BigButton';
 import {KioskScreen} from '../components/KioskScreen';
 import {stringsFor, type Locale} from '../i18n/strings';
-import {palette, radius, spacing, typography} from '../theme/theme';
+import {fonts, palette, radius, spacing, typography} from '../theme/theme';
 
 export interface ReviewScreenProps {
   readonly locale: Locale;
@@ -99,8 +99,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   title: {
+    ...fonts.script,
     fontSize: typography.title,
-    fontWeight: '800',
     color: palette.text,
   },
   sheetFrame: {

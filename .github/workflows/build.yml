@@ -90,6 +90,21 @@ jobs:
       # менялась бы каждый раз, а в релизе копился бы список версий, из
       # которого ещё надо выбрать свежую. Номер сборки остаётся в описании
       # релиза — там он информация, а не часть адреса.
+      # Шрифты подписи и заголовков лежат в ассетах и в код не попадают:
+      # ни проверка типов, ни линтер их не видят. Если файл не доедет до
+      # APK, Android молча нарисует всё системным гротеском — заметить это
+      # можно только глазами на устройстве, уже на мероприятии.
+      - name: Проверить, что шрифты внутри APK
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          for font in Lobster-Regular PlayfairDisplay-Bold PlayfairDisplay-Regular; do
+            if ! unzip -l "$APK" | grep -q "assets/fonts/$font.ttf"; then
+              echo "::error::В APK нет шрифта $font.ttf — интерфейс выйдет системным гротеском"
+              exit 1
+            fi
+            echo "  $font.ttf — на месте"
+          done
+
       - name: Подготовить файл
         run: |
           mkdir -p dist

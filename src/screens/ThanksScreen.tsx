@@ -16,7 +16,7 @@ import {ActivityIndicator, StyleSheet, Text, View} from 'react-native';
 import {KioskScreen} from '../components/KioskScreen';
 import {QrCode} from '../components/QrCode';
 import {stringsFor, type Locale} from '../i18n/strings';
-import {palette, spacing, typography} from '../theme/theme';
+import {fonts, palette, spacing, typography} from '../theme/theme';
 
 export interface PrintingScreenProps {
   readonly locale: Locale;
@@ -110,13 +110,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: spacing.xl,
   },
   big: {
+    // «Спасибо!» — единственная фраза, которую человек уносит с собой в
+    // памяти вместе с отпечатком. Рукописная вывеска ей к лицу.
+    ...fonts.script,
     fontSize: typography.display,
-    fontWeight: '900',
     textAlign: 'center',
   },
   title: {
+    ...fonts.displayRegular,
     fontSize: typography.title,
-    fontWeight: '700',
     color: palette.text,
     textAlign: 'center',
   },
@@ -131,6 +133,7 @@ const styles = StyleSheet.create({
     padding: spacing.md,
   },
   comeBack: {
+    ...fonts.script,
     fontSize: typography.heading,
     color: palette.textMuted,
     marginTop: spacing.lg,

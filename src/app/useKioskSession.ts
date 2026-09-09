@@ -12,6 +12,7 @@ import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 import type {CameraLayerHandle} from './CameraLayer';
 import {activeTransport, printQueue} from './services';
 import {composeSheet, DEFAULT_COMPOSE} from '../imaging/composer';
+import {loadTypeface} from '../imaging/typefaces';
 import {encodePwgRaster, type RasterImage} from '../printing/pwg/raster';
 import {layoutById, type LayoutId} from '../imaging/layouts';
 import {shouldFlip} from '../imaging/mirror';
@@ -214,22 +215,29 @@ export function useKioskSession(
    * должен получить ровно то, что видел на экране.
    */
   const composeOptionsFor = useCallback(
-    (shots: readonly PhotoShot[], layoutId: LayoutId) => ({
-      shotPaths: shots.map(shot => shot.path),
-      layout: layoutById(layoutId),
-      media: mediaSizeOf(settings.printer.media),
-      dpi: PRINT_DPI,
-      ...(settings.framePath ? {framePath: settings.framePath} : {}),
-      caption: settings.event.title
-        ? {
-            title: settings.event.title,
-            ...(settings.event.subtitle ? {subtitle: settings.event.subtitle} : {}),
-            color: '#2A2A32',
-          }
-        : undefined,
-      ...DEFAULT_COMPOSE,
-      mirror: mirrorFor(shots, settings.capture.mirrorPrint),
-    }),
+    async (shots: readonly PhotoShot[], layoutId: LayoutId) => {
+      // Рукописная антиква подписи лежит в ассетах приложения и читается
+      // один раз за запуск. Если файла не окажется, `loadTypeface` вернёт
+      // системный шрифт или `null` — лист соберётся в любом случае.
+      const typeface = settings.event.title ? await loadTypeface('script') : null;
+      return {
+        shotPaths: shots.map(shot => shot.path),
+        layout: layoutById(layoutId),
+        media: mediaSizeOf(settings.printer.media),
+        dpi: PRINT_DPI,
+        ...(settings.framePath ? {framePath: settings.framePath} : {}),
+        caption: settings.event.title
+          ? {
+              title: settings.event.title,
+              ...(settings.event.subtitle ? {subtitle: settings.event.subtitle} : {}),
+              color: '#2A2A32',
+            }
+          : undefined,
+        ...(typeface ? {typeface} : {}),
+        ...DEFAULT_COMPOSE,
+        mirror: mirrorFor(shots, settings.capture.mirrorPrint),
+      };
+    },
     [settings],
   );
 
@@ -277,7 +285,7 @@ export function useKioskSession(
         } else {
           // Собираем заново: либо просмотра не было, либо принтеру нужен
           // растр, которого в готовом JPEG уже не получить.
-          const sheet = await composeSheet(composeOptionsFor(shots, layoutId));
+          const sheet = await composeSheet(await composeOptionsFor(shots, layoutId));
           const document = encodeSheetFor(printerFormat, sheet);
           sheetPath = newFilePath(Paths.sheets, document.extension);
           await writeBytes(sheetPath, document.data);
@@ -346,7 +354,9 @@ export function useKioskSession(
       try {
         // Качество печатное, а не пониженное: этот же файл уйдёт в принтер.
         // Показывать гостю одно, а печатать другое — источник претензий.
-        const sheet = await composeSheet(composeOptionsFor(state.shots, state.layoutId));
+        const sheet = await composeSheet(
+          await composeOptionsFor(state.shots, state.layoutId),
+        );
         if (cancelled) {
           return;
         }

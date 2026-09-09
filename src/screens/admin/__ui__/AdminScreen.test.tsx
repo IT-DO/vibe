@@ -65,7 +65,21 @@ const PRINTER = {
   displayName: 'Xiaomi Photo Printer',
   endpoint: {host: '192.168.1.42', port: 631, path: '/ipp/print'},
   source: 'mdns' as const,
-  capabilities: {documentFormats: ['image/jpeg', 'image/pwg-raster']},
+  capabilities: {
+    documentFormats: ['image/jpeg', 'image/pwg-raster'],
+    media: [{name: 'na_index-4x6_4x6in', widthMm: 101.6, heightMm: 152.4}],
+  },
+};
+
+/** Компактный принтер на карманной бумаге 50 × 76 мм. */
+const POCKET_PRINTER = {
+  displayName: 'Xiaomi Pocket Printer',
+  endpoint: {host: '192.168.1.43', port: 631, path: '/ipp/print'},
+  source: 'mdns' as const,
+  capabilities: {
+    documentFormats: ['image/jpeg'],
+    media: [{name: 'oe_photo-2x3_2x3in', widthMm: 50.8, heightMm: 76.2}],
+  },
 };
 
 beforeEach(() => {
@@ -159,6 +173,43 @@ describe('настройка принтера', () => {
     expect(mockApplyPrinterSettings).toHaveBeenCalledWith(
       expect.objectContaining({transport: 'ipp', endpoint: PRINTER.endpoint}),
     );
+  });
+
+  it('формат бумаги берётся у самого принтера', async () => {
+    // Угадывать по названию модели нельзя: у одного «1S» встречаются и
+    // картриджи 10 × 15, и карманная бумага 50 × 76 мм.
+    mockFindPrinters.mockResolvedValue([POCKET_PRINTER]);
+    await openAdmin();
+
+    fireEvent.press(screen.getByText('Найти принтер'));
+    await waitFor(() => expect(screen.getByText('Xiaomi Pocket Printer')).toBeTruthy());
+    fireEvent.press(screen.getByText('выбрать'));
+    await act(async () => {});
+
+    expect(useSettings.getState().settings.printer.media).toBe('2x3');
+  });
+
+  it('принтер без списка носителей не меняет выбранный формат', async () => {
+    // Испортить лист хуже, чем не угадать: оставляем то, что выбрал человек.
+    mockFindPrinters.mockResolvedValue([
+      {...PRINTER, capabilities: {documentFormats: ['image/jpeg']}},
+    ]);
+    useSettings.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        adminPin: '2468',
+        printer: {...DEFAULT_SETTINGS.printer, media: '3x3'},
+      },
+    });
+    await openAdmin();
+
+    fireEvent.press(screen.getByText('Найти принтер'));
+    await waitFor(() => expect(screen.getByText('Xiaomi Photo Printer')).toBeTruthy());
+    fireEvent.press(screen.getByText('выбрать'));
+    await act(async () => {});
+
+    expect(useSettings.getState().settings.printer.media).toBe('3x3');
+    expect(useSettings.getState().settings.printer.endpoint).toEqual(PRINTER.endpoint);
   });
 
   it('показывает сеть, в которой находится планшет', async () => {

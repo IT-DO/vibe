@@ -15,7 +15,7 @@ import {KioskScreen} from '../components/KioskScreen';
 import {PrinterBadge} from '../components/PrinterBadge';
 import {stringsFor, type Locale} from '../i18n/strings';
 import type {PrinterHealth} from '../printing/ipp/capabilities';
-import {palette, spacing, typography} from '../theme/theme';
+import {fonts, palette, spacing, typography} from '../theme/theme';
 
 export interface AttractScreenProps {
   readonly locale: Locale;
@@ -173,11 +173,15 @@ const styles = StyleSheet.create({
     height: 120,
   },
   title: {
+    // Название мероприятия — главное, что видно с другого конца зала.
+    // Антиква с высоким контрастом штриха читается как афиша, а не как
+    // системное уведомление.
+    ...fonts.display,
     fontSize: typography.display,
-    fontWeight: '800',
     textAlign: 'center',
   },
   subtitle: {
+    ...fonts.displayRegular,
     fontSize: typography.heading,
     color: palette.textMuted,
     textAlign: 'center',
@@ -204,8 +208,10 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.lg,
   },
   tap: {
+    // Призыв набран рукописной вывеской: он должен читаться как приглашение,
+    // а не как надпись на двери учреждения.
+    ...fonts.script,
     fontSize: typography.title,
-    fontWeight: '700',
     color: palette.text,
     textAlign: 'center',
   },

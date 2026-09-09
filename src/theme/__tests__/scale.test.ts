@@ -1,12 +1,29 @@
 import {
+  MAX_FONT_SCALE,
   MAX_SCALE,
+  MIN_FONT_SCALE,
   MIN_SCALE,
+  REFERENCE_HEIGHT,
   REFERENCE_WIDTH,
+  fontScaleAdjustment,
   isPhoneSized,
   scaleAll,
   scaleFactorFor,
   scaleValue,
 } from '../scale';
+
+/**
+ * Настоящие размеры окна в единицах RN у устройств, на которых будку
+ * реально запускают. Взяты парами: масштаб теперь считается по обеим
+ * сторонам, и одна короткая сторона о вытянутом экране ничего не говорит.
+ */
+const SCREENS = {
+  'телефон 6,1" (20:9)': {width: 390, height: 844},
+  'телефон 6,7" (20:9)': {width: 430, height: 932},
+  'планшет 8" (16:10)': {width: 600, height: 960},
+  'iPad 10,9" (4:3)': {width: 820, height: 1180},
+  'планшет 12,9" (4:3)': {width: 1024, height: 1366},
+} as const;
 
 /** Короткая сторона экрана в единицах RN у типичных устройств. */
 const DEVICES = {
@@ -130,5 +147,115 @@ describe('isPhoneSized', () => {
   it('планшеты — планшетами', () => {
     expect(isPhoneSized(600)).toBe(false);
     expect(isPhoneSized(820)).toBe(false);
+  });
+});
+
+
+describe('масштаб по обеим сторонам экрана', () => {
+  it('на эталонном планшете ничего не меняет', () => {
+    expect(scaleFactorFor({width: REFERENCE_WIDTH, height: REFERENCE_HEIGHT})).toBe(1);
+  });
+
+  it('растёт вместе с экраном на реальных устройствах', () => {
+    const factors = Object.values(SCREENS).map(s => scaleFactorFor(s));
+    for (let i = 1; i < factors.length; i++) {
+      expect(factors[i]!).toBeGreaterThanOrEqual(factors[i - 1]!);
+    }
+  });
+
+  it('вытянутый экран ограничен высотой, а не шириной', () => {
+    // Широкий, но низкий экран — телефон в разделённом режиме или планшет
+    // с открытой клавиатурой. По ширине места хватает, а низ заставки с
+    // кнопкой «Выбрать готовое фото» уже не помещается.
+    const wideLow = {width: 800, height: 500};
+    const square = {width: 800, height: 1067};
+    expect(scaleFactorFor(wideLow)).toBeLessThan(scaleFactorFor(square));
+  });
+
+  it('ориентация не влияет: считаются короткая и длинная стороны', () => {
+    expect(scaleFactorFor({width: 390, height: 844})).toBe(
+      scaleFactorFor({width: 844, height: 390}),
+    );
+  });
+
+  it('число вместо размеров понимается как короткая сторона', () => {
+    // Старый способ вызова: экран задавался одной стороной.
+    expect(scaleFactorFor(REFERENCE_WIDTH)).toBe(1);
+    expect(scaleFactorFor(360)).toBeCloseTo(scaleFactorFor({width: 360, height: 480}), 2);
+  });
+
+  it('на бессмысленных размерах отдаёт 1, а не ломает вёрстку', () => {
+    expect(scaleFactorFor({width: 0, height: 0})).toBe(1);
+    expect(scaleFactorFor({width: -100, height: 800})).toBe(1);
+    expect(scaleFactorFor({width: Number.NaN, height: 800})).toBe(1);
+  });
+
+  it('держится в границах на любом устройстве', () => {
+    for (const screen of Object.values(SCREENS)) {
+      const factor = scaleFactorFor(screen);
+      expect(factor).toBeGreaterThanOrEqual(MIN_SCALE);
+      expect(factor).toBeLessThanOrEqual(MAX_SCALE);
+    }
+  });
+});
+
+describe('поправка на системный размер шрифта', () => {
+  it('при обычной настройке ничего не меняет', () => {
+    expect(fontScaleAdjustment(1)).toBe(1);
+  });
+
+  it('крупный системный шрифт учитывается, но приглушённо', () => {
+    // Подчиниться целиком нельзя: при 1.3 призыв на заставке перестанет
+    // помещаться в строку у всех гостей ради настройки владельца.
+    const adjustment = fontScaleAdjustment(1.3);
+    expect(adjustment).toBeGreaterThan(1);
+    expect(adjustment).toBeLessThan(1.15);
+  });
+
+  it('мелкий системный шрифт тоже учитывается приглушённо', () => {
+    const adjustment = fontScaleAdjustment(0.85);
+    expect(adjustment).toBeLessThan(1);
+    expect(adjustment).toBeGreaterThan(0.9);
+  });
+
+  it('не выходит за границы даже при предельных настройках', () => {
+    expect(fontScaleAdjustment(3)).toBeLessThanOrEqual(MAX_FONT_SCALE);
+    expect(fontScaleAdjustment(0.1)).toBeGreaterThanOrEqual(MIN_FONT_SCALE);
+  });
+
+  it('на бессмысленном значении отдаёт 1', () => {
+    expect(fontScaleAdjustment(0)).toBe(1);
+    expect(fontScaleAdjustment(Number.NaN)).toBe(1);
+    expect(fontScaleAdjustment(-1)).toBe(1);
+  });
+});
+
+describe('размеры текста на реальных устройствах', () => {
+  const BASE = {countdown: 280, display: 72, title: 44, body: 24, caption: 18};
+
+  it('подпись остаётся читаемой даже на самом мелком экране', () => {
+    // Ниже 12 pt текст на вытянутой руке уже не разобрать.
+    const factor = scaleFactorFor(SCREENS['телефон 6,1" (20:9)']);
+    const sizes = scaleAll(BASE, factor);
+    expect(sizes.caption).toBeGreaterThanOrEqual(12);
+  });
+
+  it('отсчёт помещается в высоту экрана на всех устройствах', () => {
+    for (const [name, screen] of Object.entries(SCREENS)) {
+      const sizes = scaleAll(BASE, scaleFactorFor(screen));
+      // Цифра отсчёта занимает примерно кегль по высоте; вместе с призывом
+      // и кнопкой отмены она должна оставлять место остальному экрану.
+      expect(`${name}: ${sizes.countdown < screen.height * 0.6}`).toBe(`${name}: true`);
+    }
+  });
+
+  it('иерархия кеглей сохраняется на любом экране', () => {
+    for (const screen of Object.values(SCREENS)) {
+      const s = scaleAll(BASE, scaleFactorFor(screen));
+      expect(s.countdown).toBeGreaterThan(s.display);
+      expect(s.display).toBeGreaterThan(s.title);
+      expect(s.title).toBeGreaterThan(s.body);
+      expect(s.body).toBeGreaterThan(s.caption);
+    }
   });
 });

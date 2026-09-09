@@ -27,13 +27,13 @@ jest.mock('../services', () => ({
   activeTransport: () => mockTransport,
 }));
 
-const mockComposeSheet = jest.fn(async () => ({
+const mockComposeSheet = jest.fn(async (_options: Record<string, unknown>) => ({
   jpeg: Uint8Array.from([1, 2, 3]),
   toRaster: () => ({width: 4, height: 6, rgba: new Uint8Array(4 * 6 * 4)}),
 }));
 
 jest.mock('../../imaging/composer', () => ({
-  composeSheet: (...args: unknown[]) => mockComposeSheet(...(args as [])),
+  composeSheet: (options: Record<string, unknown>) => mockComposeSheet(options),
   DEFAULT_COMPOSE: {
     mirror: false,
     bleedPercent: 2,
@@ -65,6 +65,12 @@ jest.mock('../../platform/gallery', () => ({
 jest.mock('../../platform/feedback', () => ({
   haptic: jest.fn(),
   playCue: jest.fn(),
+}));
+
+const TYPEFACE = {__brand: 'lobster'};
+const mockLoadTypeface = jest.fn(async () => TYPEFACE as unknown);
+jest.mock('../../imaging/typefaces', () => ({
+  loadTypeface: (...args: unknown[]) => mockLoadTypeface(...(args as [])),
 }));
 
 const mockRecordError = jest.fn(async () => undefined);
@@ -125,6 +131,7 @@ beforeEach(() => {
     toRaster: () => ({width: 4, height: 6, rgba: new Uint8Array(4 * 6 * 4)}),
   });
   mockPickPhoto.mockResolvedValue({kind: 'cancelled'} as never);
+  mockLoadTypeface.mockResolvedValue(TYPEFACE as never);
 });
 
 afterEach(() => {
@@ -338,6 +345,76 @@ describe('сессия — готовый снимок из галереи', () 
     act(() => result.current.pickPhoto());
     await reach(result, 'error');
     expect((result.current.state as {message?: string}).message).toContain('галерее');
+  });
+});
+
+describe('сессия — подпись на отпечатке', () => {
+  it('лист собирается для каждой раскладки, а не только для одиночного кадра', async () => {
+    // Отчёт с устройства: «превью на режимах два кадра, полароид, четыре
+    // кадра, полоска на двоих не работает». Причина была не в раскладках, а
+    // в подписи — её рисуют все они, кроме одиночного кадра.
+    for (const layoutId of ['single', 'duo', 'polaroid', 'grid4', 'twinStrip3'] as const) {
+      mockComposeSheet.mockClear();
+      const camera = workingCamera();
+      const {result, unmount} = mount(camera, {
+        flow: {...DEFAULT_SETTINGS.flow, layouts: [layoutId]},
+      });
+
+      act(() => result.current.start());
+      await reach(result, 'review');
+      await waitFor(() => expect(result.current.previewUri).toBeTruthy());
+
+      expect(mockComposeSheet).toHaveBeenCalled();
+      unmount();
+    }
+  });
+
+  it('шрифт подписи запрашивается и уходит в сборку', async () => {
+    const camera = workingCamera();
+    const {result} = mount(camera, {
+      event: {...DEFAULT_SETTINGS.event, title: 'Свадьба Ани и Пети'},
+    });
+
+    act(() => result.current.start());
+    await reach(result, 'review');
+    await waitFor(() => expect(mockComposeSheet).toHaveBeenCalled());
+
+    const options = mockComposeSheet.mock.calls[0]![0] as {
+      caption?: {title: string};
+      typeface?: unknown;
+    };
+    expect(options.caption).toMatchObject({title: 'Свадьба Ани и Пети'});
+    expect(options.typeface).toBe(TYPEFACE);
+  });
+
+  it('без шрифта подпись не уходит в сборку, а лист всё равно собирается', async () => {
+    // `Skia.Font(undefined)` роняет лист целиком. Поэтому шрифта нет —
+    // значит и поля `typeface` в опциях быть не должно.
+    mockLoadTypeface.mockResolvedValue(null);
+    const camera = workingCamera();
+    const {result} = mount(camera, {
+      event: {...DEFAULT_SETTINGS.event, title: 'Свадьба'},
+    });
+
+    act(() => result.current.start());
+    await reach(result, 'review');
+    await waitFor(() => expect(result.current.previewUri).toBeTruthy());
+
+    const options = mockComposeSheet.mock.calls[0]![0] as {typeface?: unknown};
+    expect('typeface' in options).toBe(false);
+  });
+
+  it('без названия мероприятия шрифт не читается вовсе', async () => {
+    const camera = workingCamera();
+    const {result} = mount(camera, {
+      event: {...DEFAULT_SETTINGS.event, title: ''},
+    });
+
+    act(() => result.current.start());
+    await reach(result, 'review');
+    await waitFor(() => expect(mockComposeSheet).toHaveBeenCalled());
+
+    expect(mockLoadTypeface).not.toHaveBeenCalled();
   });
 });
 

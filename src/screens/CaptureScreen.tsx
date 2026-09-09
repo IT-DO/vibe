@@ -16,7 +16,7 @@ import {Animated, StyleSheet, Text, View} from 'react-native';
 
 import {BigButton} from '../components/BigButton';
 import {stringsFor, type Locale} from '../i18n/strings';
-import {palette, spacing, timing, typography} from '../theme/theme';
+import {fonts, palette, spacing, timing, typography} from '../theme/theme';
 
 export type CapturePhase =
   | {readonly kind: 'getReady'; readonly totalShots: number}
@@ -147,8 +147,8 @@ const styles = StyleSheet.create({
     gap: spacing.md,
   },
   title: {
+    ...fonts.script,
     fontSize: typography.display,
-    fontWeight: '800',
     textAlign: 'center',
     // Тень нужна, чтобы текст читался поверх любого кадра.
     textShadowColor: 'rgba(0,0,0,0.6)',
@@ -161,8 +161,10 @@ const styles = StyleSheet.create({
     textShadowRadius: 12,
   },
   countdown: {
+    // Цифры отсчёта — антиквой: рукописный шрифт на кегле в 280 pt
+    // расплывается, а цифру видно с двух метров и она должна быть чёткой.
+    ...fonts.display,
     fontSize: typography.countdown,
-    fontWeight: '900',
     textShadowColor: 'rgba(0,0,0,0.5)',
     textShadowRadius: 30,
   },

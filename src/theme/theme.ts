@@ -13,20 +13,36 @@
  *  - один акцентный цвет, который меняется под мероприятие.
  */
 
-import {Dimensions} from 'react-native';
+import {Dimensions, PixelRatio} from 'react-native';
 
-import {isPhoneSized, scaleAll, scaleFactorFor} from './scale';
+import {fontFamily} from './fonts';
+import {fontScaleAdjustment, isPhoneSized, scaleAll, scaleFactorFor} from './scale';
 
 /**
- * Короткая сторона экрана. Ориентация зафиксирована портретной, но берём
- * минимум из сторон — так значение не зависит от того, в какой момент
- * жизненного цикла приложение спросило размеры.
+ * Размеры экрана. Ориентация зафиксирована портретной (`screenOrientation`
+ * в манифесте), поэтому измерить достаточно один раз при запуске: пока
+ * приложение живёт, поменяться они не могут.
  */
 const {width, height} = Dimensions.get('window');
 const shortestSide = Math.min(width, height);
 
-/** Во сколько раз интерфейс отличается от эталонного планшета. */
-export const screenScale = scaleFactorFor(shortestSide);
+/**
+ * Во сколько раз интерфейс отличается от эталонного планшета.
+ *
+ * Считается по обеим сторонам: экран, широкий но низкий, ограничен высотой,
+ * и масштаб по одной ширине обрезал бы низ — а внизу заставки лежит кнопка
+ * «Выбрать готовое фото».
+ */
+export const screenScale = scaleFactorFor({width, height});
+
+/**
+ * Отдельный масштаб для текста: к размеру экрана добавляется приглушённая
+ * системная настройка размера шрифта. Человек, увеличивший шрифт в системе,
+ * сделал это не из прихоти, но подчиняться ей целиком киоск не может —
+ * призыв на заставке перестанет помещаться в строку у всех гостей ради
+ * настройки одного владельца устройства.
+ */
+export const textScale = screenScale * fontScaleAdjustment(PixelRatio.getFontScale());
 
 /** Приложение запущено на телефоне — раскладки становятся компактнее. */
 export const isCompact = isPhoneSized(shortestSide);
@@ -79,7 +95,7 @@ const BASE_TYPOGRAPHY = {
 } as const;
 
 /** Размеры шрифтов для текущего экрана. */
-export const typography = scaleAll(BASE_TYPOGRAPHY, screenScale);
+export const typography = scaleAll(BASE_TYPOGRAPHY, textScale);
 
 const BASE_SPACING = {
   xs: 6,
@@ -113,6 +129,19 @@ const BASE_TOUCH = {
 
 /** Размеры целей нажатия для текущего экрана. */
 export const touch = scaleAll(BASE_TOUCH, screenScale);
+
+/**
+ * Начертания. Заголовки и праздничные фразы набираются антиквой и
+ * рукописным шрифтом (см. `theme/fonts.ts`), служебный текст — системным
+ * гротеском: его читают быстро и вблизи, а декоративная антиква замедляет
+ * чтение.
+ */
+export const fonts = {
+  display: {fontFamily: fontFamily.display},
+  displayRegular: {fontFamily: fontFamily.displayRegular},
+  script: {fontFamily: fontFamily.script},
+  system: {fontFamily: fontFamily.system},
+} as const;
 
 export const timing = {
   fast: 150,

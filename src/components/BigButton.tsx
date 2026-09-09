@@ -16,7 +16,7 @@ import {
   type ViewStyle,
 } from 'react-native';
 
-import {palette, radius, spacing, touch, typography} from '../theme/theme';
+import {fonts, palette, radius, spacing, touch, typography} from '../theme/theme';
 
 export interface BigButtonProps {
   readonly label: string;
@@ -102,8 +102,12 @@ const styles = StyleSheet.create({
     fontSize: typography.button,
   },
   label: {
+    // Антиква вместо системного гротеска: кегль кнопки крупный (32 pt на
+    // планшете), на нём она читается мгновенно и держит общий вид будки.
+    // `fontWeight` не задаём — начертание уже жирное, а синтетическая
+    // жирность поверх настоящей портит рисунок букв на Android.
+    ...fonts.display,
     fontSize: typography.button,
-    fontWeight: '700',
     letterSpacing: 0.5,
   },
 });

@@ -30,6 +30,7 @@ import {purgeAll, usedBytes} from '../../platform/files';
 import {enterKioskMode, exitKioskMode, supportsLockTask} from '../../platform/kiosk';
 import {currentSsid} from '../../platform/network-info';
 import type {DiscoveredPrinter} from '../../printing/discovery';
+import {mediaChoiceFor} from '../../printing/media-choice';
 import type {QueueSnapshot} from '../../printing/queue';
 import {useSettings} from '../../store/settings';
 import {useStats} from '../../store/stats';
@@ -77,17 +78,21 @@ export function AdminScreen({onClose}: AdminScreenProps) {
 
   const selectPrinter = useCallback(
     async (printer: DiscoveredPrinter) => {
-      store.updatePrinter({
-        transport: 'ipp',
+      // Формат бумаги берём из ответа самого принтера. Угадывать по
+      // названию модели нельзя: у одного и того же «1S» встречаются и
+      // картриджи 10 × 15, и карманная бумага 50 × 76 мм, а между
+      // мероприятиями картридж меняют. Не узнали формат — оставляем тот,
+      // что выбрал оператор: испортить лист хуже, чем не угадать.
+      const detected = mediaChoiceFor(printer.capabilities.media);
+      const patch = {
+        transport: 'ipp' as const,
         endpoint: printer.endpoint,
         displayName: printer.displayName,
-      });
-      await applyPrinterSettings({
-        ...settings.printer,
-        transport: 'ipp',
-        endpoint: printer.endpoint,
-        displayName: printer.displayName,
-      });
+        ...(detected ? {media: detected} : {}),
+      };
+
+      store.updatePrinter(patch);
+      await applyPrinterSettings({...settings.printer, ...patch});
     },
     [settings.printer, store],
   );
@@ -166,6 +171,7 @@ export function AdminScreen({onClose}: AdminScreenProps) {
               onChange={media => store.updatePrinter({media})}
               options={[
                 {value: '4x6', label: '10×15 см'},
+                {value: '2x3', label: '5×7,6 см'},
                 {value: '3x3', label: '7,6×7,6 см'},
               ]}
             />

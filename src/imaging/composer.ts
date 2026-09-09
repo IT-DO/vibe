@@ -47,7 +47,10 @@ export interface ComposeOptions {
   /** PNG-рамка поверх кадров; путь к файлу или URI ассета. */
   readonly framePath?: string;
   readonly caption?: CaptionText;
-  /** Шрифт подписи; без него берётся системный. */
+  /**
+   * Шрифт подписи. Без него подпись не рисуется совсем: `Skia.Font` не
+   * принимает `undefined` и роняет сборку листа целиком.
+   */
   readonly typeface?: SkTypeface;
   /** Отражать ли кадры по горизонтали (съёмка фронтальной камерой). */
   readonly mirror: boolean;
@@ -114,7 +117,11 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
     if (options.framePath) {
       await drawFrame(canvas, options.framePath, sheet);
     }
-    if (options.caption && geometry.caption) {
+    if (options.caption && geometry.caption && options.typeface) {
+      // Шрифт обязателен: без него нативная часть Skia падает на самом
+      // конструкторе `Font`, унося с собой весь лист. Подпись — украшение,
+      // отпечаток — то, ради чего человек подошёл, поэтому при отсутствии
+      // шрифта лист выходит без подписи, а не не выходит вовсе.
       drawCaption(canvas, geometry, options.caption, options.typeface);
     }
     if (options.showTearLine && geometry.tearLine) {
@@ -199,7 +206,7 @@ function drawCaption(
   canvas: SkCanvas,
   geometry: LayoutGeometry,
   caption: CaptionText,
-  typeface?: SkTypeface,
+  typeface: SkTypeface,
 ): void {
   const area = geometry.caption;
   if (!area) {

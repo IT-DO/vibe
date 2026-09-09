@@ -20,7 +20,8 @@
     "exactOptionalPropertyTypes": false,
     "forceConsistentCasingInFileNames": true,
 
-    "types": ["jest", "react-native"],
+    // `node` нужен тестам, которые читают файлы шрифтов с диска.
+    "types": ["jest", "react-native", "node"],
     "baseUrl": ".",
     "paths": {
       "@/*": ["src/*"]

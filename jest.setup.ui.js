@@ -30,11 +30,16 @@ jest.mock('react-native-vision-camera', () => {
 
 // ── Сборка листа ──────────────────────────────────────────────────────────
 jest.mock('@shopify/react-native-skia', () => ({
-  Skia: {},
+  Skia: {
+    Data: {fromURI: jest.fn(async () => null)},
+    Typeface: {MakeFreeTypeFaceFromData: jest.fn(() => null)},
+    FontMgr: {System: jest.fn(() => ({matchFamilyStyle: () => null}))},
+  },
   ImageFormat: {JPEG: 3},
   ColorType: {RGBA_8888: 4},
   AlphaType: {Unpremul: 2},
   TileMode: {Clamp: 0},
+  FontStyle: {Normal: 0, Bold: 1, Italic: 2, BoldItalic: 3},
 }));
 
 // ── Хранилище настроек ────────────────────────────────────────────────────
