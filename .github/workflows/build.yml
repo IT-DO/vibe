@@ -78,11 +78,16 @@ jobs:
         # четыре архитектуры утраивают время сборки и вес файла.
         run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
 
-      - name: Переименовать по номеру сборки
+      # Имя файла постоянное, без номера сборки. С номером в имени каждая
+      # сборка добавляла бы в релиз новый файл вместо замены старого: ссылка
+      # менялась бы каждый раз, а в релизе копился бы список версий, из
+      # которого ещё надо выбрать свежую. Номер сборки остаётся в описании
+      # релиза — там он информация, а не часть адреса.
+      - name: Подготовить файл
         run: |
           mkdir -p dist
           cp android/app/build/outputs/apk/release/app-release.apk \
-             "dist/photo-na-pamyat-${GITHUB_RUN_NUMBER}.apk"
+             dist/photo-na-pamyat.apk
 
       - uses: actions/upload-artifact@v4
         with:
@@ -117,6 +122,18 @@ jobs:
           разрешите установку из этого источника.
 
           Настройка: удержать левый верхний угол экрана 5 секунд, ПИН 2468."
+
+          # Подчищаем файлы старого формата (с номером в имени), оставшиеся
+          # от прежней схемы: иначе в релизе висят и они, и новый файл.
+          if gh release view android-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release view android-latest --repo "$GITHUB_REPOSITORY" \
+              --json assets --jq '.assets[].name' \
+              | grep -E '^photo-na-pamyat-[0-9]+\.apk$' \
+              | while read -r stale; do
+                  gh release delete-asset android-latest "$stale" \
+                    --repo "$GITHUB_REPOSITORY" --yes || true
+                done
+          fi
 
           # Релиз обновляем, а не пересоздаём: так ссылка переживает сборки.
           if gh release view android-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
