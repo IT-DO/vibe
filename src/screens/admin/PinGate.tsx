@@ -30,17 +30,22 @@ export function PinGate({
   const [wrong, setWrong] = useState(false);
 
   const press = (digit: string) => {
-    const next = (entered + digit).slice(0, expectedPin.length);
-    setEntered(next);
     setWrong(false);
 
-    if (next.length === expectedPin.length) {
-      if (next === expectedPin) {
-        onUnlock();
-      } else {
-        setWrong(true);
-        setEntered('');
-      }
+    const next = entered + digit;
+    if (next.length < expectedPin.length) {
+      setEntered(next);
+      return;
+    }
+
+    // Код набран целиком. Набранное стираем в любом случае — и при верном
+    // коде тоже: иначе полный код остаётся в состоянии, и следующее касание
+    // цифры снова его «подтверждает». Экран после ввода всегда чистый.
+    setEntered('');
+    if (next === expectedPin) {
+      onUnlock();
+    } else {
+      setWrong(true);
     }
   };
 
