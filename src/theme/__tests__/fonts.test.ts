@@ -10,7 +10,7 @@
 import {readFileSync, existsSync} from 'fs';
 import {join} from 'path';
 
-import {SCRIPT_SIZE_RATIO, fontAssetUri, fontAssets, fontFamily} from '../fonts';
+import {fontAssetUri, fontAssets, fontFamily} from '../fonts';
 
 const ASSETS = join(__dirname, '..', '..', '..', 'assets', 'fonts');
 const ANDROID = join(
@@ -124,14 +124,5 @@ describe('путь к шрифту внутри приложения', () => {
     for (const role of Object.keys(fontAssets) as (keyof typeof fontAssets)[]) {
       expect(fontAssetUri(role)).toMatch(/^file:\/\/\/android_asset\/fonts\/.+\.ttf$/);
     }
-  });
-});
-
-describe('соотношение кеглей', () => {
-  it('рукописный шрифт набирается мельче антиквы', () => {
-    // Lobster по рисунку тяжелее Playfair: на одном кегле он выглядит
-    // крупнее и начинает спорить с названием мероприятия.
-    expect(SCRIPT_SIZE_RATIO).toBeGreaterThan(0.8);
-    expect(SCRIPT_SIZE_RATIO).toBeLessThan(1);
   });
 });

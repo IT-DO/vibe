@@ -59,10 +59,3 @@ export type FontRole = keyof typeof fontAssets;
 export function fontAssetUri(role: FontRole): string {
   return `file:///android_asset/fonts/${fontAssets[role]}`;
 }
-
-/**
- * Начертания рукописного шрифта тяжелее антиквы по рисунку: одна и та же
- * кегль-величина у Lobster выглядит крупнее. Коэффициент выравнивает их,
- * чтобы подпись не спорила с названием мероприятия.
- */
-export const SCRIPT_SIZE_RATIO = 0.92;
