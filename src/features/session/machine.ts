@@ -101,6 +101,8 @@ export type SessionEvent =
   | {readonly type: 'print'; readonly now: number}
   | {readonly type: 'printQueued'; readonly queuePosition: number; readonly now: number}
   | {readonly type: 'printFailed'; readonly message: string; readonly now: number}
+  /** Галерея не открылась: нет доступа, системный сбой. */
+  | {readonly type: 'pickFailed'; readonly message: string; readonly now: number}
   /** Отмена гостем или возврат по бездействию. */
   | {readonly type: 'cancel'; readonly now: number};
 
@@ -241,11 +243,14 @@ function reduceAttract(
     };
   }
 
-  // Галерея не открылась (нет доступа, системный сбой). Молча остаться на
-  // заставке нельзя: гость нажал кнопку и должен увидеть ответ, иначе это
-  // ровно то «нажал — и ничего не происходит», из-за которого будку считают
-  // сломанной и уходят.
-  if (event.type === 'printFailed') {
+  // Галерея не открылась. Молча остаться на заставке нельзя: гость нажал
+  // кнопку и должен увидеть ответ, иначе это ровно то «нажал — и ничего не
+  // происходит», из-за которого будку считают сломанной и уходят.
+  //
+  // Событие отдельное, а не общий `printFailed`: отказ печати может прийти
+  // с опозданием, уже после того как сессия вернулась к заставке, и тогда
+  // экран ошибки увидел бы следующий гость — ни за что.
+  if (event.type === 'pickFailed') {
     return {
       state: {
         name: 'error',

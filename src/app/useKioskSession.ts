@@ -252,7 +252,7 @@ export function useKioskSession(
       return;
     }
     if (result.kind === 'error') {
-      send({type: 'printFailed', message: result.message, now: Date.now()});
+      send({type: 'pickFailed', message: result.message, now: Date.now()});
     }
     // Отмена выбора — молча остаёмся на заставке.
   }, [send]);
