@@ -11,6 +11,7 @@ import {StatusBar, StyleSheet, View} from 'react-native';
 import {SafeAreaProvider} from 'react-native-safe-area-context';
 
 import {CameraLayer, type CameraLayerHandle} from './CameraLayer';
+import {scrimOpacity, showsCameraBehind} from './layers';
 import {applyPrinterSettings, bootstrap, printQueue} from './services';
 import {useKioskSession} from './useKioskSession';
 import {layoutById} from '../imaging/layouts';
@@ -77,18 +78,11 @@ export default function App() {
   );
 
   const {state} = session;
-  const inCaptureFlow =
-    state.name === 'getReady' ||
-    state.name === 'countdown' ||
-    state.name === 'capturing' ||
-    state.name === 'betweenShots';
 
-  // Камера активна на заставке и во время съёмки: на заставке она работает
-  // зеркалом и привлекает людей, во время съёмки — по прямому назначению.
-  const cameraActive = state.name === 'attract' || inCaptureFlow;
-  // Затемнение помогает читать текст поверх кадра, но на съёмке его почти
-  // нет — гость должен хорошо себя видеть.
-  const dim = state.name === 'attract' ? 0.55 : inCaptureFlow ? 0.15 : 1;
+  // Какие экраны показывают живое превью и насколько его затемнять — правило
+  // в `layers.ts`: его легко нарушить незаметно, поэтому оно под тестами.
+  const cameraActive = showsCameraBehind(state.name);
+  const dim = scrimOpacity(state.name);
 
   return (
     <SafeAreaProvider>

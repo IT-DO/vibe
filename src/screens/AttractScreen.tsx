@@ -78,7 +78,12 @@ export function AttractScreen({
   const tapToStart = blocked || printerMissing ? undefined : onStart;
 
   return (
-    <KioskScreen onPressAnywhere={tapToStart} onSecretHold={onSecretHold}>
+    // Фон прозрачный: под заставкой живое превью с камеры, и закрывать его
+    // нельзя. Затемнение, чтобы читался текст, накладывает сам слой камеры.
+    <KioskScreen
+      backgroundColor="transparent"
+      onPressAnywhere={tapToStart}
+      onSecretHold={onSecretHold}>
       <View style={styles.container}>
         <View style={styles.header}>
           {logoPath ? (

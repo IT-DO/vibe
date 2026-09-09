@@ -157,8 +157,11 @@ const styles = StyleSheet.create({
   placeholder: {
     backgroundColor: palette.surface,
     alignItems: 'center',
-    justifyContent: 'center',
-    padding: spacing.xl,
+    // Не по центру: поверх этого слоя лежит прозрачная заставка со своим
+    // текстом посередине, и центрированная заглушка налезала бы на него.
+    justifyContent: 'flex-start',
+    paddingTop: spacing.xxl,
+    paddingHorizontal: spacing.xl,
     gap: spacing.md,
   },
   placeholderTitle: {
