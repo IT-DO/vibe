@@ -25,8 +25,16 @@ export interface PhotoShot {
   readonly width: number;
   readonly height: number;
   readonly takenAt: number;
-  /** Снят ли фронтальной камерой — от этого зависит зеркалирование. */
-  readonly mirrored: boolean;
+  /**
+   * Зеркален ли кадр уже сейчас, в файле.
+   *
+   * Не «снят ли фронтальной камерой»: VisionCamera для фронтальной камеры
+   * зеркалит вывод сама, и решать надо по факту, а не по догадке. Подробности
+   * и ловушка двойного отражения — в `imaging/mirror.ts`.
+   */
+  readonly isMirrored: boolean;
+  /** Откуда взялся кадр: чужой снимок из галереи не зеркалим никогда. */
+  readonly origin: 'camera' | 'gallery';
 }
 
 export type SessionState =
@@ -46,6 +54,8 @@ export type SessionState =
       readonly layoutId: LayoutId;
       readonly shotIndex: number;
       readonly shots: readonly PhotoShot[];
+      /** Камера не ответила к этому моменту — считаем, что не ответит. */
+      readonly expiresAt: number;
     }
   | {
       readonly name: 'betweenShots';
@@ -69,6 +79,8 @@ export type SessionState =
       readonly name: 'printing';
       readonly layoutId: LayoutId;
       readonly shots: readonly PhotoShot[];
+      /** Срок на сборку листа и постановку в очередь. */
+      readonly expiresAt: number;
     }
   | {readonly name: 'thanks'; readonly expiresAt: number; readonly queuePosition: number}
   | {readonly name: 'error'; readonly message: string; readonly expiresAt: number};
@@ -126,6 +138,10 @@ export interface SessionConfig {
   readonly thanksMs: number;
   /** Сколько показывать сообщение об ошибке, мс. */
   readonly errorMs: number;
+  /** Сколько ждать ответа камеры, мс. */
+  readonly captureTimeoutMs: number;
+  /** Сколько ждать сборки листа и постановки в очередь, мс. */
+  readonly submitTimeoutMs: number;
   /** Доступные раскладки. Если одна — экран выбора пропускается. */
   readonly layouts: readonly LayoutId[];
   /** Разрешить переснять кадр. */
@@ -144,6 +160,12 @@ export const DEFAULT_SESSION_CONFIG: Omit<SessionConfig, 'shotsFor'> = {
   chooseTimeoutMs: 30_000,
   thanksMs: 6_000,
   errorMs: 5_000,
+  // Снимок обычно готов меньше чем за две секунды. Двадцать — это уже не
+  // «медленно», а «не ответит»: без срока киоск вставал бы навсегда.
+  captureTimeoutMs: 20_000,
+  // Сборка листа 1200×1800 на слабом телефоне занимает секунды, поэтому срок
+  // щедрый. Но он есть: экран отправки — единственный без кнопки выхода.
+  submitTimeoutMs: 45_000,
   layouts: ['single', 'twinStrip3', 'grid4', 'polaroid'],
   allowRetake: true,
 };
@@ -287,7 +309,7 @@ function reduceGetReady(
 function reduceCountdown(
   state: Extract<SessionState, {name: 'countdown'}>,
   event: SessionEvent,
-  _config: SessionConfig,
+  config: SessionConfig,
 ): Transition {
   if (event.type !== 'tick' || event.now < state.nextTickAt) {
     return stay(state);
@@ -308,6 +330,7 @@ function reduceCountdown(
       layoutId: state.layoutId,
       shotIndex: state.shotIndex,
       shots: state.shots,
+      expiresAt: event.now + config.captureTimeoutMs,
     },
     effects: [
       {type: 'sound', name: 'shutter'},
@@ -331,6 +354,19 @@ function reduceCapturing(
       effects: [{type: 'sound', name: 'error'}, ...discardEffects(state.shots)],
     };
   }
+  if (event.type === 'tick' && event.now >= state.expiresAt) {
+    // Камера не ответила. Без этой ветки экран отсчёта застывал бы навсегда:
+    // тактов в состоянии съёмки не было, а значит и выхода по времени тоже.
+    return {
+      state: {
+        name: 'error',
+        message: 'Камера не ответила',
+        expiresAt: event.now + config.errorMs,
+      },
+      effects: [{type: 'sound', name: 'error'}, ...discardEffects(state.shots)],
+    };
+  }
+
   if (event.type !== 'shotTaken') {
     return stay(state);
   }
@@ -390,7 +426,7 @@ function reduceReview(
   config: SessionConfig,
 ): Transition {
   if (event.type === 'print') {
-    return startPrinting(state);
+    return startPrinting(state, config, event.now);
   }
 
   if (event.type === 'retake' && config.allowRetake) {
@@ -414,16 +450,25 @@ function reduceReview(
   if (event.type === 'tick' && event.now >= state.expiresAt) {
     // Гость не нажал ничего. Печатаем сами — иначе будка встанет.
     return config.autoPrintOnTimeout
-      ? startPrinting(state)
+      ? startPrinting(state, config, event.now)
       : {state: {name: 'attract'}, effects: discardEffects(ownShotsOf(state))};
   }
 
   return stay(state);
 }
 
-function startPrinting(state: Extract<SessionState, {name: 'review'}>): Transition {
+function startPrinting(
+  state: Extract<SessionState, {name: 'review'}>,
+  config: SessionConfig,
+  now: number,
+): Transition {
   return {
-    state: {name: 'printing', layoutId: state.layoutId, shots: state.shots},
+    state: {
+      name: 'printing',
+      layoutId: state.layoutId,
+      shots: state.shots,
+      expiresAt: now + config.submitTimeoutMs,
+    },
     effects: [
       {type: 'haptic'},
       {type: 'enqueuePrint', layoutId: state.layoutId, shots: state.shots},
@@ -456,6 +501,20 @@ function reducePrinting(
       effects: [{type: 'sound', name: 'error'}, ...discardEffects(state.shots)],
     };
   }
+
+  if (event.type === 'tick' && event.now >= state.expiresAt) {
+    // Экран отправки — единственный без кнопки выхода, и тактов у него не
+    // было. Зависшая сборка листа оставляла киоск мёртвым до перезапуска.
+    return {
+      state: {
+        name: 'error',
+        message: 'Не удалось отправить на печать',
+        expiresAt: event.now + config.errorMs,
+      },
+      effects: [{type: 'sound', name: 'error'}, ...discardEffects(state.shots)],
+    };
+  }
+
   return stay(state);
 }
 
@@ -503,7 +562,9 @@ export function needsTicks(state: SessionState): boolean {
     state.name === 'chooseLayout' ||
     state.name === 'getReady' ||
     state.name === 'countdown' ||
+    state.name === 'capturing' ||
     state.name === 'betweenShots' ||
+    state.name === 'printing' ||
     state.name === 'review' ||
     state.name === 'thanks' ||
     state.name === 'error'
@@ -518,6 +579,8 @@ export function deadlineOf(state: SessionState): number | null {
     case 'review':
     case 'thanks':
     case 'error':
+    case 'capturing':
+    case 'printing':
       return state.expiresAt;
     case 'countdown':
       return state.nextTickAt;

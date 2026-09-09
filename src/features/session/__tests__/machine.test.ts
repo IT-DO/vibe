@@ -31,7 +31,8 @@ const shot = (n: number, at = 1000): PhotoShot => ({
   width: 4032,
   height: 3024,
   takenAt: at,
-  mirrored: true,
+  isMirrored: true,
+  origin: 'camera',
 });
 
 /** Прогоняет цепочку событий, собирая все побочные действия. */
@@ -173,6 +174,7 @@ describe('серия кадров', () => {
       layoutId: 'twinStrip3',
       shotIndex: 0,
       shots: [],
+      expiresAt: 999_999,
     };
     for (let i = 0; i < shotsToTake; i++) {
       state = reduce(state, {type: 'shotTaken', shot: shot(i), now: i * 5_000}, config).state;
@@ -189,7 +191,7 @@ describe('серия кадров', () => {
 
   it('после кадра делает паузу перед следующим', () => {
     const state = reduce(
-      {name: 'capturing', layoutId: 'twinStrip3', shotIndex: 0, shots: []},
+      {name: 'capturing', layoutId: 'twinStrip3', shotIndex: 0, shots: [], expiresAt: 999_999},
       {type: 'shotTaken', shot: shot(0), now: 5_000},
       config,
     ).state;
@@ -208,6 +210,7 @@ describe('серия кадров', () => {
       layoutId: 'twinStrip3',
       shotIndex: 0,
       shots: [shot(0), shot(1)],
+      expiresAt: 999_999,
     };
     state = reduce(state, {type: 'shotTaken', shot: shot(2), now: 9_000}, config).state;
     expect(state.name).toBe('review');
@@ -221,7 +224,7 @@ describe('серия кадров', () => {
   it('одиночная раскладка сразу ведёт к просмотру', () => {
     const single = makeConfig({layouts: ['single']});
     const state = reduce(
-      {name: 'capturing', layoutId: 'single', shotIndex: 0, shots: []},
+      {name: 'capturing', layoutId: 'single', shotIndex: 0, shots: [], expiresAt: 999_999},
       {type: 'shotTaken', shot: shot(0), now: 5_000},
       single,
     ).state;
@@ -232,7 +235,7 @@ describe('серия кадров', () => {
     const {state, effects} = run(
       [{type: 'captureFailed', message: 'Камера занята', now: 5_000}],
       config,
-      {name: 'capturing', layoutId: 'twinStrip3', shotIndex: 1, shots: [shot(0)]},
+      {name: 'capturing', layoutId: 'twinStrip3', shotIndex: 1, shots: [shot(0)], expiresAt: 999_999},
     );
     expect(state).toMatchObject({name: 'error', message: 'Камера занята'});
     expect(effects).toContainEqual({type: 'discardShots', shots: [shot(0)]});
@@ -296,6 +299,7 @@ describe('после постановки в очередь', () => {
     name: 'printing',
     layoutId: 'single',
     shots: [shot(0)],
+    expiresAt: 999_999,
   };
 
   it('показывает благодарность с местом в очереди', () => {
@@ -353,9 +357,9 @@ describe('отмена', () => {
       {name: 'chooseLayout', expiresAt: 1},
       {name: 'getReady', layoutId: 'single', expiresAt: 1},
       {name: 'countdown', layoutId: 'single', shotIndex: 0, secondsLeft: 2, nextTickAt: 1, shots: []},
-      {name: 'capturing', layoutId: 'single', shotIndex: 0, shots: []},
+      {name: 'capturing', layoutId: 'single', shotIndex: 0, shots: [], expiresAt: 999_999},
       {name: 'review', layoutId: 'single', shots: [shot(0)], expiresAt: 1, source: 'camera'},
-      {name: 'printing', layoutId: 'single', shots: [shot(0)]},
+      {name: 'printing', layoutId: 'single', shots: [shot(0)], expiresAt: 999_999},
     ];
     for (const state of states) {
       expect(reduce(state, {type: 'cancel', now: 0}, config).state.name).toBe('attract');
@@ -390,8 +394,10 @@ describe('печать готового снимка из галереи', () =>
     width: 4032,
     height: 3024,
     takenAt: 1_000,
-    // Снимок сделан не нашей фронтальной камерой — зеркалить его нельзя.
-    mirrored: false,
+    isMirrored: false,
+    // Снимок сделан не нашей камерой — зеркалить его нельзя ни при каких
+    // настройках.
+    origin: 'gallery',
   });
 
   it('кнопка на заставке открывает галерею, не начиная съёмку', () => {
@@ -562,12 +568,122 @@ describe('полный сценарий гостя', () => {
   });
 });
 
+describe('киоск не должен зависать', () => {
+  const config = makeConfig();
+
+  it('не ответившая камера уводит на экран ошибки, а не в вечное ожидание', () => {
+    const {state, effects} = run([{type: 'tick', now: 30_000}], config, {
+      name: 'capturing',
+      layoutId: 'single',
+      shotIndex: 0,
+      shots: [],
+      expiresAt: 20_000,
+    });
+    expect(state).toMatchObject({name: 'error', message: 'Камера не ответила'});
+    expect(effects).toContainEqual({type: 'sound', name: 'error'});
+  });
+
+  it('до истечения срока съёмка продолжает ждать снимок', () => {
+    const {state} = run([{type: 'tick', now: 19_999}], config, {
+      name: 'capturing',
+      layoutId: 'single',
+      shotIndex: 0,
+      shots: [],
+      expiresAt: 20_000,
+    });
+    expect(state.name).toBe('capturing');
+  });
+
+  it('зависшая отправка тоже прерывается по сроку', () => {
+    // Экран отправки — единственный без кнопки выхода. Без срока киоск
+    // оставался бы мёртвым до перезапуска приложения.
+    const {state} = run([{type: 'tick', now: 60_000}], config, {
+      name: 'printing',
+      layoutId: 'single',
+      shots: [shot(0)],
+      expiresAt: 45_000,
+    });
+    expect(state).toMatchObject({name: 'error', message: 'Не удалось отправить на печать'});
+  });
+
+  it('успевшая отправка не прерывается', () => {
+    const {state} = run(
+      [
+        {type: 'tick', now: 10_000},
+        {type: 'printQueued', queuePosition: 1, now: 10_100},
+      ],
+      config,
+      {name: 'printing', layoutId: 'single', shots: [shot(0)], expiresAt: 45_000},
+    );
+    expect(state.name).toBe('thanks');
+  });
+
+  it('у каждого состояния с тактами есть срок', () => {
+    // Такты без срока — это счётчик, который никуда не ведёт.
+    const states: SessionState[] = [
+      {name: 'chooseLayout', expiresAt: 1},
+      {name: 'getReady', layoutId: 'single', expiresAt: 1},
+      {name: 'countdown', layoutId: 'single', shotIndex: 0, secondsLeft: 3, nextTickAt: 1, shots: []},
+      {name: 'capturing', layoutId: 'single', shotIndex: 0, shots: [], expiresAt: 1},
+      {name: 'betweenShots', layoutId: 'single', shotIndex: 1, resumeAt: 1, shots: []},
+      {name: 'review', layoutId: 'single', shots: [], expiresAt: 1, source: 'camera'},
+      {name: 'printing', layoutId: 'single', shots: [], expiresAt: 1},
+      {name: 'thanks', expiresAt: 1, queuePosition: 1},
+      {name: 'error', message: '', expiresAt: 1},
+    ];
+    for (const state of states) {
+      if (needsTicks(state)) {
+        expect(deadlineOf(state)).not.toBeNull();
+      }
+    }
+  });
+
+  it('из любого состояния достижима заставка за конечное время', () => {
+    // Прогоняем сценарий одними тактами: без единого касания он обязан
+    // вернуться к заставке. Иначе будка занята ушедшим гостем навсегда.
+    const noAuto = makeConfig({autoPrintOnTimeout: false, layouts: ['single']});
+    let state: SessionState = initialState;
+    let now = 0;
+    state = reduce(state, {type: 'start', now}, noAuto).state;
+
+    for (let guard = 0; guard < 200 && state.name !== 'attract'; guard++) {
+      const deadline = deadlineOf(state);
+      now = deadline === null ? now + 1_000 : deadline;
+      const before = state.name;
+      state = reduce(state, {type: 'tick', now}, noAuto).state;
+      // Состояние, ожидающее внешнего события (снимок, ответ очереди),
+      // выходит по сроку — на это и рассчитан цикл.
+      if (state.name === before && deadline === null) {
+        throw new Error(`Состояние «${before}» не выходит по времени`);
+      }
+      if (state.name === 'capturing') {
+        // Камера не отвечает — ждём срок.
+        now = state.expiresAt;
+        state = reduce(state, {type: 'tick', now}, noAuto).state;
+      }
+    }
+    expect(state.name).toBe('attract');
+  });
+});
+
 describe('вспомогательные функции', () => {
   it('needsTicks помечает состояния с таймерами', () => {
+    // Заставка ждёт человека, а не время: таймер там не нужен.
     expect(needsTicks({name: 'attract'})).toBe(false);
-    expect(needsTicks({name: 'capturing', layoutId: 'single', shotIndex: 0, shots: []})).toBe(
-      false,
-    );
+    // А вот съёмка и отправка такты получают — иначе зависшая камера или
+    // зависшая сборка листа оставляли бы киоск без выхода.
+    expect(
+      needsTicks({
+        name: 'capturing',
+        layoutId: 'single',
+        shotIndex: 0,
+        shots: [],
+        expiresAt: 999_999,
+      }),
+    ).toBe(true);
+    expect(
+      needsTicks({name: 'printing', layoutId: 'single', shots: [], expiresAt: 1}),
+    ).toBe(true);
     expect(needsTicks({name: 'review', layoutId: 'single', shots: [], expiresAt: 1, source: 'camera'})).toBe(true);
     expect(needsTicks({name: 'thanks', expiresAt: 1, queuePosition: 1})).toBe(true);
   });

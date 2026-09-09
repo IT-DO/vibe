@@ -14,6 +14,7 @@ import {activeTransport, printQueue} from './services';
 import {composeSheet, DEFAULT_COMPOSE} from '../imaging/composer';
 import {encodePwgRaster, type RasterImage} from '../printing/pwg/raster';
 import {layoutById, type LayoutId} from '../imaging/layouts';
+import {shouldFlip} from '../imaging/mirror';
 import {
   DEFAULT_SESSION_CONFIG,
   deadlineOf,
@@ -71,6 +72,25 @@ export function useKioskSession(
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  /**
+   * Уже собранный лист: путь к файлу и кадры, из которых он собран.
+   *
+   * Раньше лист собирался дважды — отдельно для просмотра и отдельно для
+   * печати. Это удваивало ожидание гостя на самом заметном месте сценария, а
+   * файл превью не удалялся никогда и за мероприятие занимал сотни мегабайт.
+   * Теперь он собирается один раз и уходит в печать тем же файлом.
+   */
+  const composedSheet = useRef<{path: string; key: string} | null>(null);
+
+  /** Забывает собранный лист и убирает файл, если он не ушёл в печать. */
+  const dropComposedSheet = useCallback(async () => {
+    const sheet = composedSheet.current;
+    composedSheet.current = null;
+    if (sheet) {
+      await removeFile(sheet.path);
+    }
+  }, []);
+
   const config: SessionConfig = useMemo(
     () => ({
       ...DEFAULT_SESSION_CONFIG,
@@ -124,6 +144,7 @@ export function useKioskSession(
           break;
         case 'discardShots':
           await Promise.all(effect.shots.map(shot => removeFile(shot.path)));
+          await dropComposedSheet();
           setPreviewUri(null);
           break;
         case 'capture':
@@ -143,18 +164,24 @@ export function useKioskSession(
     [settings],
   );
 
+  // Настройки и обработчик эффектов держим в ссылках, чтобы `send` был
+  // стабильным навсегда. Иначе обработчики, запомнившие его при первом
+  // отрисовывании (например, выбор снимка из галереи), продолжали бы работать
+  // со старыми настройками после любого изменения в админке.
+  const configRef = useRef(config);
+  configRef.current = config;
+  const runEffectsRef = useRef(runEffects);
+  runEffectsRef.current = runEffects;
+
   /** Отправляет событие в автомат и выполняет его эффекты. */
-  const send = useCallback(
-    (event: SessionEvent) => {
-      const transition = reduce(stateRef.current, event, config);
-      stateRef.current = transition.state;
-      setState(transition.state);
-      if (transition.effects.length > 0) {
-        void runEffects(transition.effects);
-      }
-    },
-    [config, runEffects],
-  );
+  const send = useCallback((event: SessionEvent) => {
+    const transition = reduce(stateRef.current, event, configRef.current);
+    stateRef.current = transition.state;
+    setState(transition.state);
+    if (transition.effects.length > 0) {
+      void runEffectsRef.current(transition.effects);
+    }
+  }, []);
 
   /** Делает снимок и возвращает его в автомат. */
   const handleCapture = useCallback(async () => {
@@ -169,7 +196,8 @@ export function useKioskSession(
         width: photo.width,
         height: photo.height,
         takenAt: Date.now(),
-        mirrored: settings.capture.camera === 'front',
+        isMirrored: photo.isMirrored,
+        origin: 'camera',
       };
       send({type: 'shotTaken', shot, now: Date.now()});
     } catch (error) {
@@ -180,7 +208,31 @@ export function useKioskSession(
       });
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [camera, settings.capture.camera]);
+  }, [camera, send]);
+
+  /**
+   * Параметры сборки листа. Одни и те же для просмотра и для печати: гость
+   * должен получить ровно то, что видел на экране.
+   */
+  const composeOptionsFor = useCallback(
+    (shots: readonly PhotoShot[], layoutId: LayoutId) => ({
+      shotPaths: shots.map(shot => shot.path),
+      layout: layoutById(layoutId),
+      media: mediaSizeOf(settings.printer.media),
+      dpi: PRINT_DPI,
+      ...(settings.framePath ? {framePath: settings.framePath} : {}),
+      caption: settings.event.title
+        ? {
+            title: settings.event.title,
+            ...(settings.event.subtitle ? {subtitle: settings.event.subtitle} : {}),
+            color: '#2A2A32',
+          }
+        : undefined,
+      ...DEFAULT_COMPOSE,
+      mirror: mirrorFor(shots, settings.capture.mirrorPrint),
+    }),
+    [settings],
+  );
 
   /** Открывает галерею и возвращает выбранный снимок в автомат. */
   const handlePickPhoto = useCallback(async () => {
@@ -193,8 +245,8 @@ export function useKioskSession(
           width: result.photo.width,
           height: result.photo.height,
           takenAt: Date.now(),
-          // Готовый снимок зеркалить нельзя: он не с нашей фронтальной камеры.
-          mirrored: false,
+          isMirrored: false,
+          origin: 'gallery',
         },
         now: Date.now(),
       });
@@ -204,43 +256,39 @@ export function useKioskSession(
       send({type: 'printFailed', message: result.message, now: Date.now()});
     }
     // Отмена выбора — молча остаёмся на заставке.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [send]);
 
-  /** Собирает лист и ставит его в очередь печати. */
+  /** Ставит собранный лист в очередь печати. */
   const handleEnqueue = useCallback(
     async (layoutId: LayoutId, shots: readonly PhotoShot[]) => {
       setBusy(true);
       try {
-        const layout = layoutById(layoutId);
-        const sheet = await composeSheet({
-          shotPaths: shots.map(s => s.path),
-          layout,
-          media: mediaSizeOf(settings.printer.media),
-          dpi: PRINT_DPI,
-          ...(settings.framePath ? {framePath: settings.framePath} : {}),
-          caption: settings.event.title
-            ? {
-                title: settings.event.title,
-                ...(settings.event.subtitle ? {subtitle: settings.event.subtitle} : {}),
-                color: '#2A2A32',
-              }
-            : undefined,
-          ...DEFAULT_COMPOSE,
-          mirror: settings.capture.mirrorPrint && shots.some(s => s.mirrored),
-        });
+        const printerFormat = activeTransport().documentFormat;
+        const ready = composedSheet.current;
 
-        // Чем кодировать лист, решает принтер, а не мы. JPEG принимают почти
-        // все фотопринтеры, но Mopria обязывает поддерживать только
-        // PWG Raster — и если прошивка откажется от JPEG, без этой ветки
-        // печать бы просто не состоялась.
-        const document = encodeSheetFor(activeTransport().documentFormat, sheet);
-        const sheetPath = newFilePath(Paths.sheets, document.extension);
-        await writeBytes(sheetPath, document.data);
+        let sheetPath: string;
+        let format: string;
+
+        if (ready && ready.key === sheetKey(shots) && printerFormat !== 'image/pwg-raster') {
+          // Лист уже собран для просмотра — печатаем ровно тот же файл.
+          // Дальше им владеет очередь: она удалит его после печати.
+          sheetPath = ready.path;
+          format = 'image/jpeg';
+          composedSheet.current = null;
+        } else {
+          // Собираем заново: либо просмотра не было, либо принтеру нужен
+          // растр, которого в готовом JPEG уже не получить.
+          const sheet = await composeSheet(composeOptionsFor(shots, layoutId));
+          const document = encodeSheetFor(printerFormat, sheet);
+          sheetPath = newFilePath(Paths.sheets, document.extension);
+          await writeBytes(sheetPath, document.data);
+          format = document.format;
+          await dropComposedSheet();
+        }
 
         await printQueue.enqueue({
           filePath: sheetPath,
-          format: document.format,
+          format,
           name: jobNameFor(settings.event.title),
           copies: settings.printer.copies,
         });
@@ -294,37 +342,29 @@ export function useKioskSession(
     let cancelled = false;
     void (async () => {
       try {
-        const layout = layoutById(state.layoutId);
-        const sheet = await composeSheet({
-          shotPaths: state.shots.map(s => s.path),
-          layout,
-          media: mediaSizeOf(settings.printer.media),
-          dpi: PRINT_DPI,
-          ...(settings.framePath ? {framePath: settings.framePath} : {}),
-          caption: settings.event.title
-            ? {title: settings.event.title, color: '#2A2A32'}
-            : undefined,
-          ...DEFAULT_COMPOSE,
-          mirror: settings.capture.mirrorPrint && state.shots.some(s => s.mirrored),
-          // Превью не печатается — качество ниже, сборка быстрее.
-          jpegQuality: 70,
-        });
+        // Качество печатное, а не пониженное: этот же файл уйдёт в принтер.
+        // Показывать гостю одно, а печатать другое — источник претензий.
+        const sheet = await composeSheet(composeOptionsFor(state.shots, state.layoutId));
         if (cancelled) {
           return;
         }
         const path = newFilePath(Paths.sheets, 'jpg');
         await writeBytes(path, sheet.jpeg);
-        if (!cancelled) {
-          setPreviewUri(`file://${path}`);
+        if (cancelled) {
+          await removeFile(path);
+          return;
         }
-      } catch {
+        composedSheet.current = {path, key: sheetKey(state.shots)};
+        setPreviewUri(`file://${path}`);
+      } catch (error) {
         // Без превью экран покажет заглушку — сценарий не рвётся.
+        void recordError('Сборка превью', error);
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [state, previewUri, settings]);
+  }, [state, previewUri, composeOptionsFor]);
 
   const secondsLeft = useMemo(() => {
     const deadline = deadlineOf(state);
@@ -350,6 +390,32 @@ export function useKioskSession(
     cancel: () => send({type: 'cancel', now: Date.now()}),
     dismiss: () => send({type: 'start', now: Date.now()}),
   };
+}
+
+/**
+ * Ключ набора кадров: по нему видно, что собранный лист ещё актуален.
+ * Пути кадров уникальны и не переиспользуются, поэтому их достаточно.
+ */
+function sheetKey(shots: readonly PhotoShot[]): string {
+  return shots.map(shot => shot.path).join('|');
+}
+
+/**
+ * Отражать ли кадры серии при сборке листа.
+ *
+ * Решение принимается по первому кадру: вся серия снята одной камерой в
+ * одном сценарии, поэтому их фактическая зеркальность одинакова.
+ */
+function mirrorFor(shots: readonly PhotoShot[], wantMirrored: boolean): boolean {
+  const first = shots[0];
+  if (!first) {
+    return false;
+  }
+  return shouldFlip({
+    fromCamera: first.origin === 'camera',
+    fileIsMirrored: first.isMirrored,
+    wantMirrored,
+  });
 }
 
 /**

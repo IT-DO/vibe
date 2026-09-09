@@ -25,6 +25,11 @@ export interface CapturedPhoto {
   readonly path: string;
   readonly width: number;
   readonly height: number;
+  /**
+   * Зеркален ли получившийся файл. Для фронтальной камеры VisionCamera
+   * зеркалит вывод сама, поэтому спрашиваем её, а не гадаем по типу камеры.
+   */
+  readonly isMirrored: boolean;
 }
 
 export interface CameraLayerHandle {
@@ -85,6 +90,7 @@ export const CameraLayer = forwardRef<CameraLayerHandle, CameraLayerProps>(
             path: photo.path,
             width: photo.width,
             height: photo.height,
+            isMirrored: photo.isMirrored,
           };
         },
       }),
@@ -138,6 +144,12 @@ export const CameraLayer = forwardRef<CameraLayerHandle, CameraLayerProps>(
           isActive={active}
           photo
           photoQualityBalance="quality"
+          // Ориентация вывода — как у превью, а не как у наклона телефона.
+          // По умолчанию VisionCamera использует «device»: гость наклонил
+          // устройство — и снимок вышел боком, хотя на экране всё было ровно.
+          // Экран киоска зафиксирован портретом, значит и печатать надо то,
+          // что человек видел.
+          outputOrientation="preview"
         />
         {dim > 0 ? (
           <View

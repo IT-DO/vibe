@@ -10,6 +10,8 @@ import {MMKV} from 'react-native-mmkv';
 import {create} from 'zustand';
 import {createJSONStorage, persist} from 'zustand/middleware';
 
+import {withDefaults} from './merge';
+
 import type {LayoutId} from '../imaging/layouts';
 import type {Locale} from '../i18n/strings';
 import type {IppEndpoint} from '../printing/ipp/client';
@@ -149,6 +151,19 @@ export const useSettings = create<SettingsStore>()(
         setItem: (key, value) => storage.set(key, value),
         removeItem: key => storage.delete(key),
       })),
+      /**
+       * Штатное слияние zustand поверхностное: сохранённый объект целиком
+       * заменил бы новый объект по умолчанию, и поле, добавленное в
+       * следующей версии, у уже установленного приложения оказалось бы
+       * undefined. Сливаем вглубь и по типам.
+       */
+      merge: (persisted, current) => ({
+        ...current,
+        settings: withDefaults(
+          DEFAULT_SETTINGS,
+          (persisted as {settings?: unknown} | undefined)?.settings,
+        ),
+      }),
     },
   ),
 );

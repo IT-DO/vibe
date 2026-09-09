@@ -9,6 +9,8 @@ import {MMKV} from 'react-native-mmkv';
 import {create} from 'zustand';
 import {createJSONStorage, persist} from 'zustand/middleware';
 
+import {withDefaults} from './merge';
+
 const storage = new MMKV({id: 'photo-na-pamyat-stats'});
 
 export interface EventStats {
@@ -62,6 +64,19 @@ export const useStats = create<StatsStore>()(
         setItem: (key, value) => storage.set(key, value),
         removeItem: key => storage.delete(key),
       })),
+      /**
+       * Штатное слияние zustand поверхностное: сохранённый объект целиком
+       * заменил бы новый объект по умолчанию, и поле, добавленное в
+       * следующей версии, у уже установленного приложения оказалось бы
+       * undefined. Сливаем вглубь и по типам.
+       */
+      merge: (persisted, current) => ({
+        ...current,
+        stats: withDefaults(
+          EMPTY,
+          (persisted as {stats?: unknown} | undefined)?.stats,
+        ),
+      }),
     },
   ),
 );
