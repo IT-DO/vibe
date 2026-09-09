@@ -141,6 +141,7 @@ src/
 | `@shopify/react-native-skia` | Сборка листа на офскрин-холсте | Нет: `view-shot` зависит от экрана и не даёт точного размера в пикселях |
 | `react-native-tcp-socket` | TCP для IPP | Нет: `fetch` портит бинарное тело |
 | `react-native-zeroconf` | mDNS | Да, если всегда вводить адрес вручную |
+| `react-native-image-picker` | Печать готового снимка из галереи | Да, если оставить только съёмку |
 | `react-native-fs` | Файлы кадров и очереди | Нет |
 | `react-native-mmkv` | Настройки | Заменяется на AsyncStorage |
 | `zustand` | Состояние настроек | Заменяется на Context |
