@@ -28,12 +28,9 @@ export interface Strings {
   readonly layout: {
     readonly choose: string;
     readonly single: string;
-    readonly twinStrip3: string;
-    readonly grid4: string;
     readonly polaroid: string;
     readonly duo: string;
     readonly shots: (n: number) => string;
-    readonly tearHint: string;
   };
   readonly getReady: {
     readonly title: string;
@@ -87,12 +84,9 @@ const ru: Strings = {
   layout: {
     choose: 'Выберите формат',
     single: 'Одно фото',
-    twinStrip3: 'Полоска на двоих',
-    grid4: 'Четыре кадра',
     polaroid: 'Полароид',
     duo: 'Два кадра',
     shots: n => (n === 1 ? '1 кадр' : n < 5 ? `${n} кадра` : `${n} кадров`),
-    tearHint: 'Печатается две одинаковые полоски — разорвите и поделитесь',
   },
   getReady: {
     title: 'Приготовьтесь!',
@@ -183,12 +177,9 @@ const en: Strings = {
   layout: {
     choose: 'Choose a format',
     single: 'Single photo',
-    twinStrip3: 'Strip for two',
-    grid4: 'Four shots',
     polaroid: 'Polaroid',
     duo: 'Two shots',
     shots: n => (n === 1 ? '1 shot' : `${n} shots`),
-    tearHint: 'Prints two identical strips — tear and share',
   },
   getReady: {
     title: 'Get ready!',

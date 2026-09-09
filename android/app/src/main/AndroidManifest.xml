@@ -1,4 +1,5 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Съёмка гостей. -->
     <uses-permission android:name="android.permission.CAMERA" />
@@ -35,6 +36,39 @@
       выдаётся при установке, ничего у человека не спрашивает.
     -->
     <uses-permission android:name="android.permission.VIBRATE" />
+
+    <!--
+      Bluetooth. Принтер Xiaomi Portable Photo Printer 1S работает только по
+      Bluetooth 5.2 — Wi-Fi у него нет вовсе, а значит нет ни AirPrint, ни
+      Mopria. Разрешения разделены по версиям Android намеренно:
+
+      - до Android 12 система требовала разрешение на местоположение даже
+        для поиска устройств, потому что по видимым рядом маячкам можно
+        определить, где человек находится. Приложению киоска местоположение
+        не нужно ни для чего, поэтому оно ограничено версиями, где иначе
+        поиск не работает вовсе, и помечено `neverForLocation` — так система
+        знает, что мы не пытаемся выяснить, где стоит планшет;
+      - с Android 12 появились отдельные разрешения на поиск и подключение,
+        и местоположение больше не нужно.
+    -->
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_ADMIN"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        android:maxSdkVersion="30" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation"
+        tools:targetApi="s" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+
+    <uses-feature
+        android:name="android.hardware.bluetooth_le"
+        android:required="true" />
 
     <uses-feature android:name="android.hardware.camera" android:required="true" />
 

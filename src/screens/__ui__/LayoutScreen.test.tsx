@@ -16,7 +16,7 @@ const EVERY_LAYOUT: readonly LayoutId[] = LAYOUTS.map(l => l.id);
 const baseProps = () => ({
   locale: 'ru' as const,
   accent: '#FF5A5F',
-  layouts: ['single', 'twinStrip3', 'grid4'] as readonly LayoutId[],
+  layouts: ['single', 'polaroid', 'duo'] as readonly LayoutId[],
   secondsLeft: 20,
   onChoose: jest.fn(),
   onCancel: jest.fn(),
@@ -35,13 +35,13 @@ describe('выбор формата', () => {
     setup({layouts: ['single', 'polaroid']});
     expect(screen.getByText('Одно фото')).toBeTruthy();
     expect(screen.getByText('Полароид')).toBeTruthy();
-    expect(screen.queryByText('Четыре кадра')).toBeNull();
+    expect(screen.queryByText('Два кадра')).toBeNull();
   });
 
   it('возвращает выбранный формат, а не первый попавшийся', () => {
-    const props = setup({layouts: ['single', 'twinStrip3', 'grid4']});
-    fireEvent.press(screen.getByLabelText('Четыре кадра'));
-    expect(props.onChoose).toHaveBeenCalledWith('grid4');
+    const props = setup({layouts: ['single', 'polaroid', 'duo']});
+    fireEvent.press(screen.getByLabelText('Два кадра'));
+    expect(props.onChoose).toHaveBeenCalledWith('duo');
   });
 
   it('каждый формат честно называет число кадров', () => {
@@ -51,18 +51,6 @@ describe('выбор формата', () => {
       const expected = n === 1 ? '1 кадр' : n < 5 ? `${n} кадра` : `${n} кадров`;
       expect(screen.getAllByText(expected).length).toBeGreaterThan(0);
     }
-  });
-
-  it('о полоске на двоих предупреждает заранее', () => {
-    // Иначе человек ждёт один отпечаток, а получает лист с двумя полосками
-    // и не понимает, что его можно разорвать.
-    setup({layouts: ['twinStrip3']});
-    expect(screen.getByText(/разорвите и поделитесь/)).toBeTruthy();
-  });
-
-  it('подсказка про разрыв не появляется у других форматов', () => {
-    setup({layouts: ['single', 'grid4']});
-    expect(screen.queryByText(/разорвите/)).toBeNull();
   });
 
   it('нажимается каждый формат, а не только первый', () => {
@@ -92,10 +80,10 @@ describe('выбор формата', () => {
   });
 
   it('переводится целиком', () => {
-    setup({locale: 'en', layouts: ['single', 'twinStrip3']});
+    setup({locale: 'en', layouts: ['single', 'duo']});
     expect(screen.getByText('Choose a format')).toBeTruthy();
     expect(screen.getByText('Single photo')).toBeTruthy();
-    expect(screen.getByText('Strip for two')).toBeTruthy();
+    expect(screen.getByText('Two shots')).toBeTruthy();
     expect(screen.getByText('Cancel')).toBeTruthy();
   });
 });
@@ -104,8 +92,6 @@ describe('выбор формата', () => {
 function labelOf(id: LayoutId): string {
   const names: Record<LayoutId, string> = {
     single: 'Одно фото',
-    twinStrip3: 'Полоска на двоих',
-    grid4: 'Четыре кадра',
     polaroid: 'Полароид',
     duo: 'Два кадра',
   };

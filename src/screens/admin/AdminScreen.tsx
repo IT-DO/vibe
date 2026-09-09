@@ -20,11 +20,11 @@ import {
 } from 'react-native';
 
 import {AdminButton, Choice, Field, MultiChoice, Row, Section, Toggle} from './controls';
+import {BluetoothScan} from './BluetoothScan';
 import {PinGate} from './PinGate';
 import {activeTransport, applyPrinterSettings, findPrinters, printQueue} from '../../app/services';
 import {describePrinterState, stringsFor} from '../../i18n/strings';
-import {LAYOUTS, layoutById, type LayoutId} from '../../imaging/layouts';
-import {crampedLayouts} from '../../imaging/fit';
+import {LAYOUTS, type LayoutId} from '../../imaging/layouts';
 import {clearCrashLog, readCrashLog} from '../../platform/crashlog';
 import {countEntries, lastEntries, tailForSharing} from '../../utils/crashlog-format';
 import {purgeAll, usedBytes} from '../../platform/files';
@@ -33,7 +33,7 @@ import {currentSsid} from '../../platform/network-info';
 import type {DiscoveredPrinter} from '../../printing/discovery';
 import {mediaChoiceFor} from '../../printing/media-choice';
 import type {QueueSnapshot} from '../../printing/queue';
-import {mediaSizeOf, useSettings} from '../../store/settings';
+import {useSettings} from '../../store/settings';
 import {useStats} from '../../store/stats';
 import {palette, radius, spacing, typography} from '../../theme/theme';
 
@@ -127,13 +127,6 @@ export function AdminScreen({onClose}: AdminScreenProps) {
 
   const printerStatus = queue.printer;
 
-  // Раскладки, которым выбранная бумага мала. Считается на каждый показ:
-  // оператор меняет и формат, и набор раскладок прямо здесь.
-  const tightLayouts = crampedLayouts(
-    settings.flow.layouts.map(id => layoutById(id)),
-    mediaSizeOf(settings.printer.media),
-  ).map(layout => layoutLabel(layout.id, settings.locale));
-
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
       <View style={styles.root}>
@@ -173,16 +166,13 @@ export function AdminScreen({onClose}: AdminScreenProps) {
                 {value: 'mock', label: 'Демо'},
               ]}
             />
-            <Choice
-              label="Формат бумаги"
-              value={settings.printer.media}
-              onChange={media => store.updatePrinter({media})}
-              options={[
-                {value: '4x6', label: '10×15 см'},
-                {value: '2x3', label: '5×7,6 см'},
-                {value: '3x3', label: '7,6×7,6 см'},
-              ]}
-            />
+            {/*
+              Формат не выбирают: принтер печатает на карманной бумаге ZINK
+              50 × 76 мм и другой не принимает. Строка вместо переключателя —
+              оператору всё равно надо знать размер, чтобы не купить не ту
+              пачку бумаги.
+            */}
+            <Row label="Формат бумаги" value="5 × 7,6 см (ZINK 2×3″)" />
             <Choice
               label="Копий"
               value={String(settings.printer.copies)}
@@ -281,18 +271,6 @@ export function AdminScreen({onClose}: AdminScreenProps) {
                 label: layoutLabel(l.id, settings.locale),
               }))}
             />
-            {/*
-              Раскладки заданы в долях листа и формально подходят к любой
-              бумаге. Но на карманной 50 × 76 мм «полоска на двоих» даёт
-              ячейку 17 × 19 мм: гость не узнает себя на отпечатке, а
-              картридж уже потрачен. Запрещать не надо — предупредить надо.
-            */}
-            {tightLayouts.length > 0 ? (
-              <Row
-                label=""
-                value={`Мелко на этой бумаге: ${tightLayouts.join(', ')}. Кадры выйдут меньше 2,5 см.`}
-              />
-            ) : null}
             <Choice
               label="Камера"
               value={settings.capture.camera}
@@ -427,6 +405,8 @@ export function AdminScreen({onClose}: AdminScreenProps) {
             )}
           </Section>
 
+          <BluetoothScan />
+
           <Section title={t.diagnostics!}>
             <Row label="Транспорт" value={activeTransport().label} />
             <Row
@@ -536,10 +516,6 @@ function layoutLabel(id: LayoutId, locale: 'ru' | 'en'): string {
   switch (id) {
     case 'single':
       return t.single;
-    case 'twinStrip3':
-      return t.twinStrip3;
-    case 'grid4':
-      return t.grid4;
     case 'polaroid':
       return t.polaroid;
     case 'duo':

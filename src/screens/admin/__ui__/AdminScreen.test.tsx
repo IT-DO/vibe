@@ -67,17 +67,6 @@ const PRINTER = {
   source: 'mdns' as const,
   capabilities: {
     documentFormats: ['image/jpeg', 'image/pwg-raster'],
-    media: [{name: 'na_index-4x6_4x6in', widthMm: 101.6, heightMm: 152.4}],
-  },
-};
-
-/** Компактный принтер на карманной бумаге 50 × 76 мм. */
-const POCKET_PRINTER = {
-  displayName: 'Xiaomi Pocket Printer',
-  endpoint: {host: '192.168.1.43', port: 631, path: '/ipp/print'},
-  source: 'mdns' as const,
-  capabilities: {
-    documentFormats: ['image/jpeg'],
     media: [{name: 'oe_photo-2x3_2x3in', widthMm: 50.8, heightMm: 76.2}],
   },
 };
@@ -175,41 +164,11 @@ describe('настройка принтера', () => {
     );
   });
 
-  it('формат бумаги берётся у самого принтера', async () => {
-    // Угадывать по названию модели нельзя: у одного «1S» встречаются и
-    // картриджи 10 × 15, и карманная бумага 50 × 76 мм.
-    mockFindPrinters.mockResolvedValue([POCKET_PRINTER]);
+  it('формат бумаги показан, но не выбирается — он один', async () => {
+    // Принтер печатает только на карманной бумаге ZINK. Переключатель из
+    // одного варианта — это не выбор, а лишний повод в него ткнуть.
     await openAdmin();
-
-    fireEvent.press(screen.getByText('Найти принтер'));
-    await waitFor(() => expect(screen.getByText('Xiaomi Pocket Printer')).toBeTruthy());
-    fireEvent.press(screen.getByText('выбрать'));
-    await act(async () => {});
-
-    expect(useSettings.getState().settings.printer.media).toBe('2x3');
-  });
-
-  it('принтер без списка носителей не меняет выбранный формат', async () => {
-    // Испортить лист хуже, чем не угадать: оставляем то, что выбрал человек.
-    mockFindPrinters.mockResolvedValue([
-      {...PRINTER, capabilities: {documentFormats: ['image/jpeg']}},
-    ]);
-    useSettings.setState({
-      settings: {
-        ...DEFAULT_SETTINGS,
-        adminPin: '2468',
-        printer: {...DEFAULT_SETTINGS.printer, media: '3x3'},
-      },
-    });
-    await openAdmin();
-
-    fireEvent.press(screen.getByText('Найти принтер'));
-    await waitFor(() => expect(screen.getByText('Xiaomi Photo Printer')).toBeTruthy());
-    fireEvent.press(screen.getByText('выбрать'));
-    await act(async () => {});
-
-    expect(useSettings.getState().settings.printer.media).toBe('3x3');
-    expect(useSettings.getState().settings.printer.endpoint).toEqual(PRINTER.endpoint);
+    expect(screen.getByText(/5 × 7,6 см/)).toBeTruthy();
   });
 
   it('показывает сеть, в которой находится планшет', async () => {
@@ -230,66 +189,6 @@ describe('настройка принтера', () => {
   });
 });
 
-describe('раскладки и бумага', () => {
-  it('на листе 10 × 15 подсказки нет — всё помещается', async () => {
-    useSettings.setState({
-      settings: {
-        ...DEFAULT_SETTINGS,
-        adminPin: '2468',
-        printer: {...DEFAULT_SETTINGS.printer, media: '4x6'},
-        flow: {...DEFAULT_SETTINGS.flow, layouts: ['single', 'grid4', 'twinStrip3']},
-      },
-    });
-    await openAdmin();
-    expect(screen.queryByText(/Мелко на этой бумаге/)).toBeNull();
-  });
-
-  it('на карманной бумаге предупреждает о мелких кадрах', async () => {
-    // «Полоска на двоих» на 50 × 76 даёт ячейку 17 × 19 мм: гость не
-    // узнает себя, а картридж уже потрачен.
-    useSettings.setState({
-      settings: {
-        ...DEFAULT_SETTINGS,
-        adminPin: '2468',
-        printer: {...DEFAULT_SETTINGS.printer, media: '2x3'},
-        flow: {...DEFAULT_SETTINGS.flow, layouts: ['single', 'grid4', 'twinStrip3']},
-      },
-    });
-    await openAdmin();
-
-    const hint = screen.getByText(/Мелко на этой бумаге/);
-    expect(hint).toBeTruthy();
-    expect(hint.props.children).toContain('Четыре кадра');
-    expect(hint.props.children).toContain('Полоска на двоих');
-  });
-
-  it('но не запрещает: выбор остаётся за оператором', async () => {
-    useSettings.setState({
-      settings: {
-        ...DEFAULT_SETTINGS,
-        adminPin: '2468',
-        printer: {...DEFAULT_SETTINGS.printer, media: '2x3'},
-        flow: {...DEFAULT_SETTINGS.flow, layouts: ['single', 'grid4']},
-      },
-    });
-    await openAdmin();
-    expect(useSettings.getState().settings.flow.layouts).toContain('grid4');
-  });
-
-  it('подсказка не поминает раскладки, которые помещаются', async () => {
-    useSettings.setState({
-      settings: {
-        ...DEFAULT_SETTINGS,
-        adminPin: '2468',
-        printer: {...DEFAULT_SETTINGS.printer, media: '2x3'},
-        flow: {...DEFAULT_SETTINGS.flow, layouts: ['single', 'twinStrip3']},
-      },
-    });
-    await openAdmin();
-    const hint = screen.getByText(/Мелко на этой бумаге/);
-    expect(hint.props.children).not.toContain('Одно фото');
-  });
-});
 
 describe('очередь печати', () => {
   it('упавшее задание можно повторить', async () => {

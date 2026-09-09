@@ -353,7 +353,7 @@ describe('сессия — подпись на отпечатке', () => {
     // Отчёт с устройства: «превью на режимах два кадра, полароид, четыре
     // кадра, полоска на двоих не работает». Причина была не в раскладках, а
     // в подписи — её рисуют все они, кроме одиночного кадра.
-    for (const layoutId of ['single', 'duo', 'polaroid', 'grid4', 'twinStrip3'] as const) {
+    for (const layoutId of ['single', 'duo', 'polaroid'] as const) {
       mockComposeSheet.mockClear();
       const camera = workingCamera();
       const {result, unmount} = mount(camera, {

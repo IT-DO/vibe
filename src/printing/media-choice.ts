@@ -13,15 +13,13 @@
 import type {MediaOption} from './ipp/capabilities';
 
 /** Формат отпечатка так, как он называется в настройках. */
-export type MediaChoiceName = '4x6' | '3x3' | '2x3';
+export type MediaChoiceName = '2x3';
 
 /** Габариты каждого формата в миллиметрах. */
 export const MEDIA_CHOICE_SIZES: Record<
   MediaChoiceName,
   {widthMm: number; heightMm: number}
 > = {
-  '4x6': {widthMm: 101.6, heightMm: 152.4},
-  '3x3': {widthMm: 76.2, heightMm: 76.2},
   '2x3': {widthMm: 50.8, heightMm: 76.2},
 };
 
@@ -33,43 +31,28 @@ export const MEDIA_CHOICE_SIZES: Record<
 const TOLERANCE_MM = 4;
 
 /**
- * Подбирает формат настроек под то, что умеет принтер.
+ * Подтверждает, что принтер печатает на нашей бумаге.
  *
- * Возвращает `null`, если принтер не заявил ни одного знакомого носителя, —
- * тогда выбор остаётся за оператором, и подменять его догадкой нельзя:
- * напечатать 10 × 15 на карманной бумаге значит испортить лист.
+ * Возвращает `'2x3'`, если среди заявленных носителей есть карманный
+ * формат, и `null`, если его нет: тогда это чужой принтер, и печатать на
+ * нём наш лист нельзя — выйдет обрезанным, а бумага потрачена.
  */
 export function mediaChoiceFor(
   supported: readonly MediaOption[] | undefined,
 ): MediaChoiceName | null {
   // Урезанные прошивки не перечисляют носители вовсе, а принтер, введённый
-  // адресом вручную, до первого опроса не знает о себе ничего. Уронить на
-  // этом выбор принтера значит оставить оператора с кнопкой, которая
-  // молча ничего не делает.
+  // адресом вручную, до первого опроса не знает о себе ничего.
   if (!Array.isArray(supported)) {
     return null;
   }
 
-  let best: {choice: MediaChoiceName; delta: number} | null = null;
-
+  const target = MEDIA_CHOICE_SIZES['2x3'];
   for (const option of supported) {
-    if (!isMeasured(option)) {
-      continue;
-    }
-    for (const [name, size] of Object.entries(MEDIA_CHOICE_SIZES)) {
-      const delta = distance(option, size);
-      if (delta > TOLERANCE_MM * 2) {
-        continue;
-      }
-      // При равном совпадении побеждает больший лист: если принтер
-      // заявляет и 10 × 15, и карманный формат, гостю приятнее большой.
-      if (!best || delta < best.delta || (delta === best.delta && isLarger(name, best.choice))) {
-        best = {choice: name as MediaChoiceName, delta};
-      }
+    if (isMeasured(option) && distance(option, target) <= TOLERANCE_MM * 2) {
+      return '2x3';
     }
   }
-
-  return best?.choice ?? null;
+  return null;
 }
 
 /** Есть ли у носителя разобранные габариты — имя без размеров бесполезно. */
@@ -93,14 +76,4 @@ function distance(
   const rotated =
     Math.abs(option.heightMm - target.widthMm) + Math.abs(option.widthMm - target.heightMm);
   return Math.min(direct, rotated);
-}
-
-/** Площадь листа — по ней сравниваем, какой формат крупнее. */
-function area(choice: MediaChoiceName): number {
-  const size = MEDIA_CHOICE_SIZES[choice];
-  return size.widthMm * size.heightMm;
-}
-
-function isLarger(candidate: string, current: MediaChoiceName): boolean {
-  return area(candidate as MediaChoiceName) > area(current);
 }

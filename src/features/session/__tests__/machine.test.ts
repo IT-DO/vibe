@@ -13,9 +13,8 @@ import {
 
 const SHOTS_PER_LAYOUT: Record<string, number> = {
   single: 1,
-  twinStrip3: 3,
-  grid4: 4,
   polaroid: 1,
+  duo: 2,
 };
 
 function makeConfig(overrides: Partial<SessionConfig> = {}): SessionConfig {
@@ -82,9 +81,9 @@ describe('выбор раскладки', () => {
   it('переходит к подготовке после выбора', () => {
     const {state} = run([
       {type: 'start', now: 0},
-      {type: 'chooseLayout', layoutId: 'twinStrip3', now: 100},
+      {type: 'chooseLayout', layoutId: 'duo', now: 100},
     ]);
-    expect(state).toMatchObject({name: 'getReady', layoutId: 'twinStrip3'});
+    expect(state).toMatchObject({name: 'getReady', layoutId: 'duo'});
   });
 
   it('возвращается к заставке, если гость ушёл не выбрав', () => {
@@ -166,12 +165,12 @@ describe('обратный отсчёт и съёмка', () => {
 });
 
 describe('серия кадров', () => {
-  const config = makeConfig({layouts: ['twinStrip3'], interShotDelayMs: 1_200});
+  const config = makeConfig({layouts: ['duo'], interShotDelayMs: 1_200});
 
   function captureAll(shotsToTake: number): SessionState {
     let state: SessionState = {
       name: 'capturing',
-      layoutId: 'twinStrip3',
+      layoutId: 'duo',
       shotIndex: 0,
       shots: [],
       expiresAt: 999_999,
@@ -191,7 +190,7 @@ describe('серия кадров', () => {
 
   it('после кадра делает паузу перед следующим', () => {
     const state = reduce(
-      {name: 'capturing', layoutId: 'twinStrip3', shotIndex: 0, shots: [], expiresAt: 999_999},
+      {name: 'capturing', layoutId: 'duo', shotIndex: 0, shots: [], expiresAt: 999_999},
       {type: 'shotTaken', shot: shot(0), now: 5_000},
       config,
     ).state;
@@ -199,15 +198,15 @@ describe('серия кадров', () => {
   });
 
   it('снимает ровно столько кадров, сколько требует раскладка', () => {
-    const state = captureAll(3);
+    const state = captureAll(2);
     expect(state.name).toBe('review');
-    expect('shots' in state && state.shots).toHaveLength(3);
+    expect('shots' in state && state.shots).toHaveLength(2);
   });
 
   it('копит кадры, не теряя предыдущие', () => {
     let state: SessionState = {
       name: 'capturing',
-      layoutId: 'twinStrip3',
+      layoutId: 'duo',
       shotIndex: 0,
       shots: [shot(0), shot(1)],
       expiresAt: 999_999,
@@ -235,7 +234,7 @@ describe('серия кадров', () => {
     const {state, effects} = run(
       [{type: 'captureFailed', message: 'Камера занята', now: 5_000}],
       config,
-      {name: 'capturing', layoutId: 'twinStrip3', shotIndex: 1, shots: [shot(0)], expiresAt: 999_999},
+      {name: 'capturing', layoutId: 'duo', shotIndex: 1, shots: [shot(0)], expiresAt: 999_999},
     );
     expect(state).toMatchObject({name: 'error', message: 'Камера занята'});
     expect(effects).toContainEqual({type: 'discardShots', shots: [shot(0)]});
@@ -370,7 +369,7 @@ describe('отмена', () => {
     const config = makeConfig();
     const {effects} = run([{type: 'cancel', now: 0}], config, {
       name: 'review',
-      layoutId: 'twinStrip3',
+      layoutId: 'duo',
       shots: [shot(0), shot(1)],
       expiresAt: 1,
     source: 'camera',
@@ -567,8 +566,8 @@ describe('полный сценарий гостя', () => {
     expect(effects.filter(e => e.type === 'discardShots')).toHaveLength(0);
   });
 
-  it('серия из трёх кадров доходит до очереди печати целиком', () => {
-    const config = makeConfig({layouts: ['twinStrip3'], countdownSeconds: 1});
+  it('серия из двух кадров доходит до очереди печати целиком', () => {
+    const config = makeConfig({layouts: ['duo'], countdownSeconds: 1});
     let state = initialState;
     let now = 0;
     const effects: SessionEffect[] = [];
@@ -579,9 +578,9 @@ describe('полный сценарий гостя', () => {
     };
 
     step({type: 'start', now});
-    step({type: 'chooseLayout', layoutId: 'twinStrip3', now});
+    step({type: 'chooseLayout', layoutId: 'duo', now});
 
-    for (let i = 0; i < 3; i++) {
+    for (let i = 0; i < 2; i++) {
       // Ждём все таймеры текущего состояния, пока не сработает затвор.
       for (let guard = 0; guard < 10 && state.name !== 'capturing'; guard++) {
         const deadline = deadlineOf(state);
@@ -596,8 +595,8 @@ describe('полный сценарий гостя', () => {
     expect(state.name).toBe('review');
     step({type: 'print', now});
     const enqueue = effects.find(e => e.type === 'enqueuePrint');
-    expect(enqueue).toMatchObject({layoutId: 'twinStrip3'});
-    expect(enqueue && 'shots' in enqueue && enqueue.shots).toHaveLength(3);
+    expect(enqueue).toMatchObject({layoutId: 'duo'});
+    expect(enqueue && 'shots' in enqueue && enqueue.shots).toHaveLength(2);
   });
 });
 

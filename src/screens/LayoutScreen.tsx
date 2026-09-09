@@ -57,9 +57,6 @@ export function LayoutScreen({
                 <LayoutThumbnail layoutId={id} accent={accent} />
                 <Text style={styles.cardTitle}>{labelFor(id, locale)}</Text>
                 <Text style={styles.cardMeta}>{t.layout.shots(layout.shots)}</Text>
-                {id === 'twinStrip3' ? (
-                  <Text style={styles.cardHint}>{t.layout.tearHint}</Text>
-                ) : null}
               </Pressable>
             );
           })}
@@ -81,26 +78,6 @@ function LayoutThumbnail({layoutId, accent}: {layoutId: LayoutId; accent: string
   const cellStyle = [styles.thumbCell, {backgroundColor: accent}];
 
   switch (layoutId) {
-    case 'twinStrip3':
-      return (
-        <View style={styles.thumb}>
-          {[0, 1].map(half => (
-            <View key={half} style={styles.thumbHalf}>
-              {[0, 1, 2].map(i => (
-                <View key={i} style={[cellStyle, styles.thumbStripCell]} />
-              ))}
-            </View>
-          ))}
-        </View>
-      );
-    case 'grid4':
-      return (
-        <View style={[styles.thumb, styles.thumbGrid]}>
-          {[0, 1, 2, 3].map(i => (
-            <View key={i} style={[cellStyle, styles.thumbGridCell]} />
-          ))}
-        </View>
-      );
     case 'duo':
       return (
         <View style={styles.thumb}>
@@ -133,10 +110,6 @@ function labelFor(id: LayoutId, locale: Locale): string {
   switch (id) {
     case 'single':
       return t.single;
-    case 'twinStrip3':
-      return t.twinStrip3;
-    case 'grid4':
-      return t.grid4;
     case 'polaroid':
       return t.polaroid;
     case 'duo':
@@ -200,12 +173,8 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 6,
   },
-  thumbHalf: {flex: 1, gap: 6},
   thumbColumn: {flex: 1, gap: 6},
-  thumbGrid: {flexWrap: 'wrap'},
   thumbCell: {borderRadius: 4, opacity: 0.85},
-  thumbStripCell: {flex: 1},
-  thumbGridCell: {width: '48%', height: '48%'},
   thumbDuoCell: {flex: 1},
   thumbFull: {flex: 1},
   thumbPolaroidCell: {flex: 1, marginBottom: 4},

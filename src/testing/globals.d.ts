@@ -24,6 +24,21 @@ declare global {
   var __galleryMock: {
     launch: jest.Mock<Promise<unknown>, [unknown?]>;
   };
+
+  /**
+   * Заглушка Bluetooth: состояние адаптера, поиск и подключение.
+   * Принтер работает только по нему, поэтому проверять надо и отказы.
+   */
+  var __bleMock: {
+    state: jest.Mock<Promise<string>, []>;
+    startDeviceScan: jest.Mock<
+      void,
+      [unknown, unknown, (error: {message: string} | null, device: unknown) => void]
+    >;
+    stopDeviceScan: jest.Mock<void, []>;
+    connectToDevice: jest.Mock<Promise<unknown>, [string, unknown?]>;
+    destroy: jest.Mock<void, []>;
+  };
 }
 
 export type {PickResult};

@@ -10,7 +10,7 @@ import RNFS from 'react-native-fs';
 
 import {discoverPrinters, type DiscoveredPrinter} from '../printing/discovery';
 import {parseCapabilities} from '../printing/ipp/capabilities';
-import {IppClient, MEDIA_2X3, MEDIA_3X3, MEDIA_4X6} from '../printing/ipp/client';
+import {IppClient, MEDIA_2X3} from '../printing/ipp/client';
 import {PrintQueue, type QueueStorage, type QueuedJob, type Scheduler} from '../printing/queue';
 import {
   IppTransport,
@@ -93,7 +93,7 @@ export function activeTransport(): PrinterTransport {
  * Вызывается при старте и после любых изменений в разделе «Принтер».
  */
 export async function applyPrinterSettings(settings: PrinterSettings): Promise<void> {
-  const targetMedia = mediaFor(settings.media);
+  const targetMedia = MEDIA_2X3;
 
   if (settings.transport === 'mock') {
     currentTransport = new MockTransport();
@@ -120,18 +120,6 @@ export async function applyPrinterSettings(settings: PrinterSettings): Promise<v
     capabilities,
     targetMedia,
   });
-}
-
-/** Размер листа под выбранный в настройках формат. */
-function mediaFor(choice: PrinterSettings['media']) {
-  switch (choice) {
-    case '3x3':
-      return MEDIA_3X3;
-    case '2x3':
-      return MEDIA_2X3;
-    default:
-      return MEDIA_4X6;
-  }
 }
 
 /** Ищет принтеры в сети — кнопка «Найти принтер» в админке. */

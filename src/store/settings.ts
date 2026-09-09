@@ -22,12 +22,12 @@ const storage = new MMKV({id: 'photo-na-pamyat'});
 /**
  * Формат отпечатка.
  *
- * `2x3` — карманная бумага 50 × 76 мм компактных Xiaomi; `4x6` — привычные
- * 10 × 15 см; `3x3` — квадрат. Точный размер принтер сообщает сам при
- * подключении, и админка подставляет подходящий вариант, но оставить
- * выбор человеку всё равно нужно: картридж меняют между мероприятиями.
+ * Он один: принтер печатает на карманной бумаге ZINK 50 × 76 мм и другой не
+ * принимает. Тип оставлен перечислением, а не выброшен совсем, — если
+ * когда-нибудь появится второй картридж, добавить его будет одной строкой,
+ * а весь код уже готов работать с выбором.
  */
-export type MediaChoice = '4x6' | '3x3' | '2x3';
+export type MediaChoice = '2x3';
 
 /** Какой канал печати использовать. */
 export type TransportChoice = 'ipp' | 'system' | 'mock';
@@ -91,7 +91,7 @@ export const DEFAULT_SETTINGS: Settings = {
     transport: 'ipp',
     endpoint: null,
     displayName: '',
-    media: '4x6',
+    media: '2x3',
     copies: 1,
   },
   capture: {
@@ -103,7 +103,7 @@ export const DEFAULT_SETTINGS: Settings = {
     mirrorPreview: true,
   },
   flow: {
-    layouts: ['single', 'twinStrip3', 'grid4', 'polaroid'],
+    layouts: ['single', 'polaroid', 'duo'],
     reviewTimeoutMs: 20_000,
     autoPrintOnTimeout: true,
     allowRetake: true,
@@ -176,15 +176,7 @@ export const useSettings = create<SettingsStore>()(
 );
 
 /** Размер листа под выбранный формат. */
-export function mediaSizeOf(choice: MediaChoice): {widthMm: number; heightMm: number} {
-  switch (choice) {
-    case '3x3':
-      return {widthMm: 76.2, heightMm: 76.2};
-    case '2x3':
-      // Карманная бумага компактных Xiaomi: 2 × 3 дюйма.
-      return {widthMm: 50.8, heightMm: 76.2};
-    case '4x6':
-    default:
-      return {widthMm: 101.6, heightMm: 152.4};
-  }
+export function mediaSizeOf(_choice: MediaChoice): {widthMm: number; heightMm: number} {
+  // Карманная бумага ZINK: 2 × 3 дюйма.
+  return {widthMm: 50.8, heightMm: 76.2};
 }

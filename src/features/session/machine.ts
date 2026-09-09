@@ -168,7 +168,7 @@ export const DEFAULT_SESSION_CONFIG: Omit<SessionConfig, 'shotsFor'> = {
   // Сборка листа 1200×1800 на слабом телефоне занимает секунды, поэтому срок
   // щедрый. Но он есть: экран отправки — единственный без кнопки выхода.
   submitTimeoutMs: 45_000,
-  layouts: ['single', 'twinStrip3', 'grid4', 'polaroid'],
+  layouts: ['single', 'polaroid', 'duo'],
   allowRetake: true,
 };
 

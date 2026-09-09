@@ -9,7 +9,7 @@
 
 import {gridCells, inset, mmToPx, type Orientation, type Rect, type Size} from './geometry';
 
-export type LayoutId = 'single' | 'polaroid' | 'grid4' | 'twinStrip3' | 'duo';
+export type LayoutId = 'single' | 'polaroid' | 'duo';
 
 /** Ячейка листа: куда поместить кадр и какой именно. */
 export interface LayoutCell {
@@ -28,8 +28,6 @@ export interface CaptionArea {
 export interface LayoutGeometry {
   readonly cells: readonly LayoutCell[];
   readonly caption: CaptionArea | null;
-  /** Линия отрыва (для двойной полосы) в координатах листа. */
-  readonly tearLine: {x: number} | null;
 }
 
 export interface PhotoLayout {
@@ -62,7 +60,6 @@ const single: PhotoLayout = {
     return {
       cells: [{rect: {x: 0, y: 0, ...sheet}, shotIndex: 0}],
       caption: null,
-      tearLine: null,
     };
   },
 };
@@ -95,90 +92,11 @@ const polaroid: PhotoLayout = {
         },
         fontSizePx: Math.round(captionHeight * 0.3),
       },
-      tearLine: null,
     };
   },
 };
 
-/** Четыре кадра сеткой 2×2 — «раскадровка» события. */
-const grid4: PhotoLayout = {
-  id: 'grid4',
-  titleKey: 'layout.grid4',
-  shots: 4,
-  orientation: 'portrait',
-  interShotDelayMs: 1_200,
-  geometry(sheet, dpi) {
-    const margin = mmToPx(MARGIN_MM, dpi);
-    const gutter = mmToPx(GUTTER_MM, dpi);
-    const captionHeight = Math.round(sheet.height * 0.08);
-    const area: Rect = {
-      x: margin,
-      y: margin,
-      width: sheet.width - margin * 2,
-      height: sheet.height - margin * 2 - captionHeight,
-    };
-    return {
-      cells: gridCells(area, 2, 2, gutter).map((rect, shotIndex) => ({rect, shotIndex})),
-      caption: {
-        rect: {
-          x: margin,
-          y: area.y + area.height,
-          width: area.width,
-          height: captionHeight,
-        },
-        fontSizePx: Math.round(captionHeight * 0.42),
-      },
-      tearLine: null,
-    };
-  },
-};
 
-/**
- * Классическая полоса фотобудки, напечатанная дважды.
- *
- * Лист 10×15 делится пополам по вертикали, в каждой половине — три кадра.
- * Половины одинаковые: гости разрывают отпечаток и забирают по полосе.
- */
-const twinStrip3: PhotoLayout = {
-  id: 'twinStrip3',
-  titleKey: 'layout.twinStrip3',
-  shots: 3,
-  orientation: 'portrait',
-  interShotDelayMs: 1_200,
-  geometry(sheet, dpi) {
-    const margin = mmToPx(MARGIN_MM, dpi);
-    const gutter = mmToPx(GUTTER_MM, dpi);
-    const halfWidth = sheet.width / 2;
-    const captionHeight = Math.round(sheet.height * 0.07);
-
-    const cells: LayoutCell[] = [];
-    for (let half = 0; half < 2; half++) {
-      const area: Rect = {
-        x: half * halfWidth + margin,
-        y: margin,
-        width: halfWidth - margin * 2,
-        height: sheet.height - margin * 2 - captionHeight,
-      };
-      gridCells(area, 1, 3, gutter).forEach((rect, shotIndex) => {
-        cells.push({rect, shotIndex});
-      });
-    }
-
-    return {
-      cells,
-      caption: {
-        rect: {
-          x: margin,
-          y: sheet.height - margin - captionHeight,
-          width: sheet.width - margin * 2,
-          height: captionHeight,
-        },
-        fontSizePx: Math.round(captionHeight * 0.5),
-      },
-      tearLine: {x: halfWidth},
-    };
-  },
-};
 
 /** Два кадра друг под другом — «до» и «после». */
 const duo: PhotoLayout = {
@@ -208,22 +126,24 @@ const duo: PhotoLayout = {
         },
         fontSizePx: Math.round(captionHeight * 0.5),
       },
-      tearLine: null,
     };
   },
 };
 
 /** Все раскладки в порядке показа на экране выбора. */
-export const LAYOUTS: readonly PhotoLayout[] = [single, twinStrip3, grid4, polaroid, duo];
+/**
+ * Все раскладки в порядке показа на экране выбора.
+ *
+ * Их три, а не пять. Принтер печатает на карманной бумаге 50 × 76 мм, и
+ * раскладки на четыре кадра и двойную полосу давали на ней ячейку 20 × 30
+ * и 17 × 19 мм: лицо выходило меньше сантиметра, гость не узнавал себя на
+ * отпечатке, а лист был потрачен.
+ */
+export const LAYOUTS: readonly PhotoLayout[] = [single, polaroid, duo];
 
 /** Раскладка по идентификатору; при неизвестном — одиночный кадр. */
 export function layoutById(id: string): PhotoLayout {
   return LAYOUTS.find(l => l.id === id) ?? single;
-}
-
-/** Сколько ячеек ссылается на конкретный кадр (для «двойной полосы» — две). */
-export function cellsForShot(geometry: LayoutGeometry, shotIndex: number): LayoutCell[] {
-  return geometry.cells.filter(c => c.shotIndex === shotIndex);
 }
 
 /** Общая продолжительность съёмки серии — показываем гостю перед стартом. */

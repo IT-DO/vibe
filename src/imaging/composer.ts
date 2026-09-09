@@ -28,7 +28,7 @@ import {
   withBleed,
   type Size,
 } from './geometry';
-import type {LayoutGeometry, PhotoLayout} from './layouts';
+import type {LayoutCell, LayoutGeometry, PhotoLayout} from './layouts';
 
 /** Подпись на отпечатке — название мероприятия и дата. */
 export interface CaptionText {
@@ -60,14 +60,12 @@ export interface ComposeOptions {
   readonly backgroundColor: string;
   /** Качество JPEG, 0..100. */
   readonly jpegQuality: number;
-  /** Рисовать ли пунктир по линии отрыва двойной полосы. */
-  readonly showTearLine: boolean;
 }
 
 /** Значения по умолчанию для сборки отпечатка. */
 export const DEFAULT_COMPOSE: Pick<
   ComposeOptions,
-  'mirror' | 'bleedPercent' | 'backgroundColor' | 'jpegQuality' | 'showTearLine'
+  'mirror' | 'bleedPercent' | 'backgroundColor' | 'jpegQuality'
 > = {
   // Печатаем то же, что гость видел на экране: зеркальный кадр совпадает с
   // его ожиданием. Надписи на одежде при этом читаются задом наперёд —
@@ -77,7 +75,6 @@ export const DEFAULT_COMPOSE: Pick<
   bleedPercent: 2,
   backgroundColor: '#FFFFFF',
   jpegQuality: 92,
-  showTearLine: true,
 };
 
 export interface ComposedSheet {
@@ -109,10 +106,9 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
   canvas.translate(offset.dx, offset.dy);
 
   const geometry = options.layout.geometry(sheet, options.dpi);
-  const images = await loadImages(options.shotPaths);
 
   try {
-    drawCells(canvas, geometry, images, options);
+    await drawCells(canvas, geometry, options);
 
     if (options.framePath) {
       await drawFrame(canvas, options.framePath, sheet);
@@ -124,14 +120,8 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
       // шрифта лист выходит без подписи, а не не выходит вовсе.
       drawCaption(canvas, geometry, options.caption, options.typeface);
     }
-    if (options.showTearLine && geometry.tearLine) {
-      drawTearLine(canvas, geometry.tearLine.x, sheet.height);
-    }
   } finally {
     canvas.restore();
-    for (const image of images) {
-      image?.dispose?.();
-    }
   }
 
   surface.flush();
@@ -148,40 +138,81 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
   };
 }
 
-/** Рисует кадры по ячейкам раскладки. */
-function drawCells(
+/**
+ * Рисует кадры по ячейкам раскладки — по одному кадру за раз.
+ *
+ * Кадры загружаются и освобождаются поочерёдно, а не все сразу. Разница не
+ * косметическая: снимок с камеры 12 Мп в распакованном виде занимает около
+ * 48 МБ, и четыре кадра «сетки» держали бы в памяти под 200 МБ. Телефон
+ * этого не переживал — сборка листа падала, и гость видел пустой
+ * прямоугольник вместо своей фотографии ровно на тех раскладках, где
+ * кадров больше одного.
+ *
+ * Один и тот же снимок может попадать в несколько ячеек (так устроена
+ * двойная полоса), поэтому ячейки сгруппированы по кадру: файл читается
+ * один раз, рисуется во все свои места и сразу освобождается.
+ */
+async function drawCells(
   canvas: SkCanvas,
   geometry: LayoutGeometry,
-  images: readonly (SkImage | null)[],
   options: ComposeOptions,
-): void {
+): Promise<void> {
   const paint = Skia.Paint();
   paint.setAntiAlias(true);
 
-  for (const cell of geometry.cells) {
-    const image = images[cell.shotIndex];
-    if (!image) {
+  for (const [shotIndex, cells] of cellsByShot(geometry)) {
+    const path = options.shotPaths[shotIndex];
+    if (!path) {
       continue;
     }
 
-    const source: Size = {width: image.width(), height: image.height()};
-    const crop = coverCrop(source, {width: cell.rect.width, height: cell.rect.height});
-
-    canvas.save();
-    if (options.mirror) {
-      // Отражаем относительно вертикальной оси ячейки, а не всего листа,
-      // иначе кадры в раскладке поменяются местами.
-      canvas.translate(cell.rect.x * 2 + cell.rect.width, 0);
-      canvas.scale(-1, 1);
+    const image = await loadImage(path);
+    if (!image) {
+      // Кадр не прочитался — ячейка останется фоном, но лист выйдет.
+      continue;
     }
-    canvas.drawImageRect(
-      image,
-      Skia.XYWHRect(crop.x, crop.y, crop.width, crop.height),
-      Skia.XYWHRect(cell.rect.x, cell.rect.y, cell.rect.width, cell.rect.height),
-      paint,
-    );
-    canvas.restore();
+
+    try {
+      const source: Size = {width: image.width(), height: image.height()};
+      for (const cell of cells) {
+        const crop = coverCrop(source, {
+          width: cell.rect.width,
+          height: cell.rect.height,
+        });
+
+        canvas.save();
+        if (options.mirror) {
+          // Отражаем относительно вертикальной оси ячейки, а не всего
+          // листа, иначе кадры в раскладке поменяются местами.
+          canvas.translate(cell.rect.x * 2 + cell.rect.width, 0);
+          canvas.scale(-1, 1);
+        }
+        canvas.drawImageRect(
+          image,
+          Skia.XYWHRect(crop.x, crop.y, crop.width, crop.height),
+          Skia.XYWHRect(cell.rect.x, cell.rect.y, cell.rect.width, cell.rect.height),
+          paint,
+        );
+        canvas.restore();
+      }
+    } finally {
+      image.dispose?.();
+    }
   }
+}
+
+/** Ячейки, сгруппированные по кадру, в порядке появления кадров. */
+function cellsByShot(geometry: LayoutGeometry): Map<number, LayoutCell[]> {
+  const grouped = new Map<number, LayoutCell[]>();
+  for (const cell of geometry.cells) {
+    const cells = grouped.get(cell.shotIndex);
+    if (cells) {
+      cells.push(cell);
+    } else {
+      grouped.set(cell.shotIndex, [cell]);
+    }
+  }
+  return grouped;
 }
 
 /** Накладывает PNG-рамку поверх всего листа. */
@@ -236,24 +267,6 @@ function drawCaption(
       subtitleFont,
     );
   }
-}
-
-/** Пунктир по линии отрыва двойной полосы. */
-function drawTearLine(canvas: SkCanvas, x: number, height: number): void {
-  const paint = Skia.Paint();
-  paint.setColor(Skia.Color('#C8C8C8'));
-  paint.setStrokeWidth(2);
-  paint.setAntiAlias(false);
-  // Пунктир рисуем отрезками: так не нужен PathEffect и результат
-  // предсказуем при любом разрешении.
-  const dash = 18;
-  for (let y = 0; y < height; y += dash * 2) {
-    canvas.drawLine(x, y, x, Math.min(y + dash, height), paint);
-  }
-}
-
-async function loadImages(paths: readonly string[]): Promise<(SkImage | null)[]> {
-  return Promise.all(paths.map(loadImage));
 }
 
 /** Читает файл кадра в изображение Skia. */

@@ -95,6 +95,29 @@ jest.mock('react-native-image-picker', () => ({
   launchImageLibrary: (...args) => globalThis.__galleryMock.launch(...args),
 }));
 
+// ── Bluetooth ─────────────────────────────────────────────────────────────
+// Библиотека поставляется в ES-модулях и поднимает нативный стек: в тестах
+// вместо неё управляемая заглушка, которой тест задаёт нужный исход.
+jest.mock('react-native-ble-plx', () => ({
+  BleManager: class BleManager {
+    state() {
+      return globalThis.__bleMock.state();
+    }
+    startDeviceScan(...args) {
+      return globalThis.__bleMock.startDeviceScan(...args);
+    }
+    stopDeviceScan() {
+      return globalThis.__bleMock.stopDeviceScan();
+    }
+    connectToDevice(...args) {
+      return globalThis.__bleMock.connectToDevice(...args);
+    }
+    destroy() {
+      return globalThis.__bleMock.destroy();
+    }
+  },
+}));
+
 // ── Векторная графика для QR ──────────────────────────────────────────────
 jest.mock('react-native-svg', () => {
   const React = require('react');
@@ -160,6 +183,15 @@ beforeEach(() => {
   };
   globalThis.__galleryMock = {
     launch: jest.fn(async () => ({didCancel: true})),
+  };
+  globalThis.__bleMock = {
+    state: jest.fn(async () => 'PoweredOn'),
+    startDeviceScan: jest.fn(),
+    stopDeviceScan: jest.fn(),
+    connectToDevice: jest.fn(async () => {
+      throw new Error('Устройство не отвечает');
+    }),
+    destroy: jest.fn(),
   };
 });
 

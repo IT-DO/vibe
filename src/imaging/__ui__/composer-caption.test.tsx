@@ -35,10 +35,13 @@ function fakeCanvas() {
 
 let canvas: ReturnType<typeof fakeCanvas>;
 let fontCalls: unknown[][];
+/** Сколько снимков разом держится в памяти и каким был пик. */
+let alive: {now: number; peak: number; loaded: number};
 
 beforeEach(() => {
   canvas = fakeCanvas();
   fontCalls = [];
+  alive = {now: 0, peak: 0, loaded: 0};
 
   const snapshot = {
     encodeToBytes: () => Uint8Array.from([1, 2, 3]),
@@ -63,11 +66,18 @@ beforeEach(() => {
     XYWHRect: (x: number, y: number, w: number, h: number) => ({x, y, width: w, height: h}),
     Data: {fromURI: jest.fn(async () => ({size: 10}))},
     Image: {
-      MakeImageFromEncoded: () => ({
-        width: () => 3024,
-        height: () => 4032,
-        dispose: jest.fn(),
-      }),
+      MakeImageFromEncoded: () => {
+        alive.now += 1;
+        alive.loaded += 1;
+        alive.peak = Math.max(alive.peak, alive.now);
+        return {
+          width: () => 3024,
+          height: () => 4032,
+          dispose: () => {
+            alive.now -= 1;
+          },
+        };
+      },
     },
     Font: (...args: unknown[]) => {
       fontCalls.push(args);
@@ -143,13 +153,13 @@ describe('обращение к Skia.Font', () => {
 
 describe('подпись на листе', () => {
   it('без шрифта текст не рисуется, но кадры рисуются', async () => {
-    await compose('grid4');
+    await compose('polaroid');
     expect(canvas.drawText).not.toHaveBeenCalled();
     expect(canvas.drawImageRect).toHaveBeenCalled();
   });
 
   it('со шрифтом рисуются и кадры, и подпись', async () => {
-    await compose('grid4', {typeface: TYPEFACE});
+    await compose('polaroid', {typeface: TYPEFACE});
     expect(canvas.drawText).toHaveBeenCalled();
     expect(canvas.drawImageRect).toHaveBeenCalled();
   });
@@ -157,5 +167,49 @@ describe('подпись на листе', () => {
   it('у одиночного кадра подписи нет — места под неё в раскладке не отведено', async () => {
     await compose('single', {typeface: TYPEFACE});
     expect(canvas.drawText).not.toHaveBeenCalled();
+  });
+});
+
+
+describe('расход памяти на сборке листа', () => {
+  it('в памяти живёт не больше одного снимка разом', async () => {
+    // Кадр 12 Мп в распакованном виде — около 48 МБ. Четыре кадра «сетки»
+    // держали бы под 200 МБ, и телефон не переживал сборку: гость видел
+    // пустой прямоугольник вместо своей фотографии.
+    await compose('polaroid', {typeface: TYPEFACE});
+    expect(alive.peak).toBe(1);
+  });
+
+  it.each(LAYOUTS.map(l => l.id))('%s — пик в один снимок', async layoutId => {
+    await compose(layoutId, {typeface: TYPEFACE});
+    expect(alive.peak).toBe(1);
+  });
+
+  it('после сборки не остаётся ни одного незакрытого снимка', async () => {
+    await compose('duo', {typeface: TYPEFACE});
+    expect(alive.now).toBe(0);
+  });
+
+  it('каждый снимок читается ровно один раз', async () => {
+    await compose('duo', {typeface: TYPEFACE});
+    expect(alive.loaded).toBe(layoutById('duo').shots);
+  });
+
+  it('кадры рисуются во все свои ячейки', async () => {
+    await compose('duo', {typeface: TYPEFACE});
+    const cells = layoutById('duo').geometry(
+      {width: 600, height: 900},
+      300,
+    ).cells.length;
+    expect(canvas.drawImageRect).toHaveBeenCalledTimes(cells);
+  });
+
+  it('непрочитанный кадр не роняет лист и не течёт', async () => {
+    (Skia as unknown as {Image: {MakeImageFromEncoded: () => null}}).Image = {
+      MakeImageFromEncoded: () => null,
+    };
+    const sheet = await compose('polaroid', {typeface: TYPEFACE});
+    expect(sheet.jpeg.length).toBeGreaterThan(0);
+    expect(canvas.drawImageRect).not.toHaveBeenCalled();
   });
 });
