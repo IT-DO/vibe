@@ -8,13 +8,24 @@
  */
 
 import React, {useCallback, useEffect, useState} from 'react';
-import {Alert, Modal, Pressable, ScrollView, StyleSheet, Text, View} from 'react-native';
+import {
+  Alert,
+  Modal,
+  Pressable,
+  ScrollView,
+  Share,
+  StyleSheet,
+  Text,
+  View,
+} from 'react-native';
 
 import {AdminButton, Choice, Field, MultiChoice, Row, Section, Toggle} from './controls';
 import {PinGate} from './PinGate';
 import {activeTransport, applyPrinterSettings, findPrinters, printQueue} from '../../app/services';
 import {describePrinterState, stringsFor} from '../../i18n/strings';
 import {LAYOUTS, type LayoutId} from '../../imaging/layouts';
+import {clearCrashLog, readCrashLog} from '../../platform/crashlog';
+import {countEntries, lastEntries, tailForSharing} from '../../utils/crashlog-format';
 import {purgeAll, usedBytes} from '../../platform/files';
 import {enterKioskMode, exitKioskMode, supportsLockTask} from '../../platform/kiosk';
 import {currentSsid} from '../../platform/network-info';
@@ -40,6 +51,7 @@ export function AdminScreen({onClose}: AdminScreenProps) {
   const [ssid, setSsid] = useState<string | null>(null);
   const [disk, setDisk] = useState(0);
   const [kioskHint, setKioskHint] = useState<string | null>(null);
+  const [crashLog, setCrashLog] = useState('');
 
   const t = stringsFor(settings.locale).admin;
 
@@ -51,6 +63,7 @@ export function AdminScreen({onClose}: AdminScreenProps) {
     }
     void currentSsid().then(setSsid);
     void usedBytes().then(setDisk);
+    void readCrashLog().then(setCrashLog);
   }, [unlocked]);
 
   const search = useCallback(async () => {
@@ -348,6 +361,46 @@ export function AdminScreen({onClose}: AdminScreenProps) {
             </View>
           </Section>
 
+          {/*
+            Журнал ошибок. Нужен затем, чтобы не просить человека снимать
+            logcat через компьютер: приложение записывает сбои само, а
+            отправить их можно одной кнопкой.
+          */}
+          <Section title="Журнал ошибок">
+            {crashLog ? (
+              <>
+                <Row label="Записей" value={`${countEntries(crashLog)}`} />
+                <View style={styles.logBox}>
+                  <ScrollView nestedScrollEnabled style={styles.logScroll}>
+                    <Text style={styles.logText} selectable>
+                      {lastEntries(crashLog, 3)}
+                    </Text>
+                  </ScrollView>
+                </View>
+                <View style={styles.buttonRow}>
+                  <AdminButton
+                    label="Поделиться"
+                    tone="accent"
+                    onPress={() => {
+                      void Share.share({
+                        title: 'Журнал ошибок «Фото на память»',
+                        message: tailForSharing(crashLog),
+                      });
+                    }}
+                  />
+                  <AdminButton
+                    label="Очистить"
+                    onPress={() => {
+                      void clearCrashLog().then(() => setCrashLog(''));
+                    }}
+                  />
+                </View>
+              </>
+            ) : (
+              <Row label="" value="Сбоев не записано" />
+            )}
+          </Section>
+
           <Section title={t.diagnostics!}>
             <Row label="Транспорт" value={activeTransport().label} />
             <Row
@@ -500,6 +553,20 @@ const styles = StyleSheet.create({
     fontSize: typography.admin,
     fontWeight: '700',
     paddingHorizontal: spacing.sm,
+  },
+  logBox: {
+    borderRadius: radius.sm,
+    backgroundColor: palette.surfaceRaised,
+    marginVertical: spacing.sm,
+  },
+  logScroll: {
+    maxHeight: 220,
+    padding: spacing.sm,
+  },
+  logText: {
+    color: palette.textMuted,
+    fontSize: typography.admin - 3,
+    fontFamily: 'monospace',
   },
   jobRow: {
     flexDirection: 'row',

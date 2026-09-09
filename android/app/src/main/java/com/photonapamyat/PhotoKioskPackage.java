@@ -24,6 +24,7 @@ public class PhotoKioskPackage implements ReactPackage {
     public List<NativeModule> createNativeModules(@NonNull ReactApplicationContext context) {
         List<NativeModule> modules = new ArrayList<>();
         modules.add(new PhotoKioskModule(context));
+        modules.add(new PhotoCrashLogModule(context));
         modules.add(new PhotoNetworkInfoModule(context));
         modules.add(new PhotoSystemPrintModule(context));
         return modules;

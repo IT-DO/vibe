@@ -28,6 +28,7 @@ import {
 } from '../features/session/machine';
 import {Paths, newFilePath, removeFile, writeBytes} from '../platform/files';
 import {pickPhotoFromGallery} from '../platform/gallery';
+import {recordError} from '../platform/crashlog';
 import {haptic, playCue} from '../platform/feedback';
 import {mediaSizeOf, type Settings} from '../store/settings';
 import {useStats} from '../store/stats';
@@ -103,6 +104,7 @@ export function useKioskSession(
           // провал важен для гостя (съёмка, печать), сообщают о себе сами,
           // отправляя событие в автомат.
           console.warn('Побочное действие не выполнено:', effect.type, error);
+          void recordError(`Побочное действие «${effect.type}»`, error);
         }
       }
     },
