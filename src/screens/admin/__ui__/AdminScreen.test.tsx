@@ -230,6 +230,67 @@ describe('настройка принтера', () => {
   });
 });
 
+describe('раскладки и бумага', () => {
+  it('на листе 10 × 15 подсказки нет — всё помещается', async () => {
+    useSettings.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        adminPin: '2468',
+        printer: {...DEFAULT_SETTINGS.printer, media: '4x6'},
+        flow: {...DEFAULT_SETTINGS.flow, layouts: ['single', 'grid4', 'twinStrip3']},
+      },
+    });
+    await openAdmin();
+    expect(screen.queryByText(/Мелко на этой бумаге/)).toBeNull();
+  });
+
+  it('на карманной бумаге предупреждает о мелких кадрах', async () => {
+    // «Полоска на двоих» на 50 × 76 даёт ячейку 17 × 19 мм: гость не
+    // узнает себя, а картридж уже потрачен.
+    useSettings.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        adminPin: '2468',
+        printer: {...DEFAULT_SETTINGS.printer, media: '2x3'},
+        flow: {...DEFAULT_SETTINGS.flow, layouts: ['single', 'grid4', 'twinStrip3']},
+      },
+    });
+    await openAdmin();
+
+    const hint = screen.getByText(/Мелко на этой бумаге/);
+    expect(hint).toBeTruthy();
+    expect(hint.props.children).toContain('Четыре кадра');
+    expect(hint.props.children).toContain('Полоска на двоих');
+  });
+
+  it('но не запрещает: выбор остаётся за оператором', async () => {
+    useSettings.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        adminPin: '2468',
+        printer: {...DEFAULT_SETTINGS.printer, media: '2x3'},
+        flow: {...DEFAULT_SETTINGS.flow, layouts: ['single', 'grid4']},
+      },
+    });
+    await openAdmin();
+    expect(useSettings.getState().settings.flow.layouts).toContain('grid4');
+  });
+
+  it('подсказка не поминает раскладки, которые помещаются', async () => {
+    useSettings.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        adminPin: '2468',
+        printer: {...DEFAULT_SETTINGS.printer, media: '2x3'},
+        flow: {...DEFAULT_SETTINGS.flow, layouts: ['single', 'twinStrip3']},
+      },
+    });
+    await openAdmin();
+    const hint = screen.getByText(/Мелко на этой бумаге/);
+    expect(hint.props.children).not.toContain('Одно фото');
+  });
+});
+
 describe('очередь печати', () => {
   it('упавшее задание можно повторить', async () => {
     mockQueueSnapshot.mockReturnValue({

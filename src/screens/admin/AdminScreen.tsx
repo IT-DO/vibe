@@ -23,7 +23,8 @@ import {AdminButton, Choice, Field, MultiChoice, Row, Section, Toggle} from './c
 import {PinGate} from './PinGate';
 import {activeTransport, applyPrinterSettings, findPrinters, printQueue} from '../../app/services';
 import {describePrinterState, stringsFor} from '../../i18n/strings';
-import {LAYOUTS, type LayoutId} from '../../imaging/layouts';
+import {LAYOUTS, layoutById, type LayoutId} from '../../imaging/layouts';
+import {crampedLayouts} from '../../imaging/fit';
 import {clearCrashLog, readCrashLog} from '../../platform/crashlog';
 import {countEntries, lastEntries, tailForSharing} from '../../utils/crashlog-format';
 import {purgeAll, usedBytes} from '../../platform/files';
@@ -32,7 +33,7 @@ import {currentSsid} from '../../platform/network-info';
 import type {DiscoveredPrinter} from '../../printing/discovery';
 import {mediaChoiceFor} from '../../printing/media-choice';
 import type {QueueSnapshot} from '../../printing/queue';
-import {useSettings} from '../../store/settings';
+import {mediaSizeOf, useSettings} from '../../store/settings';
 import {useStats} from '../../store/stats';
 import {palette, radius, spacing, typography} from '../../theme/theme';
 
@@ -125,6 +126,13 @@ export function AdminScreen({onClose}: AdminScreenProps) {
   }
 
   const printerStatus = queue.printer;
+
+  // Раскладки, которым выбранная бумага мала. Считается на каждый показ:
+  // оператор меняет и формат, и набор раскладок прямо здесь.
+  const tightLayouts = crampedLayouts(
+    settings.flow.layouts.map(id => layoutById(id)),
+    mediaSizeOf(settings.printer.media),
+  ).map(layout => layoutLabel(layout.id, settings.locale));
 
   return (
     <Modal visible animationType="slide" onRequestClose={onClose}>
@@ -273,6 +281,18 @@ export function AdminScreen({onClose}: AdminScreenProps) {
                 label: layoutLabel(l.id, settings.locale),
               }))}
             />
+            {/*
+              Раскладки заданы в долях листа и формально подходят к любой
+              бумаге. Но на карманной 50 × 76 мм «полоска на двоих» даёт
+              ячейку 17 × 19 мм: гость не узнает себя на отпечатке, а
+              картридж уже потрачен. Запрещать не надо — предупредить надо.
+            */}
+            {tightLayouts.length > 0 ? (
+              <Row
+                label=""
+                value={`Мелко на этой бумаге: ${tightLayouts.join(', ')}. Кадры выйдут меньше 2,5 см.`}
+              />
+            ) : null}
             <Choice
               label="Камера"
               value={settings.capture.camera}
