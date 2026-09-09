@@ -33,5 +33,24 @@ module.exports = {
         ],
       },
     },
+    {
+      // Экраны, компоненты и хук оркестрации. Нативные модули заменены
+      // заглушками в jest.setup.ui.js: проверяем не камеру и не Skia, а
+      // поведение приложения вокруг них — что происходит, когда камера не
+      // отвечает, галерея отменена, а запись файла упала.
+      displayName: 'ui',
+      preset: 'react-native',
+      // Общие jest.fn() в фикстурах экранов иначе копят вызовы между тестами,
+      // и «не вызывалось» проходит или падает в зависимости от порядка.
+      clearMocks: true,
+      setupFilesAfterEnv: ['<rootDir>/jest.setup.ui.js'],
+      testMatch: ['<rootDir>/src/**/__ui__/**/*.test.tsx'],
+      moduleNameMapper: {
+        '^@/(.*)$': '<rootDir>/src/$1',
+      },
+      transformIgnorePatterns: [
+        'node_modules/(?!(@react-native|react-native|@testing-library)/)',
+      ],
+    },
   ],
 };

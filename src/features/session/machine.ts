@@ -241,6 +241,21 @@ function reduceAttract(
     };
   }
 
+  // Галерея не открылась (нет доступа, системный сбой). Молча остаться на
+  // заставке нельзя: гость нажал кнопку и должен увидеть ответ, иначе это
+  // ровно то «нажал — и ничего не происходит», из-за которого будку считают
+  // сломанной и уходят.
+  if (event.type === 'printFailed') {
+    return {
+      state: {
+        name: 'error',
+        message: event.message,
+        expiresAt: event.now + config.errorMs,
+      },
+      effects: [{type: 'sound', name: 'error'}],
+    };
+  }
+
   if (event.type !== 'start') {
     return stay(state);
   }

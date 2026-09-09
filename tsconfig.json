@@ -26,6 +26,6 @@
       "@/*": ["src/*"]
     }
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx", "index.js"],
+  "include": ["src/**/*.ts", "src/**/*.tsx", "src/**/*.d.ts", "index.js"],
   "exclude": ["node_modules", "android", "ios"]
 }

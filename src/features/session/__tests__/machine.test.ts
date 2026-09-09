@@ -505,6 +505,28 @@ describe('печать готового снимка из галереи', () =>
     });
     expect(state.name).toBe('countdown');
   });
+
+  it('галерея не открылась — гость видит ответ, а не пустой экран', () => {
+    // Нажал кнопку и ничего не произошло — по этому признаку будку считают
+    // сломанной и уходят, хотя съёмка работает.
+    const {state, effects} = run(
+      [{type: 'printFailed', message: 'Нет доступа к галерее', now: 1_000}],
+      config,
+    );
+    expect(state).toMatchObject({name: 'error', message: 'Нет доступа к галерее'});
+    expect(effects).toContainEqual({type: 'sound', name: 'error'});
+  });
+
+  it('экран ошибки на заставке сам возвращается к началу', () => {
+    const {state} = run(
+      [
+        {type: 'printFailed', message: 'Нет доступа к галерее', now: 1_000},
+        {type: 'tick', now: 1_000 + config.errorMs},
+      ],
+      config,
+    );
+    expect(state.name).toBe('attract');
+  });
 });
 
 describe('полный сценарий гостя', () => {

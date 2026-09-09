@@ -7,7 +7,7 @@
  * что случайно не выходит, а оператор запоминает с первого раза.
  */
 
-import React, {useRef} from 'react';
+import React, {useCallback, useEffect, useRef} from 'react';
 import {
   Pressable,
   StyleSheet,
@@ -41,6 +41,13 @@ export function KioskScreen({
 }: KioskScreenProps) {
   const holdTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
 
+  const cancelHold = useCallback(() => {
+    if (holdTimer.current) {
+      clearTimeout(holdTimer.current);
+      holdTimer.current = null;
+    }
+  }, []);
+
   const startHold = () => {
     if (!onSecretHold) {
       return;
@@ -48,15 +55,13 @@ export function KioskScreen({
     holdTimer.current = setTimeout(onSecretHold, ADMIN_HOLD_MS);
   };
 
-  const cancelHold = () => {
-    if (holdTimer.current) {
-      clearTimeout(holdTimer.current);
-      holdTimer.current = null;
-    }
-  };
+  // Экран может смениться, пока палец лежит в углу: сессия сама уходит на
+  // съёмку по таймауту. Без этой уборки отсчёт доживает до конца уже на
+  // чужом экране и открывает настройки посреди чужой съёмки.
+  useEffect(() => cancelHold, [cancelHold]);
 
   const content = (
-    <SafeAreaView style={[styles.safe, {backgroundColor}, style]}>
+    <SafeAreaView testID="kiosk-screen" style={[styles.safe, {backgroundColor}, style]}>
       {children}
       {onSecretHold ? (
         // Зона входа в админку: верхний левый угол, полностью прозрачна.

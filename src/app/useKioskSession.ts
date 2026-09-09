@@ -207,7 +207,6 @@ export function useKioskSession(
         now: Date.now(),
       });
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [camera, send]);
 
   /**
@@ -293,9 +292,12 @@ export function useKioskSession(
           copies: settings.printer.copies,
         });
 
-        // Исходные кадры больше не нужны: в лист они уже вошли.
+        // Исходные кадры больше не нужны: в лист они уже вошли. Удаляем
+        // только свои: путь, пришедший из галереи, может указывать на
+        // собственную фотографию гостя, и восстановить её будет нечем.
         if (!settings.privacy.keepArchive) {
-          await Promise.all(shots.map(shot => removeFile(shot.path)));
+          const own = shots.filter(shot => shot.origin === 'camera');
+          await Promise.all(own.map(shot => removeFile(shot.path)));
         }
 
         stats.countSession();
