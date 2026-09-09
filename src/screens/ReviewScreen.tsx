@@ -25,6 +25,8 @@ export interface ReviewScreenProps {
   readonly previewUri: string | null;
   readonly secondsLeft: number;
   readonly allowRetake: boolean;
+  /** Снимок пришёл из галереи — «переснять» его нельзя, можно выбрать другой. */
+  readonly fromGallery: boolean;
   readonly busy: boolean;
   readonly onPrint: () => void;
   readonly onRetake: () => void;
@@ -36,6 +38,7 @@ export function ReviewScreen({
   previewUri,
   secondsLeft,
   allowRetake,
+  fromGallery,
   busy,
   onPrint,
   onRetake,
@@ -63,8 +66,8 @@ export function ReviewScreen({
         <View style={styles.actions}>
           {allowRetake ? (
             <BigButton
-              label={t.review.retake}
-              icon="↺"
+              label={fromGallery ? t.review.pickAnother : t.review.retake}
+              icon={fromGallery ? '🖼' : '↺'}
               variant="ghost"
               onPress={onRetake}
               disabled={busy}

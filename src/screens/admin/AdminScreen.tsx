@@ -16,7 +16,7 @@ import {activeTransport, applyPrinterSettings, findPrinters, printQueue} from '.
 import {describePrinterState, stringsFor} from '../../i18n/strings';
 import {LAYOUTS, type LayoutId} from '../../imaging/layouts';
 import {purgeAll, usedBytes} from '../../platform/files';
-import {exitKioskMode, supportsLockTask} from '../../platform/kiosk';
+import {enterKioskMode, exitKioskMode, supportsLockTask} from '../../platform/kiosk';
 import {currentSsid} from '../../platform/network-info';
 import type {DiscoveredPrinter} from '../../printing/discovery';
 import type {QueueSnapshot} from '../../printing/queue';
@@ -39,6 +39,7 @@ export function AdminScreen({onClose}: AdminScreenProps) {
   const [queue, setQueue] = useState<QueueSnapshot>(() => printQueue.snapshot());
   const [ssid, setSsid] = useState<string | null>(null);
   const [disk, setDisk] = useState(0);
+  const [kioskHint, setKioskHint] = useState<string | null>(null);
 
   const t = stringsFor(settings.locale).admin;
 
@@ -375,15 +376,36 @@ export function AdminScreen({onClose}: AdminScreenProps) {
               onChange={store.setAdminPin}
               keyboardType="number-pad"
             />
+            {/*
+              Киоск-режим включается только отсюда и только вручную.
+              Раньше приложение закрепляло себя при запуске, и на личном
+              телефоне это выглядело как «телефон заблокировался».
+            */}
             <View style={styles.buttonRow}>
+              <AdminButton
+                label="Включить киоск-режим"
+                tone="accent"
+                onPress={() => {
+                  void enterKioskMode().then(result => {
+                    setKioskHint(
+                      result.locked
+                        ? 'Приложение закреплено на экране'
+                        : result.hint === 'ios-guided-access-required'
+                          ? 'Включите Гид-доступ: тройное нажатие боковой кнопки'
+                          : 'Устройство не разрешило закрепление — см. docs/KIOSK-SETUP.md',
+                    );
+                  });
+                }}
+              />
               <AdminButton
                 label={t.exitKiosk!}
                 onPress={() => {
-                  void exitKioskMode();
+                  void exitKioskMode().then(() => setKioskHint(null));
                   onClose();
                 }}
               />
             </View>
+            {kioskHint ? <Row label="" value={kioskHint} /> : null}
             {!supportsLockTask ? (
               <Row
                 label=""

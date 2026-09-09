@@ -19,6 +19,10 @@ export interface Strings {
     readonly hint: string;
     readonly printerBusy: string;
     readonly printerOffline: string;
+    readonly printerMissing: string;
+    readonly printerMissingHint: string;
+    readonly setUpPrinter: string;
+    readonly pickPhoto: string;
     readonly queueHint: string;
   };
   readonly layout: {
@@ -44,6 +48,7 @@ export interface Strings {
     readonly title: string;
     readonly print: string;
     readonly retake: string;
+    readonly pickAnother: string;
     readonly autoPrintIn: (seconds: number) => string;
   };
   readonly printing: {
@@ -73,6 +78,10 @@ const ru: Strings = {
     hint: 'Фотография напечатается сразу — заберите её на память',
     printerBusy: 'Печатаем предыдущее фото',
     printerOffline: 'Принтер недоступен — позовите организатора',
+    printerMissing: 'Принтер не подключён',
+    printerMissingHint: 'Откройте настройки и найдите принтер в сети',
+    setUpPrinter: 'Настроить принтер',
+    pickPhoto: 'Выбрать готовое фото',
     queueHint: 'В очереди фотографий: {n}',
   },
   layout: {
@@ -98,6 +107,7 @@ const ru: Strings = {
     title: 'Как вам?',
     print: 'Печатать',
     retake: 'Переснять',
+    pickAnother: 'Выбрать другое',
     autoPrintIn: seconds => `Печать через ${seconds} с`,
   },
   printing: {
@@ -131,6 +141,7 @@ const ru: Strings = {
     paused: 'Печать приостановлена',
     shutdown: 'Принтер выключен',
     'system-print-unavailable': 'Системная печать недоступна',
+    'printer-not-configured': 'Принтер не подключён',
     'printer-stopped': 'Принтер остановлен',
     unknown: 'Принтер не отвечает',
   },
@@ -163,6 +174,10 @@ const en: Strings = {
     hint: 'Your photo prints right away — take it home',
     printerBusy: 'Printing the previous photo',
     printerOffline: 'Printer unavailable — please find a host',
+    printerMissing: 'No printer connected',
+    printerMissingHint: 'Open settings and find the printer on the network',
+    setUpPrinter: 'Set up printer',
+    pickPhoto: 'Choose an existing photo',
     queueHint: 'Photos in queue: {n}',
   },
   layout: {
@@ -188,6 +203,7 @@ const en: Strings = {
     title: 'How is it?',
     print: 'Print',
     retake: 'Retake',
+    pickAnother: 'Choose another',
     autoPrintIn: seconds => `Printing in ${seconds}s`,
   },
   printing: {
@@ -221,6 +237,7 @@ const en: Strings = {
     paused: 'Printing paused',
     shutdown: 'Printer is off',
     'system-print-unavailable': 'System printing unavailable',
+    'printer-not-configured': 'No printer connected',
     'printer-stopped': 'Printer stopped',
     unknown: 'Printer not responding',
   },

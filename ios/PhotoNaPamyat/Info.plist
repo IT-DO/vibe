@@ -33,6 +33,9 @@
 	  блокирует обращения к устройствам локальной сети. Ошибки приложение при
 	  этом не получает — принтер просто «не находится».
 	-->
+	<key>NSPhotoLibraryUsageDescription</key>
+	<string>Доступ к фотографиям нужен, чтобы напечатать уже готовый снимок.</string>
+
 	<key>NSLocalNetworkUsageDescription</key>
 	<string>Доступ к локальной сети нужен, чтобы найти фотопринтер и отправить на него снимок.</string>
 	<key>NSBonjourServices</key>

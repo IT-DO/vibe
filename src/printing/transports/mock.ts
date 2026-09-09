@@ -33,6 +33,7 @@ export class MockTransport implements PrinterTransport {
   readonly id = 'mock';
   readonly label = 'Демо-режим (без принтера)';
   readonly canTrackJobs = true;
+  readonly documentFormat = 'image/jpeg';
 
   readonly printed: PrintDocument[] = [];
   /** Ручной перевод в неисправное состояние — для проверки экранов ошибок. */

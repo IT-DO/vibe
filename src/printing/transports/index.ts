@@ -5,3 +5,4 @@ export {
   type SystemPrintBridge,
   type TempFileWriter,
 } from './system';
+export {UnconfiguredTransport, PRINTER_NOT_CONFIGURED} from './unconfigured';

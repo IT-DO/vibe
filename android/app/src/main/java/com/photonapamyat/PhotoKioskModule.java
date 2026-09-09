@@ -29,6 +29,11 @@ import com.facebook.react.bridge.ReactMethod;
  *                  можно долгим нажатием «Назад» + «Обзор». Годится для
  *                  репетиции, но на площадке планшет лучше готовить заранее —
  *                  порядок описан в docs/KIOSK-SETUP.md.
+ *
+ * Приложение НИКОГДА не включает закрепление само. Раньше оно делало это при
+ * запуске, и на личном телефоне это выглядело как «телефон заблокировался»:
+ * человек ставит приложение посмотреть, а оно закрепляет себя на экране.
+ * Теперь режим включает оператор из админки, осознанно.
  */
 public class PhotoKioskModule extends ReactContextBaseJavaModule {
 
@@ -56,9 +61,13 @@ public class PhotoKioskModule extends ReactContextBaseJavaModule {
             try {
                 activity.startLockTask();
                 promise.resolve(true);
-            } catch (IllegalArgumentException | SecurityException error) {
-                // Устройство не разрешает закрепление — приложение продолжает
-                // работать, просто без защиты от выхода.
+            } catch (Throwable error) {
+                // Ловим всё. На обычном телефоне startLockTask() бросает
+                // IllegalStateException, если закрепление экрана не включено
+                // в настройках, и раньше это исключение улетало в UI-поток и
+                // роняло приложение, а промис не разрешался никогда.
+                // Закрепление — не критичная функция: без него будка просто
+                // работает без защиты от выхода.
                 promise.resolve(false);
             }
         });
@@ -75,7 +84,8 @@ public class PhotoKioskModule extends ReactContextBaseJavaModule {
             try {
                 activity.stopLockTask();
                 promise.resolve(true);
-            } catch (IllegalStateException error) {
+            } catch (Throwable error) {
+                // Уже вышли, либо закрепление и не включалось.
                 promise.resolve(false);
             }
         });

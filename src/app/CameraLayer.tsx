@@ -10,8 +10,8 @@
  * настройка, потому что надписи на одежде в зеркале читаются наоборот.
  */
 
-import React, {forwardRef, useImperativeHandle, useRef} from 'react';
-import {StyleSheet, Text, View} from 'react-native';
+import React, {forwardRef, useEffect, useImperativeHandle, useRef, useState} from 'react';
+import {Linking, Pressable, StyleSheet, Text, View} from 'react-native';
 import {
   Camera,
   useCameraDevice,
@@ -46,7 +46,27 @@ export const CameraLayer = forwardRef<CameraLayerHandle, CameraLayerProps>(
   function CameraLayer({facing, mirrorPreview, active, dim}, ref) {
     const camera = useRef<Camera>(null);
     const device: CameraDevice | undefined = useCameraDevice(facing);
-    const {hasPermission} = useCameraPermission();
+    const {hasPermission, requestPermission} = useCameraPermission();
+    const [denied, setDenied] = useState(false);
+
+    // Разрешение обязательно запрашивать в рантайме: на Android объявления
+    // в манифесте недостаточно, а без запроса камера молча не включается —
+    // приложение выглядит сломанным, хотя всё цело.
+    useEffect(() => {
+      if (hasPermission) {
+        setDenied(false);
+        return;
+      }
+      let cancelled = false;
+      void requestPermission().then(granted => {
+        if (!cancelled) {
+          setDenied(!granted);
+        }
+      });
+      return () => {
+        cancelled = true;
+      };
+    }, [hasPermission, requestPermission]);
 
     useImperativeHandle(
       ref,
@@ -71,11 +91,34 @@ export const CameraLayer = forwardRef<CameraLayerHandle, CameraLayerProps>(
       [device, hasPermission],
     );
 
-    if (!hasPermission || !device) {
+    if (!hasPermission) {
       return (
         <View style={[StyleSheet.absoluteFill, styles.placeholder]}>
+          <Text style={styles.placeholderTitle}>Нужен доступ к камере</Text>
           <Text style={styles.placeholderText}>
-            {hasPermission ? 'Камера не найдена' : 'Нет доступа к камере'}
+            Без него фотобудка не сможет снимать гостей. Другие данные
+            приложение не запрашивает.
+          </Text>
+          {denied ? (
+            <Pressable
+              accessibilityRole="button"
+              onPress={() => void Linking.openSettings()}
+              style={styles.placeholderButton}>
+              <Text style={styles.placeholderButtonText}>Открыть настройки</Text>
+            </Pressable>
+          ) : null}
+        </View>
+      );
+    }
+
+    if (!device) {
+      return (
+        <View style={[StyleSheet.absoluteFill, styles.placeholder]}>
+          <Text style={styles.placeholderTitle}>Камера не найдена</Text>
+          <Text style={styles.placeholderText}>
+            {facing === 'front'
+              ? 'На устройстве нет фронтальной камеры. Переключите её в настройках приложения.'
+              : 'На устройстве нет основной камеры. Переключите её в настройках приложения.'}
           </Text>
         </View>
       );
@@ -116,10 +159,29 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     justifyContent: 'center',
     padding: spacing.xl,
+    gap: spacing.md,
+  },
+  placeholderTitle: {
+    color: palette.text,
+    fontSize: typography.heading,
+    fontWeight: '700',
+    textAlign: 'center',
   },
   placeholderText: {
     color: palette.textMuted,
     fontSize: typography.body,
     textAlign: 'center',
+  },
+  placeholderButton: {
+    marginTop: spacing.md,
+    paddingHorizontal: spacing.lg,
+    paddingVertical: spacing.md,
+    borderRadius: 999,
+    backgroundColor: palette.accent,
+  },
+  placeholderButtonText: {
+    color: palette.accentText,
+    fontSize: typography.button,
+    fontWeight: '700',
   },
 });

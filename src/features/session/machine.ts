@@ -59,6 +59,11 @@ export type SessionState =
       readonly layoutId: LayoutId;
       readonly shots: readonly PhotoShot[];
       readonly expiresAt: number;
+      /**
+       * Откуда взялись кадры. От этого зависит, что делает «переснять»:
+       * вернуться к камере или снова открыть галерею.
+       */
+      readonly source: 'camera' | 'gallery';
     }
   | {
       readonly name: 'printing';
@@ -75,6 +80,10 @@ export type SessionEvent =
   /** Такт часов; несёт текущее время. */
   | {readonly type: 'tick'; readonly now: number}
   | {readonly type: 'shotTaken'; readonly shot: PhotoShot; readonly now: number}
+  /** Гость выбрал печать готового снимка вместо съёмки. */
+  | {readonly type: 'pickPhoto'; readonly now: number}
+  /** Снимок из галереи выбран и готов к просмотру. */
+  | {readonly type: 'photoPicked'; readonly shot: PhotoShot; readonly now: number}
   | {readonly type: 'captureFailed'; readonly message: string; readonly now: number}
   | {readonly type: 'retake'; readonly now: number}
   | {readonly type: 'print'; readonly now: number}
@@ -93,6 +102,8 @@ export type SessionEffect =
     }
   /** Удалить временные файлы кадров, которые не пойдут в печать. */
   | {readonly type: 'discardShots'; readonly shots: readonly PhotoShot[]}
+  /** Открыть системную галерею для выбора готового снимка. */
+  | {readonly type: 'openGallery'}
   | {readonly type: 'sound'; readonly name: 'countdown' | 'shutter' | 'done' | 'error'}
   | {readonly type: 'haptic'};
 
@@ -157,7 +168,7 @@ export function reduce(
   if (event.type === 'cancel') {
     return {
       state: {name: 'attract'},
-      effects: discardEffects(shotsOf(state)),
+      effects: discardEffects(ownShotsOf(state)),
     };
   }
 
@@ -189,6 +200,25 @@ function reduceAttract(
   event: SessionEvent,
   config: SessionConfig,
 ): Transition {
+  // Печать готового снимка минует выбор формата и отсчёт: кадр уже есть,
+  // спрашивать «на сколько кадров» и считать до трёх незачем.
+  if (event.type === 'pickPhoto') {
+    return {state, effects: [{type: 'haptic'}, {type: 'openGallery'}]};
+  }
+
+  if (event.type === 'photoPicked') {
+    return {
+      state: {
+        name: 'review',
+        layoutId: 'single',
+        shots: [event.shot],
+        expiresAt: event.now + config.reviewTimeoutMs,
+        source: 'gallery',
+      },
+      effects: [],
+    };
+  }
+
   if (event.type !== 'start') {
     return stay(state);
   }
@@ -315,6 +345,7 @@ function reduceCapturing(
         layoutId: state.layoutId,
         shots,
         expiresAt: event.now + config.reviewTimeoutMs,
+        source: 'camera',
       },
       effects: [],
     };
@@ -363,6 +394,13 @@ function reduceReview(
   }
 
   if (event.type === 'retake' && config.allowRetake) {
+    // Снимок из галереи «переснять» нельзя — можно выбрать другой.
+    if (state.source === 'gallery') {
+      return {
+        state: {name: 'attract'},
+        effects: [{type: 'haptic'}, {type: 'openGallery'}],
+      };
+    }
     return {
       state: {
         name: 'getReady',
@@ -377,7 +415,7 @@ function reduceReview(
     // Гость не нажал ничего. Печатаем сами — иначе будка встанет.
     return config.autoPrintOnTimeout
       ? startPrinting(state)
-      : {state: {name: 'attract'}, effects: discardEffects(state.shots)};
+      : {state: {name: 'attract'}, effects: discardEffects(ownShotsOf(state))};
   }
 
   return stay(state);
@@ -440,8 +478,18 @@ function stay(state: SessionState): Transition {
   return {state, effects: []};
 }
 
-/** Кадры, снятые к текущему моменту, — нужны для их удаления при отмене. */
-function shotsOf(state: SessionState): readonly PhotoShot[] {
+/**
+ * Кадры, которые приложение создало само и вправе удалить.
+ *
+ * Выбранный в галерее снимок сюда не попадает. Формально это копия в кеше
+ * приложения (её делает сам выбор файла), но различить копию и оригинал по
+ * пути нельзя, а цена ошибки несимметрична: лишний файл в кеше Android
+ * уберёт сам, а удалённая чужая фотография не восстановится.
+ */
+function ownShotsOf(state: SessionState): readonly PhotoShot[] {
+  if (state.name === 'review' && state.source === 'gallery') {
+    return [];
+  }
   return 'shots' in state ? state.shots : [];
 }
 

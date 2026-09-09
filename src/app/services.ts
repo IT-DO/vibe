@@ -12,7 +12,12 @@ import {discoverPrinters, type DiscoveredPrinter} from '../printing/discovery';
 import {parseCapabilities} from '../printing/ipp/capabilities';
 import {IppClient, MEDIA_3X3, MEDIA_4X6} from '../printing/ipp/client';
 import {PrintQueue, type QueueStorage, type QueuedJob, type Scheduler} from '../printing/queue';
-import {IppTransport, MockTransport, SystemPrintTransport} from '../printing/transports';
+import {
+  IppTransport,
+  MockTransport,
+  SystemPrintTransport,
+  UnconfiguredTransport,
+} from '../printing/transports';
 import type {PrinterTransport} from '../printing/types';
 import {ZeroconfBrowser} from '../platform/mdns';
 import {networkInfo} from '../platform/network-info';
@@ -47,8 +52,8 @@ const queueStorage: QueueStorage = {
 export const connector = new RnTcpConnector();
 export const mdns = new ZeroconfBrowser();
 
-/** Транспорт-заглушка до подключения принтера — приложение работает сразу. */
-let currentTransport: PrinterTransport = new MockTransport();
+/** До выбора принтера — явное состояние «не настроен», а не тихая заглушка. */
+let currentTransport: PrinterTransport = new UnconfiguredTransport();
 
 /** Прокси: очередь держит одну ссылку, а транспорт под ней подменяется. */
 const transportProxy: PrinterTransport = {
@@ -101,9 +106,9 @@ export async function applyPrinterSettings(settings: PrinterSettings): Promise<v
   }
 
   if (!settings.endpoint) {
-    // Настроен прямой IPP, но принтер ещё не выбран — остаёмся на заглушке,
-    // чтобы интерфейс работал и оператор дошёл до поиска принтера.
-    currentTransport = new MockTransport();
+    // Выбран прямой IPP, но принтер ещё не найден. Не притворяемся рабочими:
+    // очередь встанет на паузу, а заставка скажет, что делать.
+    currentTransport = new UnconfiguredTransport();
     return;
   }
 

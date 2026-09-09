@@ -246,6 +246,7 @@ describe('просмотр и печать', () => {
     layoutId: 'single',
     shots: [shot(0)],
     expiresAt: 20_000,
+    source: 'camera',
   };
 
   it('кнопка «печатать» ставит снимок в очередь', () => {
@@ -353,7 +354,7 @@ describe('отмена', () => {
       {name: 'getReady', layoutId: 'single', expiresAt: 1},
       {name: 'countdown', layoutId: 'single', shotIndex: 0, secondsLeft: 2, nextTickAt: 1, shots: []},
       {name: 'capturing', layoutId: 'single', shotIndex: 0, shots: []},
-      {name: 'review', layoutId: 'single', shots: [shot(0)], expiresAt: 1},
+      {name: 'review', layoutId: 'single', shots: [shot(0)], expiresAt: 1, source: 'camera'},
       {name: 'printing', layoutId: 'single', shots: [shot(0)]},
     ];
     for (const state of states) {
@@ -368,6 +369,7 @@ describe('отмена', () => {
       layoutId: 'twinStrip3',
       shots: [shot(0), shot(1)],
       expiresAt: 1,
+    source: 'camera',
     });
     expect(effects).toContainEqual({type: 'discardShots', shots: [shot(0), shot(1)]});
   });
@@ -378,6 +380,124 @@ describe('отмена', () => {
       expiresAt: 1,
     });
     expect(effects).toEqual([]);
+  });
+});
+
+describe('печать готового снимка из галереи', () => {
+  const config = makeConfig();
+  const picked = (): PhotoShot => ({
+    path: 'content://media/external/images/1042',
+    width: 4032,
+    height: 3024,
+    takenAt: 1_000,
+    // Снимок сделан не нашей фронтальной камерой — зеркалить его нельзя.
+    mirrored: false,
+  });
+
+  it('кнопка на заставке открывает галерею, не начиная съёмку', () => {
+    const {state, effects} = run([{type: 'pickPhoto', now: 0}], config);
+    expect(state.name).toBe('attract');
+    expect(effects).toContainEqual({type: 'openGallery'});
+  });
+
+  it('выбранный снимок сразу попадает на просмотр, минуя отсчёт', () => {
+    const {state, effects} = run(
+      [
+        {type: 'pickPhoto', now: 0},
+        {type: 'photoPicked', shot: picked(), now: 500},
+      ],
+      config,
+    );
+    expect(state).toMatchObject({name: 'review', layoutId: 'single', source: 'gallery'});
+    expect('shots' in state && state.shots).toEqual([picked()]);
+    // Ни отсчёта, ни команды снимать.
+    expect(effects.filter(e => e.type === 'capture')).toHaveLength(0);
+  });
+
+  it('печатается как обычный снимок', () => {
+    const {state, effects} = run([{type: 'print', now: 1_000}], config, {
+      name: 'review',
+      layoutId: 'single',
+      shots: [picked()],
+      expiresAt: 20_000,
+      source: 'gallery',
+    });
+    expect(state.name).toBe('printing');
+    expect(effects).toContainEqual({
+      type: 'enqueuePrint',
+      layoutId: 'single',
+      shots: [picked()],
+    });
+  });
+
+  it('«переснять» открывает галерею заново, а не камеру', () => {
+    const {state, effects} = run([{type: 'retake', now: 1_000}], config, {
+      name: 'review',
+      layoutId: 'single',
+      shots: [picked()],
+      expiresAt: 20_000,
+      source: 'gallery',
+    });
+    expect(state.name).toBe('attract');
+    expect(effects).toContainEqual({type: 'openGallery'});
+  });
+
+  it('НЕ удаляет выбранный файл при отмене — он принадлежит человеку', () => {
+    const {effects} = run([{type: 'cancel', now: 1_000}], config, {
+      name: 'review',
+      layoutId: 'single',
+      shots: [picked()],
+      expiresAt: 20_000,
+      source: 'gallery',
+    });
+    expect(effects.filter(e => e.type === 'discardShots')).toHaveLength(0);
+  });
+
+  it('НЕ удаляет выбранный файл при «переснять»', () => {
+    const {effects} = run([{type: 'retake', now: 1_000}], config, {
+      name: 'review',
+      layoutId: 'single',
+      shots: [picked()],
+      expiresAt: 20_000,
+      source: 'gallery',
+    });
+    expect(effects.filter(e => e.type === 'discardShots')).toHaveLength(0);
+  });
+
+  it('НЕ удаляет выбранный файл по таймауту без автопечати', () => {
+    const noAuto = makeConfig({autoPrintOnTimeout: false});
+    const {state, effects} = run([{type: 'tick', now: 20_000}], noAuto, {
+      name: 'review',
+      layoutId: 'single',
+      shots: [picked()],
+      expiresAt: 20_000,
+      source: 'gallery',
+    });
+    expect(state.name).toBe('attract');
+    expect(effects.filter(e => e.type === 'discardShots')).toHaveLength(0);
+  });
+
+  it('а снятый камерой кадр по-прежнему удаляется', () => {
+    const {effects} = run([{type: 'cancel', now: 1_000}], config, {
+      name: 'review',
+      layoutId: 'single',
+      shots: [shot(0)],
+      expiresAt: 20_000,
+      source: 'camera',
+    });
+    expect(effects).toContainEqual({type: 'discardShots', shots: [shot(0)]});
+  });
+
+  it('выбор снимка посреди съёмки игнорируется', () => {
+    const {state} = run([{type: 'photoPicked', shot: picked(), now: 100}], config, {
+      name: 'countdown',
+      layoutId: 'single',
+      shotIndex: 0,
+      secondsLeft: 2,
+      nextTickAt: 500,
+      shots: [],
+    });
+    expect(state.name).toBe('countdown');
   });
 });
 
@@ -448,12 +568,12 @@ describe('вспомогательные функции', () => {
     expect(needsTicks({name: 'capturing', layoutId: 'single', shotIndex: 0, shots: []})).toBe(
       false,
     );
-    expect(needsTicks({name: 'review', layoutId: 'single', shots: [], expiresAt: 1})).toBe(true);
+    expect(needsTicks({name: 'review', layoutId: 'single', shots: [], expiresAt: 1, source: 'camera'})).toBe(true);
     expect(needsTicks({name: 'thanks', expiresAt: 1, queuePosition: 1})).toBe(true);
   });
 
   it('deadlineOf возвращает момент истечения состояния', () => {
-    expect(deadlineOf({name: 'review', layoutId: 'single', shots: [], expiresAt: 4_242})).toBe(
+    expect(deadlineOf({name: 'review', layoutId: 'single', shots: [], expiresAt: 4_242, source: 'camera'})).toBe(
       4_242,
     );
     expect(

@@ -55,6 +55,12 @@ export interface PrinterTransport {
   /** Умеет ли транспорт отслеживать судьбу задания после отправки. */
   readonly canTrackJobs: boolean;
 
+  /**
+   * Формат, согласованный с принтером: чем именно кодировать лист.
+   * Не задан — отправитель решает сам (обычно JPEG).
+   */
+  readonly documentFormat?: string;
+
   /** Проверяет готовность принтера. */
   checkStatus(): Promise<TransportStatus>;
 

@@ -14,9 +14,9 @@ import {CameraLayer, type CameraLayerHandle} from './CameraLayer';
 import {applyPrinterSettings, bootstrap, printQueue} from './services';
 import {useKioskSession} from './useKioskSession';
 import {layoutById} from '../imaging/layouts';
-import {enterKioskMode} from '../platform/kiosk';
 import {purgeOlderThan} from '../platform/files';
 import type {QueueSnapshot} from '../printing/queue';
+import {PRINTER_NOT_CONFIGURED} from '../printing/transports';
 import {AdminScreen} from '../screens/admin/AdminScreen';
 import {AttractScreen} from '../screens/AttractScreen';
 import {CaptureScreen, type CapturePhase} from '../screens/CaptureScreen';
@@ -39,11 +39,16 @@ export default function App() {
   const [adminOpen, setAdminOpen] = useState(false);
   const [queue, setQueue] = useState<QueueSnapshot>(() => printQueue.snapshot());
 
-  // Запуск: папки, очередь, киоск-режим и уборка старых снимков.
+  // Запуск: папки, очередь и уборка старых снимков.
+  //
+  // Киоск-режим здесь НЕ включается. Раньше приложение закрепляло себя на
+  // экране при старте, и на личном телефоне это выглядело как «телефон
+  // заблокировался»: человек поставил приложение посмотреть, а выйти не
+  // может. Закрепление — осознанное действие оператора перед мероприятием,
+  // и его место в админке.
   useEffect(() => {
     void (async () => {
       await bootstrap();
-      await enterKioskMode();
       await purgeOlderThan(settings.privacy.purgeAfterHours * 3_600_000);
     })();
     // Выполняется один раз при старте приложения.
@@ -60,6 +65,12 @@ export default function App() {
   useEffect(() => printQueue.subscribe(setQueue), []);
 
   const openAdmin = useCallback(() => setAdminOpen(true), []);
+
+  // «Принтер не подключён» — это не поломка, а незавершённая настройка, и
+  // говорить о ней надо иначе, чем о кончившейся бумаге.
+  const printerMissing =
+    queue.printer?.blockingReason === PRINTER_NOT_CONFIGURED ||
+    (settings.printer.transport === 'ipp' && settings.printer.endpoint === null);
   const toggleLocale = useCallback(
     () => setLocale(settings.locale === 'ru' ? 'en' : 'ru'),
     [settings.locale, setLocale],
@@ -113,9 +124,12 @@ export default function App() {
             printerHealth={queue.printer?.health ?? 'unknown'}
             {...(queue.pausedReason ? {printerReason: queue.pausedReason} : {})}
             queueLength={queue.pending}
+            printerMissing={printerMissing}
             onStart={session.start}
             onSecretHold={openAdmin}
             onToggleLocale={toggleLocale}
+            onSetUpPrinter={openAdmin}
+            onPickPhoto={session.pickPhoto}
           />
         );
 
@@ -152,6 +166,7 @@ export default function App() {
             previewUri={session.previewUri}
             secondsLeft={session.secondsLeft}
             allowRetake={settings.flow.allowRetake}
+            fromGallery={state.source === 'gallery'}
             busy={session.busy}
             onPrint={session.print}
             onRetake={session.retake}

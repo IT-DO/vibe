@@ -41,6 +41,8 @@ export class SystemPrintTransport implements PrinterTransport {
   readonly label = 'Системная печать (AirPrint / Mopria)';
   /** ОС не сообщает, чем закончилась печать. */
   readonly canTrackJobs = false;
+  // Системная печать принимает обычную картинку.
+  readonly documentFormat = 'image/jpeg';
 
   constructor(
     private readonly bridge: SystemPrintBridge,

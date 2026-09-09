@@ -10,8 +10,9 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import type {CameraLayerHandle} from './CameraLayer';
-import {printQueue} from './services';
+import {activeTransport, printQueue} from './services';
 import {composeSheet, DEFAULT_COMPOSE} from '../imaging/composer';
+import {encodePwgRaster, type RasterImage} from '../printing/pwg/raster';
 import {layoutById, type LayoutId} from '../imaging/layouts';
 import {
   DEFAULT_SESSION_CONFIG,
@@ -26,6 +27,7 @@ import {
   type SessionState,
 } from '../features/session/machine';
 import {Paths, newFilePath, removeFile, writeBytes} from '../platform/files';
+import {pickPhotoFromGallery} from '../platform/gallery';
 import {haptic, playCue} from '../platform/feedback';
 import {mediaSizeOf, type Settings} from '../store/settings';
 import {useStats} from '../store/stats';
@@ -44,6 +46,8 @@ export interface KioskSession {
   /** Сколько секунд осталось до истечения текущего состояния. */
   readonly secondsLeft: number;
   start(): void;
+  /** Открыть галерею и напечатать готовый снимок. */
+  pickPhoto(): void;
   chooseLayout(layoutId: LayoutId): void;
   print(): void;
   retake(): void;
@@ -102,6 +106,9 @@ export function useKioskSession(
           case 'enqueuePrint':
             await handleEnqueue(effect.layoutId, effect.shots);
             break;
+          case 'openGallery':
+            await handlePickPhoto();
+            break;
         }
       }
     },
@@ -150,6 +157,31 @@ export function useKioskSession(
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [camera, settings.capture.camera]);
 
+  /** Открывает галерею и возвращает выбранный снимок в автомат. */
+  const handlePickPhoto = useCallback(async () => {
+    const result = await pickPhotoFromGallery();
+    if (result.kind === 'picked') {
+      send({
+        type: 'photoPicked',
+        shot: {
+          path: result.photo.path,
+          width: result.photo.width,
+          height: result.photo.height,
+          takenAt: Date.now(),
+          // Готовый снимок зеркалить нельзя: он не с нашей фронтальной камеры.
+          mirrored: false,
+        },
+        now: Date.now(),
+      });
+      return;
+    }
+    if (result.kind === 'error') {
+      send({type: 'printFailed', message: result.message, now: Date.now()});
+    }
+    // Отмена выбора — молча остаёмся на заставке.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   /** Собирает лист и ставит его в очередь печати. */
   const handleEnqueue = useCallback(
     async (layoutId: LayoutId, shots: readonly PhotoShot[]) => {
@@ -173,12 +205,17 @@ export function useKioskSession(
           mirror: settings.capture.mirrorPrint && shots.some(s => s.mirrored),
         });
 
-        const sheetPath = newFilePath(Paths.sheets, 'jpg');
-        await writeBytes(sheetPath, sheet.jpeg);
+        // Чем кодировать лист, решает принтер, а не мы. JPEG принимают почти
+        // все фотопринтеры, но Mopria обязывает поддерживать только
+        // PWG Raster — и если прошивка откажется от JPEG, без этой ветки
+        // печать бы просто не состоялась.
+        const document = encodeSheetFor(activeTransport().documentFormat, sheet);
+        const sheetPath = newFilePath(Paths.sheets, document.extension);
+        await writeBytes(sheetPath, document.data);
 
         await printQueue.enqueue({
           filePath: sheetPath,
-          format: 'image/jpeg',
+          format: document.format,
           name: jobNameFor(settings.event.title),
           copies: settings.printer.copies,
         });
@@ -278,6 +315,7 @@ export function useKioskSession(
     busy,
     secondsLeft,
     start: () => send({type: 'start', now: Date.now()}),
+    pickPhoto: () => send({type: 'pickPhoto', now: Date.now()}),
     chooseLayout: layoutId => send({type: 'chooseLayout', layoutId, now: Date.now()}),
     print: () => send({type: 'print', now: Date.now()}),
     retake: () => {
@@ -287,6 +325,27 @@ export function useKioskSession(
     cancel: () => send({type: 'cancel', now: Date.now()}),
     dismiss: () => send({type: 'start', now: Date.now()}),
   };
+}
+
+/**
+ * Кодирует собранный лист в формат, который принимает принтер.
+ *
+ * Растр заметно тяжелее JPEG — для «шумной» фотографии RLE почти не сжимает,
+ * и лист 10×15 весит около 6,5 МБ против 2–3 МБ у JPEG. Поэтому он именно
+ * запасной путь, а не основной.
+ */
+function encodeSheetFor(
+  printerFormat: string | undefined,
+  sheet: {jpeg: Uint8Array; toRaster: () => RasterImage},
+): {data: Uint8Array; format: string; extension: string} {
+  if (printerFormat === 'image/pwg-raster') {
+    return {
+      data: encodePwgRaster(sheet.toRaster(), {dpi: PRINT_DPI}),
+      format: 'image/pwg-raster',
+      extension: 'pwg',
+    };
+  }
+  return {data: sheet.jpeg, format: 'image/jpeg', extension: 'jpg'};
 }
 
 /**

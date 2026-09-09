@@ -10,6 +10,7 @@
 import React, {useEffect, useRef} from 'react';
 import {Animated, Image, StyleSheet, Text, View} from 'react-native';
 
+import {BigButton} from '../components/BigButton';
 import {KioskScreen} from '../components/KioskScreen';
 import {PrinterBadge} from '../components/PrinterBadge';
 import {stringsFor, type Locale} from '../i18n/strings';
@@ -25,9 +26,14 @@ export interface AttractScreenProps {
   readonly printerHealth: PrinterHealth;
   readonly printerReason?: string;
   readonly queueLength: number;
+  /** Принтер вообще не выбран — это чинит оператор, а не гость. */
+  readonly printerMissing: boolean;
   readonly onStart: () => void;
   readonly onSecretHold: () => void;
   readonly onToggleLocale: () => void;
+  readonly onSetUpPrinter: () => void;
+  /** Выбрать готовый снимок из галереи вместо съёмки. */
+  readonly onPickPhoto: () => void;
 }
 
 export function AttractScreen({
@@ -39,9 +45,12 @@ export function AttractScreen({
   printerHealth,
   printerReason,
   queueLength,
+  printerMissing,
   onStart,
   onSecretHold,
   onToggleLocale,
+  onSetUpPrinter,
+  onPickPhoto,
 }: AttractScreenProps) {
   const t = stringsFor(locale);
   const pulse = useRef(new Animated.Value(0)).current;
@@ -64,8 +73,12 @@ export function AttractScreen({
 
   const blocked = printerHealth === 'blocked';
 
+  // Пока принтер не выбран, касание по всему экрану выключено: иначе гость
+  // пройдёт весь сценарий ради отпечатка, которого не будет.
+  const tapToStart = blocked || printerMissing ? undefined : onStart;
+
   return (
-    <KioskScreen onPressAnywhere={blocked ? undefined : onStart} onSecretHold={onSecretHold}>
+    <KioskScreen onPressAnywhere={tapToStart} onSecretHold={onSecretHold}>
       <View style={styles.container}>
         <View style={styles.header}>
           {logoPath ? (
@@ -78,18 +91,45 @@ export function AttractScreen({
         </View>
 
         <View style={styles.callToAction}>
-          {blocked ? (
+          {printerMissing ? (
+            // Сообщение адресовано владельцу устройства, а не гостю:
+            // говорим прямо, что не так и что нажать.
+            <View style={styles.setup}>
+              <Text style={[styles.tap, {color: palette.warning}]}>
+                {t.attract.printerMissing}
+              </Text>
+              <Text style={styles.hint}>{t.attract.printerMissingHint}</Text>
+              <BigButton
+                label={t.attract.setUpPrinter}
+                icon="⚙"
+                accent={accent}
+                onPress={onSetUpPrinter}
+                style={styles.setupButton}
+              />
+            </View>
+          ) : blocked ? (
             <Text style={[styles.tap, {color: palette.danger}]}>
               {t.attract.printerOffline}
             </Text>
           ) : (
-            <Animated.View style={{transform: [{scale}], opacity}}>
-              <View style={[styles.tapPill, {borderColor: accent}]}>
-                <Text style={styles.tap}>{t.attract.tapToStart}</Text>
-              </View>
-            </Animated.View>
+            <>
+              <Animated.View style={{transform: [{scale}], opacity}}>
+                <View style={[styles.tapPill, {borderColor: accent}]}>
+                  <Text style={styles.tap}>{t.attract.tapToStart}</Text>
+                </View>
+              </Animated.View>
+              <Text style={styles.hint}>{t.attract.hint}</Text>
+              {/* Второй сценарий: напечатать уже готовый снимок. Кнопка
+                  вторичная — основной путь всё-таки съёмка. */}
+              <BigButton
+                label={t.attract.pickPhoto}
+                icon="🖼"
+                variant="ghost"
+                onPress={onPickPhoto}
+                style={styles.pickButton}
+              />
+            </>
           )}
-          <Text style={styles.hint}>{t.attract.hint}</Text>
         </View>
 
         <PrinterBadge
@@ -140,6 +180,17 @@ const styles = StyleSheet.create({
   callToAction: {
     alignItems: 'center',
     gap: spacing.lg,
+  },
+  setup: {
+    alignItems: 'center',
+    gap: spacing.md,
+  },
+  setupButton: {
+    marginTop: spacing.sm,
+  },
+  pickButton: {
+    marginTop: spacing.sm,
+    minHeight: 84,
   },
   tapPill: {
     borderWidth: 3,
