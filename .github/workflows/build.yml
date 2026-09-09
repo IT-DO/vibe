@@ -85,6 +85,52 @@ jobs:
           path: dist/*.apk
           retention-days: 30
 
+  # Артефакт Actions отдаётся zip-архивом и живёт 30 дней — чтобы поставить
+  # приложение на телефон, файл пришлось бы ещё распаковывать. Релиз даёт
+  # прямую ссылку на .apk, которую можно открыть прямо в браузере телефона.
+  # Тег один и тот же, поэтому адрес страницы не меняется от сборки к сборке.
+  release:
+    name: Публикация APK
+    needs: android
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: dist
+
+      - name: Обновить релиз «android-latest»
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Сборка #${GITHUB_RUN_NUMBER}, коммит ${GITHUB_SHA:0:7}, ветка ${GITHUB_REF_NAME}.
+
+          Ставится на Android 8.0 и новее. Откройте файл на телефоне и
+          разрешите установку из этого источника.
+
+          Настройка: удержать левый верхний угол экрана 5 секунд, ПИН 2468."
+
+          # Релиз обновляем, а не пересоздаём: так ссылка переживает сборки.
+          if gh release view android-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload android-latest dist/*.apk \
+              --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit android-latest \
+              --repo "$GITHUB_REPOSITORY" --notes "$NOTES"
+          else
+            gh release create android-latest dist/*.apk \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Фото на память — свежая сборка" \
+              --notes "$NOTES" \
+              --prerelease
+          fi
+
+          echo "Прямая ссылка на APK:"
+          gh release view android-latest --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[].url'
+
   # Собрать приложение для iPad можно только на macOS, и только с сертификатом
   # разработчика. Здесь мы проверяем, что проект компилируется под симулятор:
   # это ловит ошибки в нативных модулях, не требуя ни ключей, ни устройства.
