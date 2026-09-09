@@ -68,5 +68,12 @@ export async function exitKioskMode(): Promise<void> {
 
 /** Проверяет, удерживается ли планшет в приложении прямо сейчас. */
 export async function isKioskActive(): Promise<boolean> {
-  return native ? native.isKioskActive() : false;
+  try {
+    return native ? await native.isKioskActive() : false;
+  } catch {
+    // Не смогли выяснить — считаем, что не закреплено: соседние функции
+    // молчат об отказах платформы так же, а вызывающему нужен ответ, а не
+    // исключение посреди подготовки к мероприятию.
+    return false;
+  }
 }
