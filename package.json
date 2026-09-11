@@ -1,0 +1,58 @@
+{
+  "name": "photo-na-pamyat",
+  "version": "1.0.0",
+  "private": true,
+  "description": "«Фото на память» — киоск-фотобудка для мероприятий с прямой печатью на Xiaomi Instant/Portable Photo Printer 1S по IPP",
+  "engines": {
+    "node": ">=18"
+  },
+  "scripts": {
+    "android": "react-native run-android",
+    "ios": "react-native run-ios",
+    "start": "react-native start",
+    "typecheck": "tsc --noEmit",
+    "test": "jest",
+    "test:watch": "jest --watch",
+    "lint": "eslint . --ext .ts,.tsx",
+    "verify": "npm run typecheck && npm run lint && npm test"
+  },
+  "dependencies": {
+    "@shopify/react-native-skia": "^1.5.10",
+    "qrcode-generator": "^1.4.4",
+    "react": "18.3.1",
+    "react-native": "0.76.5",
+    "react-native-ble-plx": "^3.5.0",
+    "react-native-fs": "^2.20.0",
+    "react-native-image-picker": "^7.2.3",
+    "react-native-mmkv": "^2.12.2",
+    "react-native-safe-area-context": "^4.14.0",
+    "react-native-svg": "15.8.0",
+    "react-native-tcp-socket": "^6.2.0",
+    "react-native-vision-camera": "^4.6.3",
+    "react-native-zeroconf": "^0.13.8",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.25.0",
+    "@babel/preset-env": "^7.25.0",
+    "@babel/runtime": "^7.25.0",
+    "@react-native-community/cli": "15.0.1",
+    "@react-native-community/cli-platform-android": "15.0.1",
+    "@react-native-community/cli-platform-ios": "15.0.1",
+    "@react-native/babel-preset": "0.76.5",
+    "@react-native/eslint-config": "0.76.5",
+    "@react-native/metro-config": "0.76.5",
+    "@react-native/typescript-config": "0.76.5",
+    "@testing-library/react-native": "^12.9.0",
+    "@types/jest": "^29.5.13",
+    "@types/react": "^18.3.12",
+    "babel-jest": "^29.7.0",
+    "babel-plugin-module-resolver": "^5.0.2",
+    "eslint": "^8.57.1",
+    "jest": "^29.7.0",
+    "prettier": "2.8.8",
+    "react-test-renderer": "18.3.1",
+    "ts-jest": "^29.2.5",
+    "typescript": "^5.6.3"
+  }
+}

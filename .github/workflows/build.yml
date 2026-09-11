@@ -1,0 +1,217 @@
+name: Сборка
+
+# APK собирается здесь, а не только на машине разработчика: планшет на
+# мероприятие часто готовит не тот, кто писал код, и требовать от него
+# установленную Android Studio неразумно. Готовый файл лежит во вкладке
+# Actions и ставится на планшет как есть.
+
+on:
+  push:
+    branches: ['**']
+  pull_request:
+  workflow_dispatch:
+    inputs:
+      build_ios:
+        description: 'Собрать также под iOS (ветка заморожена)'
+        type: boolean
+        default: false
+
+# Два прогона по одной ветке публикуют APK под одним и тем же именем в
+# релизе, и более старый может затереть более новый. Поэтому предыдущий
+# прогон по этой ветке отменяется: в релизе всегда лежит последний коммит.
+concurrency:
+  group: build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # Логика печати, геометрия и сценарий проверяются без эмулятора и принтера,
+  # поэтому эта работа быстрая и идёт первой: нет смысла собирать APK из кода,
+  # который не проходит тесты.
+  checks:
+    name: Типы, линт, тесты
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Проверка типов
+        run: npm run typecheck
+
+      - name: Линтер
+        run: npm run lint
+
+      - name: Тесты
+        run: npm test
+
+  android:
+    name: APK для Android
+    needs: checks
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      # React Native 0.76 собирается на JDK 17.
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: 17
+
+      - uses: android-actions/setup-android@v3
+
+      # Skia и VisionCamera компилируют свой C++, поэтому нужны NDK и CMake.
+      # Версия NDK должна совпадать с android/build.gradle.
+      - name: Установка NDK и CMake
+        run: |
+          sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1" "platforms;android-35" "build-tools;35.0.0"
+
+      - run: npm ci
+
+      - uses: gradle/actions/setup-gradle@v4
+
+      - name: Сборка релизного APK
+        working-directory: android
+        # Собираем только под arm64: все планшеты последних лет на нём, а
+        # четыре архитектуры утраивают время сборки и вес файла.
+        run: ./gradlew assembleRelease -PreactNativeArchitectures=arm64-v8a --no-daemon
+
+      # Имя файла постоянное, без номера сборки. С номером в имени каждая
+      # сборка добавляла бы в релиз новый файл вместо замены старого: ссылка
+      # менялась бы каждый раз, а в релизе копился бы список версий, из
+      # которого ещё надо выбрать свежую. Номер сборки остаётся в описании
+      # релиза — там он информация, а не часть адреса.
+      # Шрифты подписи и заголовков лежат в ассетах и в код не попадают:
+      # ни проверка типов, ни линтер их не видят. Если файл не доедет до
+      # APK, Android молча нарисует всё системным гротеском — заметить это
+      # можно только глазами на устройстве, уже на мероприятии.
+      - name: Проверить, что шрифты внутри APK
+        run: |
+          APK=android/app/build/outputs/apk/release/app-release.apk
+          for font in Lobster-Regular PlayfairDisplay-Bold PlayfairDisplay-Regular; do
+            if ! unzip -l "$APK" | grep -q "assets/fonts/$font.ttf"; then
+              echo "::error::В APK нет шрифта $font.ttf — интерфейс выйдет системным гротеском"
+              exit 1
+            fi
+            echo "  $font.ttf — на месте"
+          done
+
+      - name: Подготовить файл
+        run: |
+          mkdir -p dist
+          cp android/app/build/outputs/apk/release/app-release.apk \
+             dist/photo-na-pamyat.apk
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: apk
+          path: dist/*.apk
+          retention-days: 30
+
+  # Артефакт Actions отдаётся zip-архивом и живёт 30 дней — чтобы поставить
+  # приложение на телефон, файл пришлось бы ещё распаковывать. Релиз даёт
+  # прямую ссылку на .apk, которую можно открыть прямо в браузере телефона.
+  # Тег один и тот же, поэтому адрес страницы не меняется от сборки к сборке.
+  release:
+    name: Публикация APK
+    needs: android
+    if: github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: apk
+          path: dist
+
+      - name: Обновить релиз «android-latest»
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          NOTES="Сборка #${GITHUB_RUN_NUMBER}, коммит ${GITHUB_SHA:0:7}, ветка ${GITHUB_REF_NAME}.
+
+          Ставится на Android 8.0 и новее. Откройте файл на телефоне и
+          разрешите установку из этого источника.
+
+          Настройка: удержать левый верхний угол экрана 5 секунд, ПИН 2468."
+
+          # Подчищаем файлы старого формата (с номером в имени), оставшиеся
+          # от прежней схемы: иначе в релизе висят и они, и новый файл.
+          if gh release view android-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release view android-latest --repo "$GITHUB_REPOSITORY" \
+              --json assets --jq '.assets[].name' \
+              | grep -E '^photo-na-pamyat-[0-9]+\.apk$' \
+              | while read -r stale; do
+                  gh release delete-asset android-latest "$stale" \
+                    --repo "$GITHUB_REPOSITORY" --yes || true
+                done
+          fi
+
+          # Релиз обновляем, а не пересоздаём: так ссылка переживает сборки.
+          if gh release view android-latest --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            gh release upload android-latest dist/*.apk \
+              --repo "$GITHUB_REPOSITORY" --clobber
+            gh release edit android-latest \
+              --repo "$GITHUB_REPOSITORY" --notes "$NOTES"
+          else
+            gh release create android-latest dist/*.apk \
+              --repo "$GITHUB_REPOSITORY" \
+              --title "Фото на память — свежая сборка" \
+              --notes "$NOTES" \
+              --prerelease
+          fi
+
+          echo "Прямая ссылка на APK:"
+          gh release view android-latest --repo "$GITHUB_REPOSITORY" \
+            --json assets --jq '.assets[].url'
+
+  # ВЕТКА iOS ЗАМОРОЖЕНА — работа не запускается на обычных сборках.
+  #
+  # Проект под iOS настроен и проверенно компилируется, но развитие
+  # сосредоточено на Android. Держать macOS-раннер в каждом прогоне незачем:
+  # он самый долгий и самый дорогой из трёх, а проверять нечего, пока код
+  # под iOS не меняется.
+  #
+  # Запустить вручную: Actions -> «Сборка» -> Run workflow -> галка
+  # «Собрать также под iOS». Так проверка остаётся доступной, если ветку
+  # решат разморозить, и при этом ничего не стоит.
+  ios:
+    name: Сборка под симулятор iOS (заморожено)
+    needs: checks
+    if: inputs.build_ios
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - run: npm ci
+
+      - name: Установка подов
+        working-directory: ios
+        run: pod install --repo-update
+
+      - name: Компиляция
+        working-directory: ios
+        run: |
+          xcodebuild \
+            -workspace PhotoNaPamyat.xcworkspace \
+            -scheme PhotoNaPamyat \
+            -configuration Debug \
+            -sdk iphonesimulator \
+            -destination 'platform=iOS Simulator,name=iPad (10th generation)' \
+            CODE_SIGNING_ALLOWED=NO \
+            build
