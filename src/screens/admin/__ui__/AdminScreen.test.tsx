@@ -10,7 +10,7 @@
 import React from 'react';
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react-native';
 
-import {AdminScreen} from '../AdminScreen';
+import {AdminScreen, endpointLabel} from '../AdminScreen';
 import {DEFAULT_SETTINGS, useSettings} from '../../../store/settings';
 
 // ── Соседние слои ─────────────────────────────────────────────────────────
@@ -318,6 +318,28 @@ describe('настройки мероприятия', () => {
     expect(mockApplyPrinterSettings).toHaveBeenCalledWith(
       expect.objectContaining({transport: 'mock'}),
     );
+  });
+
+  it('адрес показывается тот, что имеет смысл для канала', async () => {
+    // Пустой прочерк рядом с работающим принтером — повод настроить его
+    // заново, хотя настраивать нечего.
+    expect(
+      endpointLabel({
+        printer: {transport: 'bluetooth', bluetoothAddress: 'F0:13:C1:52:19:90', endpoint: null},
+      }),
+    ).toBe('F0:13:C1:52:19:90');
+    expect(
+      endpointLabel({
+        printer: {
+          transport: 'ipp',
+          bluetoothAddress: 'F0:13:C1:52:19:90',
+          endpoint: {host: '192.168.1.5', port: 631, path: '/ipp/print'},
+        },
+      }),
+    ).toBe('192.168.1.5:631/ipp/print');
+    expect(
+      endpointLabel({printer: {transport: 'bluetooth', bluetoothAddress: '', endpoint: null}}),
+    ).toBe('—');
   });
 
   it('Bluetooth есть в списке каналов — иначе основной путь недоступен', async () => {

@@ -492,7 +492,23 @@ export function AdminScreen({onClose}: AdminScreenProps) {
   );
 }
 
-function endpointLabel(settings: {printer: {endpoint: {host: string; port: number; path: string} | null}}): string {
+/**
+ * Адрес принтера — тот, который имеет смысл для выбранного канала.
+ *
+ * У Bluetooth это MAC-адрес, у сетевой печати — хост с портом. Показывать
+ * пустой прочерк рядом с работающим принтером нельзя: оператор решит, что
+ * тот не настроен, и пойдёт настраивать заново.
+ */
+export function endpointLabel(settings: {
+  printer: {
+    transport: string;
+    bluetoothAddress: string;
+    endpoint: {host: string; port: number; path: string} | null;
+  };
+}): string {
+  if (settings.printer.transport === 'bluetooth') {
+    return settings.printer.bluetoothAddress || '—';
+  }
   const e = settings.printer.endpoint;
   return e ? `${e.host}:${e.port}${e.path}` : '—';
 }
