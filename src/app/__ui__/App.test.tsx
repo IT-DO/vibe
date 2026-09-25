@@ -89,7 +89,7 @@ beforeEach(() => {
     settings: {
       ...DEFAULT_SETTINGS,
       locale: 'ru',
-      printer: {...DEFAULT_SETTINGS.printer, transport: 'mock', endpoint: null},
+      printer: {...DEFAULT_SETTINGS.printer, bluetoothAddress: 'F0:13:C1:52:19:90'},
       flow: {...DEFAULT_SETTINGS.flow, layouts: ['single']},
     },
   });
@@ -138,11 +138,11 @@ describe('состояние принтера на заставке', () => {
     expect(screen.getByText(/Настроить принтер/)).toBeTruthy();
   });
 
-  it('выбранный, но не найденный IPP-принтер — тоже «не подключён»', async () => {
+  it('принтер не выбран — заставка зовёт настроить, а не приглашает сниматься', async () => {
     useSettings.setState({
       settings: {
         ...DEFAULT_SETTINGS,
-        printer: {...DEFAULT_SETTINGS.printer, transport: 'ipp', endpoint: null},
+        printer: {...DEFAULT_SETTINGS.printer, bluetoothAddress: ''},
       },
     });
     render(<App />);

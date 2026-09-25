@@ -73,9 +73,7 @@ export default function App() {
   // говорить о ней надо иначе, чем о кончившейся бумаге.
   const printerMissing =
     queue.printer?.blockingReason === PRINTER_NOT_CONFIGURED ||
-    (settings.printer.transport === 'bluetooth' &&
-      settings.printer.bluetoothAddress === '') ||
-    (settings.printer.transport === 'ipp' && settings.printer.endpoint === null);
+    settings.printer.bluetoothAddress === '';
   const toggleLocale = useCallback(
     () => setLocale(settings.locale === 'ru' ? 'en' : 'ru'),
     [settings.locale, setLocale],
@@ -119,7 +117,7 @@ export default function App() {
             subtitle={settings.event.subtitle}
             logoPath={settings.event.logoPath}
             accent={accent}
-            printerHealth={queue.printer?.health ?? 'unknown'}
+            printerHealth={queue.printer?.health ?? null}
             {...(queue.pausedReason ? {printerReason: queue.pausedReason} : {})}
             queueLength={queue.pending}
             printerMissing={printerMissing}

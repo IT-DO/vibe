@@ -43,11 +43,6 @@ jest.mock('../../imaging/composer', () => ({
   },
 }));
 
-const mockEncodePwgRaster = jest.fn(() => Uint8Array.from([9, 9]));
-jest.mock('../../printing/pwg/raster', () => ({
-  encodePwgRaster: (...args: unknown[]) => mockEncodePwgRaster(...(args as [])),
-}));
-
 const mockWriteBytes = jest.fn(async () => undefined);
 const mockRemoveFile = jest.fn(async () => undefined);
 jest.mock('../../platform/files', () => ({
@@ -255,36 +250,35 @@ describe('сессия — сборка листа', () => {
   });
 
   it('падение сборки при печати показывает ошибку, а не зависает', async () => {
+    // Ровно то, что происходит на устройстве, когда лист не собирается:
+    // превью не появилось (экран показывает заглушку), гость всё равно
+    // жмёт «Печатать», и пересборка падает снова. Будка обязана сказать
+    // об этом, а не молча остаться на месте.
+    mockComposeSheet.mockRejectedValue(new Error('Нет памяти'));
     const camera = workingCamera();
     const {result} = mount(camera);
 
     act(() => result.current.start());
     await reach(result, 'review');
-    await waitFor(() => expect(result.current.previewUri).toBeTruthy());
-
-    // Готовый лист есть, но принтеру нужен растр — значит пересборка.
-    mockTransport.documentFormat = 'image/pwg-raster';
-    mockComposeSheet.mockRejectedValue(new Error('Нет памяти'));
+    await waitFor(() => expect(result.current.previewUri).toBeNull());
 
     act(() => result.current.print());
     await reach(result, 'error');
     expect(result.current.busy).toBe(false);
+    expect(mockEnqueue).not.toHaveBeenCalled();
   });
-});
 
-describe('сессия — формат принтера', () => {
-  it('принтеру без JPEG отправляет растр', async () => {
-    mockTransport.documentFormat = 'image/pwg-raster';
+  it('несобравшийся лист записывается в журнал — иначе причину не найти', async () => {
+    mockComposeSheet.mockRejectedValue(new Error('Нет памяти'));
     const camera = workingCamera();
     const {result} = mount(camera);
 
     act(() => result.current.start());
     await reach(result, 'review');
     act(() => result.current.print());
-    await waitFor(() => expect(mockEnqueue).toHaveBeenCalled());
+    await reach(result, 'error');
 
-    expect(mockEncodePwgRaster).toHaveBeenCalled();
-    expect(mockEnqueue.mock.calls[0]![0]).toMatchObject({format: 'image/pwg-raster'});
+    expect(mockRecordError).toHaveBeenCalledWith('Печать', expect.any(Error));
   });
 });
 

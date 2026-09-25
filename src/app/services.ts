@@ -8,25 +8,15 @@
 
 import RNFS from 'react-native-fs';
 
-import {discoverPrinters, type DiscoveredPrinter} from '../printing/discovery';
-import {parseCapabilities} from '../printing/ipp/capabilities';
-import {IppClient, MEDIA_2X3} from '../printing/ipp/client';
 import {PrintQueue, type QueueStorage, type QueuedJob, type Scheduler} from '../printing/queue';
 import {
   HanntoTransport,
-  IppTransport,
-  MockTransport,
-  SystemPrintTransport,
   UnconfiguredTransport,
   type PrinterConnector,
 } from '../printing/transports';
 import {HanntoSession} from '../printing/hannto/session';
 import {connectToPrinter, type PrinterConnection} from '../platform/bluetooth';
 import type {PrinterTransport} from '../printing/types';
-import {ZeroconfBrowser} from '../platform/mdns';
-import {networkInfo} from '../platform/network-info';
-import {systemPrintBridge, writeTempPrintFile} from '../platform/system-print';
-import {RnTcpConnector} from '../platform/tcp';
 import {Paths, ensureDirectories, fileDocuments} from '../platform/files';
 import type {PrinterSettings} from '../store/settings';
 
@@ -52,9 +42,6 @@ const queueStorage: QueueStorage = {
     await RNFS.writeFile(Paths.queueFile, JSON.stringify(jobs), 'utf8');
   },
 };
-
-export const connector = new RnTcpConnector();
-export const mdns = new ZeroconfBrowser();
 
 /**
  * Соединение с фотопринтером по Bluetooth.
@@ -124,53 +111,28 @@ export function activeTransport(): PrinterTransport {
  * Вызывается при старте и после любых изменений в разделе «Принтер».
  */
 export async function applyPrinterSettings(settings: PrinterSettings): Promise<void> {
-  const targetMedia = MEDIA_2X3;
-
-  // Транспорт мог держать открытое соединение — отпускаем принтер,
-  // иначе он останется занятым и к нему не подключится ни новый
-  // транспорт, ни телефон оператора.
+  // Прежний транспорт мог держать открытое соединение — отпускаем принтер,
+  // иначе он останется занятым и к нему не подключится ни новый транспорт,
+  // ни телефон оператора.
   await releaseTransport();
 
-  if (settings.transport === 'mock') {
-    currentTransport = new MockTransport();
-    return;
-  }
-
-  if (settings.transport === 'bluetooth') {
-    if (!settings.bluetoothAddress) {
-      // Принтер ещё не выбран в админке. Не притворяемся рабочими.
-      currentTransport = new UnconfiguredTransport();
-      return;
-    }
-    currentTransport = new HanntoTransport({
-      connector: new BluetoothPrinterConnector(
-        settings.bluetoothAddress,
-        settings.displayName || 'Фотопринтер',
-      ),
-    });
-    return;
-  }
-
-  if (settings.transport === 'system') {
-    currentTransport = new SystemPrintTransport(systemPrintBridge, writeTempPrintFile);
-    return;
-  }
-
-  if (!settings.endpoint) {
-    // Выбран прямой IPP, но принтер ещё не найден. Не притворяемся рабочими:
-    // очередь встанет на паузу, а заставка скажет, что делать.
+  if (!settings.bluetoothAddress) {
+    // Принтер ещё не выбран в админке. Не притворяемся рабочими: очередь
+    // встанет на паузу, а заставка скажет, что делать.
     currentTransport = new UnconfiguredTransport();
     return;
   }
 
-  const client = new IppClient({endpoint: settings.endpoint, connector});
-  const capabilities = await client.getCapabilities();
-  currentTransport = new IppTransport({
-    endpoint: settings.endpoint,
-    connector,
-    capabilities,
-    targetMedia,
+  currentTransport = new HanntoTransport({
+    connector: new BluetoothPrinterConnector(
+      settings.bluetoothAddress,
+      settings.displayName || 'Фотопринтер',
+    ),
   });
+
+  // Спрашиваем принтер сразу, а не при первом госте: оператор настраивает
+  // будку заранее и должен увидеть результат настройки немедленно.
+  await printQueue.refreshPrinter();
 }
 
 /** Отпускает принтер, если прежний транспорт держал соединение. */
@@ -181,16 +143,11 @@ async function releaseTransport(): Promise<void> {
   }
 }
 
-/** Ищет принтеры в сети — кнопка «Найти принтер» в админке. */
-export function findPrinters(): Promise<DiscoveredPrinter[]> {
-  return discoverPrinters({connector, mdns, network: networkInfo});
-}
-
 /** Подготавливает файловую систему и восстанавливает очередь. */
 export async function bootstrap(): Promise<void> {
   await ensureDirectories();
   await printQueue.restore();
   printQueue.start();
+  // Не ждём: заставка покажет индикатор, как только принтер ответит.
+  void printQueue.refreshPrinter();
 }
-
-export {parseCapabilities};

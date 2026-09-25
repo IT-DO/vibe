@@ -8,13 +8,21 @@
  */
 
 import React, {useEffect, useRef} from 'react';
-import {Animated, Image, StyleSheet, Text, View} from 'react-native';
+import {
+  Animated,
+  Image,
+  StyleSheet,
+  Text,
+  View,
+  useWindowDimensions,
+} from 'react-native';
 
 import {BigButton} from '../components/BigButton';
 import {KioskScreen} from '../components/KioskScreen';
 import {PrinterBadge} from '../components/PrinterBadge';
 import {stringsFor, type Locale} from '../i18n/strings';
-import type {PrinterHealth} from '../printing/ipp/capabilities';
+import type {PrinterHealth} from '../printing/types';
+import {fitFontSize} from '../theme/scale';
 import {fonts, palette, spacing, typography} from '../theme/theme';
 
 export interface AttractScreenProps {
@@ -23,7 +31,8 @@ export interface AttractScreenProps {
   readonly subtitle: string;
   readonly logoPath: string;
   readonly accent: string;
-  readonly printerHealth: PrinterHealth;
+  /** `null` — принтер ещё не спрашивали. */
+  readonly printerHealth: PrinterHealth | null;
   readonly printerReason?: string;
   readonly queueLength: number;
   /** Принтер вообще не выбран — это чинит оператор, а не гость. */
@@ -53,6 +62,15 @@ export function AttractScreen({
   onPickPhoto,
 }: AttractScreenProps) {
   const t = stringsFor(locale);
+  const {width} = useWindowDimensions();
+
+  // Доступная ширина строки призыва: экран минус поля экрана и минус
+  // внутренние поля самой «таблетки».
+  const tapFontSize = fitFontSize(
+    t.attract.tapToStart,
+    width - spacing.xl * 2 - spacing.xl * 2,
+    typography.title,
+  );
   const pulse = useRef(new Animated.Value(0)).current;
 
   // Медленная пульсация призыва: движение на периферии зрения замечают даже
@@ -120,7 +138,14 @@ export function AttractScreen({
             <>
               <Animated.View style={{transform: [{scale}], opacity}}>
                 <View style={[styles.tapPill, {borderColor: accent}]}>
-                  <Text style={styles.tap}>{t.attract.tapToStart}</Text>
+                  {/*
+                    Кегль подбирается под ширину экрана: на телефоне
+                    «сфотографироваться» не помещается в строку, а Android
+                    в таком случае рвёт слово посередине.
+                  */}
+                  <Text style={[styles.tap, {fontSize: tapFontSize}]}>
+                    {t.attract.tapToStart}
+                  </Text>
                 </View>
               </Animated.View>
               <Text style={styles.hint}>{t.attract.hint}</Text>

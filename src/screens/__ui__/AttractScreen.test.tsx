@@ -3,7 +3,7 @@ import {StyleSheet} from 'react-native';
 import {fireEvent, render, screen} from '@testing-library/react-native';
 
 import {AttractScreen, type AttractScreenProps} from '../AttractScreen';
-import type {PrinterHealth} from '../../printing/ipp/capabilities';
+import type {PrinterHealth} from '../../printing/types';
 
 /**
  * Свежие пропсы на каждый тест: общий объект с jest.fn() копил бы вызовы

@@ -7,7 +7,7 @@ import React from 'react';
 import {render, screen} from '@testing-library/react-native';
 
 import {PrinterBadge} from '../PrinterBadge';
-import type {PrinterHealth} from '../../printing/ipp/capabilities';
+import type {PrinterHealth} from '../../printing/types';
 
 const setup = (props: {
   health: PrinterHealth;

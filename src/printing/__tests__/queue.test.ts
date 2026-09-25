@@ -154,7 +154,7 @@ describe('повторные попытки', () => {
     expect(h.queue.snapshot().jobs[0]).toMatchObject({
       state: 'failed',
       attempts: 2,
-      error: 'Wi-Fi отвалился',
+      error: 'Связь с принтером прервана',
     });
   });
 

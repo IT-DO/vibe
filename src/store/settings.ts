@@ -14,7 +14,6 @@ import {withDefaults} from './merge';
 
 import type {LayoutId} from '../imaging/layouts';
 import type {Locale} from '../i18n/strings';
-import type {IppEndpoint} from '../printing/ipp/client';
 import {DEFAULT_EVENT_THEME, type EventTheme} from '../theme/theme';
 
 const storage = new MMKV({id: 'photo-na-pamyat'});
@@ -29,21 +28,10 @@ const storage = new MMKV({id: 'photo-na-pamyat'});
  */
 export type MediaChoice = '2x3';
 
-/**
- * Какой канал печати использовать.
- *
- * `bluetooth` — основной: Xiaomi 1S печатает только так, Wi-Fi у него нет.
- * Остальные оставлены для площадок, где рядом оказался сетевой принтер,
- * и для проверки приложения без принтера вообще.
- */
-export type TransportChoice = 'bluetooth' | 'ipp' | 'system' | 'mock';
-
 export interface PrinterSettings {
-  readonly transport: TransportChoice;
   /** MAC-адрес сопряжённого принтера. Пусто — принтер ещё не выбран. */
   readonly bluetoothAddress: string;
-  /** Адрес сетевого принтера, если печатаем по IPP. */
-  readonly endpoint: IppEndpoint | null;
+  /** Имя принтера для админки. */
   readonly displayName: string;
   readonly media: MediaChoice;
   /** Число копий каждого отпечатка. */
@@ -96,9 +84,7 @@ export const DEFAULT_SETTINGS: Settings = {
   locale: 'ru',
   event: DEFAULT_EVENT_THEME,
   printer: {
-    transport: 'bluetooth',
     bluetoothAddress: '',
-    endpoint: null,
     displayName: '',
     media: '2x3',
     copies: 1,

@@ -11,11 +11,12 @@ import React from 'react';
 import {StyleSheet, Text, View} from 'react-native';
 
 import {describePrinterState, type Locale} from '../i18n/strings';
-import type {PrinterHealth} from '../printing/ipp/capabilities';
+import type {PrinterHealth} from '../printing/types';
 import {palette, radius, spacing, typography} from '../theme/theme';
 
 export interface PrinterBadgeProps {
-  readonly health: PrinterHealth;
+  /** `null` — принтер ещё не спрашивали; это не повод тревожить оператора. */
+  readonly health: PrinterHealth | null;
   readonly reason?: string;
   readonly queueLength: number;
   readonly locale: Locale;
@@ -31,19 +32,24 @@ const HEALTH_COLOR: Record<PrinterHealth, string> = {
 
 export function PrinterBadge({health, reason, queueLength, locale}: PrinterBadgeProps) {
   // В обычной работе значок не отвлекает: показываем его, только когда есть
-  // что сказать.
-  const needsAttention = health === 'blocked' || health === 'warning' || health === 'unknown';
-  if (!needsAttention && queueLength === 0) {
+  // что сказать. Пока принтер не спрашивали, сказать нечего — «неизвестно»
+  // выглядит как неисправность, а на деле это просто отсутствие ответа.
+  const needsAttention =
+    health === 'blocked' || health === 'warning' || health === 'unknown';
+  if ((health === null || !needsAttention) && queueLength === 0) {
     return null;
   }
 
-  const text = needsAttention
-    ? describePrinterState(reason, locale)
-    : `${queueLength}`;
+  const text =
+    health !== null && needsAttention
+      ? describePrinterState(reason, locale)
+      : `${queueLength}`;
 
   return (
     <View style={styles.badge}>
-      <View style={[styles.dot, {backgroundColor: HEALTH_COLOR[health]}]} />
+      <View
+        style={[styles.dot, {backgroundColor: HEALTH_COLOR[health ?? 'unknown']}]}
+      />
       <Text style={styles.text} numberOfLines={1}>
         {text}
       </Text>

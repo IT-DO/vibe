@@ -91,7 +91,6 @@ describe('выбор принтера', () => {
 
     const printer = useSettings.getState().settings.printer;
     expect(printer.bluetoothAddress).toBe('F0:13:C1:52:19:90');
-    expect(printer.transport).toBe('bluetooth');
     expect(printer.displayName).toBe('Mi Portable Photo Printer');
   });
 

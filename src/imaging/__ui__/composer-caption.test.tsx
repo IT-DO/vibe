@@ -37,11 +37,17 @@ let canvas: ReturnType<typeof fakeCanvas>;
 let fontCalls: unknown[][];
 /** Сколько снимков разом держится в памяти и каким был пик. */
 let alive: {now: number; peak: number; loaded: number};
+/** Порядок обращений к холсту и кадрам — по нему видно, что чему предшествует. */
+let log: string[];
+/** Что вернёт `MakeOffscreen`; `null` — холст создать не удалось. */
+let surfaceAvailable: boolean;
 
 beforeEach(() => {
   canvas = fakeCanvas();
   fontCalls = [];
   alive = {now: 0, peak: 0, loaded: 0};
+  log = [];
+  surfaceAvailable = true;
 
   const snapshot = {
     encodeToBytes: () => Uint8Array.from([1, 2, 3]),
@@ -51,11 +57,14 @@ beforeEach(() => {
 
   Object.assign(Skia as object, {
     Surface: {
-      MakeOffscreen: () => ({
-        getCanvas: () => canvas,
-        flush: jest.fn(),
-        makeImageSnapshot: () => snapshot,
-      }),
+      MakeOffscreen: (width: number, height: number) =>
+        surfaceAvailable
+          ? {
+              getCanvas: () => canvas,
+              flush: () => log.push(`растеризация ${width}×${height}`),
+              makeImageSnapshot: () => snapshot,
+            }
+          : null,
     },
     Color: (value: string) => value,
     Paint: () => ({
@@ -70,11 +79,14 @@ beforeEach(() => {
         alive.now += 1;
         alive.loaded += 1;
         alive.peak = Math.max(alive.peak, alive.now);
+        const id = alive.loaded;
+        log.push(`кадр ${id} прочитан`);
         return {
           width: () => 3024,
           height: () => 4032,
           dispose: () => {
             alive.now -= 1;
+            log.push(`кадр ${id} освобождён`);
           },
         };
       },
@@ -211,5 +223,71 @@ describe('расход памяти на сборке листа', () => {
     const sheet = await compose('polaroid', {typeface: TYPEFACE});
     expect(sheet.jpeg.length).toBeGreaterThan(0);
     expect(canvas.drawImageRect).not.toHaveBeenCalled();
+  });
+});
+
+describe('кадр освобождается только после растеризации', () => {
+  it('между чтением кадра и его освобождением холст растеризуется', async () => {
+    // Холст на видеокарте рисует отложенно: если отпустить текстуру
+    // раньше, к моменту выполнения она уже ничья — кадр не попадёт на
+    // лист. Снаружи это выглядит как пустой отпечаток.
+    await compose('duo', {typeface: TYPEFACE});
+
+    const ids = log
+      .filter(entry => entry.endsWith('прочитан'))
+      .map(entry => entry.split(' ')[1]!);
+    expect(ids).toHaveLength(2);
+
+    for (const id of ids) {
+      const read = log.indexOf(`кадр ${id} прочитан`);
+      const freed = log.indexOf(`кадр ${id} освобождён`);
+      expect(freed).toBeGreaterThan(read);
+
+      const rasterized = log.findIndex(
+        (entry, at) => at > read && at < freed && entry.startsWith('растеризация'),
+      );
+      expect(rasterized).toBeGreaterThan(read);
+    }
+  });
+
+  it('в памяти всё равно держится не больше одного кадра', async () => {
+    // Растеризация не должна отменить главное: снимок 12 Мп занимает
+    // около 48 МБ, и держать их все телефон не переживал.
+    await compose('duo', {typeface: TYPEFACE});
+    expect(alive.peak).toBe(1);
+  });
+});
+
+describe('ошибка сборки называет место', () => {
+  it('невозможный холст сообщает свой размер', async () => {
+    // По размеру сразу видно, упёрлись ли мы в ограничение видеопамяти.
+    surfaceAvailable = false;
+    await expect(compose('single')).rejects.toThrow(/Не удалось создать холст \d+×\d+/);
+  });
+
+  it('падение на кадрах помечено стадией', async () => {
+    Object.assign(Skia as object, {
+      Data: {
+        fromURI: async () => {
+          throw new Error('файл не читается');
+        },
+      },
+    });
+    await expect(compose('single')).rejects.toThrow(
+      /стадия «кадры»: файл не читается/,
+    );
+  });
+
+  it('падение на подписи помечено стадией, а не теряется', async () => {
+    // Раньше отсюда приходило голое «Value is undefined, expected an
+    // Object» — по такому сообщению место происшествия не найти.
+    Object.assign(Skia as object, {
+      Font: () => {
+        throw new Error('Value is undefined, expected an Object');
+      },
+    });
+    await expect(compose('duo', {typeface: TYPEFACE})).rejects.toThrow(
+      /стадия «подпись»/,
+    );
   });
 });

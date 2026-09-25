@@ -142,3 +142,37 @@ function clamp(value: number, min: number, max: number): number {
 function isUsable(value: number): boolean {
   return Number.isFinite(value) && value > 0;
 }
+
+/**
+ * Средняя ширина знака в долях кегля.
+ *
+ * Точную ширину строки без измерения не узнать, а измерять текст в React
+ * Native можно только асинхронно, уже после первой отрисовки — то есть
+ * призыв успел бы мигнуть сломанным. Оценка по среднему знаку даёт кегль
+ * чуть меньше предельного, и это ровно та ошибка, которая не видна.
+ */
+const AVERAGE_GLYPH = 0.5;
+
+/**
+ * Кегль, при котором самое длинное слово помещается в строку.
+ *
+ * Нужен там, где текст нельзя перенести по слогам: React Native на Android
+ * рвёт слово посередине, если оно шире строки, и «сфотографироваться»
+ * превращается в «сфотогр афироваться». Уменьшить кегль лучше, чем показать
+ * гостю разорванное слово.
+ */
+export function fitFontSize(
+  text: string,
+  availableWidth: number,
+  maxSize: number,
+  minSize = 16,
+): number {
+  const longest = text
+    .split(/\s+/)
+    .reduce((widest, word) => Math.max(widest, word.length), 0);
+  if (longest === 0 || availableWidth <= 0) {
+    return maxSize;
+  }
+  const fits = availableWidth / (longest * AVERAGE_GLYPH);
+  return Math.max(minSize, Math.min(maxSize, Math.floor(fits)));
+}

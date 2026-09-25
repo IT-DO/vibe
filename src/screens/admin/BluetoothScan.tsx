@@ -128,7 +128,6 @@ export function BluetoothScan() {
                 tone={chosen ? 'accent' : undefined}
                 onPress={() =>
                   updatePrinter({
-                    transport: 'bluetooth',
                     bluetoothAddress: device.address,
                     displayName: device.name,
                   })

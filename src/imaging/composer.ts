@@ -5,22 +5,20 @@
  * а не масштабируем силами принтера. Принтер пересчитывает изображение своим
  * простым алгоритмом, и на лицах это видно; Skia даёт нормальную фильтрацию.
  *
- * На выходе — JPEG (основной путь) или сырые пиксели RGB для PWG Raster,
+ * На выходе — JPEG: принтер другого не принимает,
  * если принтер не принимает JPEG.
  */
 
 import {
-  AlphaType,
-  ColorType,
   ImageFormat,
   Skia,
   TileMode,
   type SkCanvas,
   type SkImage,
+  type SkSurface,
   type SkTypeface,
 } from '@shopify/react-native-skia';
 
-import type {RasterImage} from '../printing/pwg/raster';
 import {
   bleedOffset,
   coverCrop,
@@ -82,8 +80,6 @@ export interface ComposedSheet {
   readonly jpeg: Uint8Array;
   /** Размер холста в пикселях (с учётом припуска). */
   readonly size: Size;
-  /** Сырые пиксели для PWG Raster; считаются по требованию. */
-  toRaster(): RasterImage;
 }
 
 /** Собирает отпечаток и кодирует его в JPEG. */
@@ -94,7 +90,11 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
 
   const surface = Skia.Surface.MakeOffscreen(canvasSize.width, canvasSize.height);
   if (!surface) {
-    throw new Error('Не удалось создать холст для сборки отпечатка');
+    // Размер в сообщении не для красоты: если холст не создаётся, первое,
+    // что надо знать, — не упёрлись ли мы в ограничение видеопамяти.
+    throw new Error(
+      `Не удалось создать холст ${canvasSize.width}×${canvasSize.height} для сборки отпечатка`,
+    );
   }
 
   const canvas = surface.getCanvas();
@@ -108,17 +108,19 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
   const geometry = options.layout.geometry(sheet, options.dpi);
 
   try {
-    await drawCells(canvas, geometry, options);
+    await stage('кадры', () => drawCells(canvas, surface, geometry, options));
 
     if (options.framePath) {
-      await drawFrame(canvas, options.framePath, sheet);
+      await stage('рамка', () => drawFrame(canvas, options.framePath!, sheet));
     }
     if (options.caption && geometry.caption && options.typeface) {
       // Шрифт обязателен: без него нативная часть Skia падает на самом
       // конструкторе `Font`, унося с собой весь лист. Подпись — украшение,
       // отпечаток — то, ради чего человек подошёл, поэтому при отсутствии
       // шрифта лист выходит без подписи, а не не выходит вовсе.
-      drawCaption(canvas, geometry, options.caption, options.typeface);
+      await stage('подпись', async () =>
+        drawCaption(canvas, geometry, options.caption!, options.typeface!),
+      );
     }
   } finally {
     canvas.restore();
@@ -128,13 +130,14 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
   const snapshot = surface.makeImageSnapshot();
   const encoded = snapshot.encodeToBytes(ImageFormat.JPEG, options.jpegQuality);
   if (!encoded) {
-    throw new Error('Не удалось закодировать отпечаток в JPEG');
+    throw new Error(
+      `Не удалось закодировать отпечаток ${canvasSize.width}×${canvasSize.height} в JPEG`,
+    );
   }
 
   return {
     jpeg: encoded,
     size: canvasSize,
-    toRaster: () => snapshotToRaster(snapshot, canvasSize),
   };
 }
 
@@ -154,6 +157,7 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
  */
 async function drawCells(
   canvas: SkCanvas,
+  surface: SkSurface,
   geometry: LayoutGeometry,
   options: ComposeOptions,
 ): Promise<void> {
@@ -195,6 +199,10 @@ async function drawCells(
         );
         canvas.restore();
       }
+      // Растеризуем до того, как отпустить кадр. Холст на видеокарте
+      // выполняет рисование отложенно, и освобождённая текстура к моменту
+      // выполнения уже ничья — лист вышел бы без этого кадра.
+      surface.flush();
     } finally {
       image.dispose?.();
     }
@@ -279,36 +287,6 @@ async function loadImage(path: string): Promise<SkImage | null> {
   return Skia.Image.MakeImageFromEncoded(data);
 }
 
-/**
- * Переводит готовый холст в сырые пиксели RGB для PWG Raster.
- * Skia отдаёт RGBA — альфу отбрасываем, накладывая на белый фон.
- */
-function snapshotToRaster(snapshot: SkImage, size: Size): RasterImage {
-  const rgba = snapshot.readPixels(0, 0, {
-    width: size.width,
-    height: size.height,
-    colorType: ColorType.RGBA_8888,
-    alphaType: AlphaType.Unpremul,
-  });
-  if (!rgba) {
-    throw new Error('Не удалось прочитать пиксели холста');
-  }
-
-  const pixelCount = size.width * size.height;
-  const rgb = new Uint8Array(pixelCount * 3);
-  for (let i = 0; i < pixelCount; i++) {
-    const src = i * 4;
-    const dst = i * 3;
-    const alpha = rgba[src + 3]! / 255;
-    // Смешиваем с белым: бумага всё равно белая.
-    rgb[dst] = Math.round(rgba[src]! * alpha + 255 * (1 - alpha));
-    rgb[dst + 1] = Math.round(rgba[src + 1]! * alpha + 255 * (1 - alpha));
-    rgb[dst + 2] = Math.round(rgba[src + 2]! * alpha + 255 * (1 - alpha));
-  }
-
-  return {width: size.width, height: size.height, channels: 3, pixels: rgb};
-}
-
 /** Уменьшенная копия для экрана просмотра — полный лист туда не нужен. */
 export async function makePreview(
   jpeg: Uint8Array,
@@ -348,3 +326,19 @@ export async function makePreview(
 }
 
 export {TileMode};
+
+/**
+ * Помечает ошибку стадией сборки.
+ *
+ * В журнал попадает только сообщение, и «Value is undefined» без места
+ * происшествия не говорит ничего. С пометкой понятно сразу: упали кадры,
+ * рамка или подпись.
+ */
+async function stage<T>(name: string, run: () => Promise<T>): Promise<T> {
+  try {
+    return await run();
+  } catch (error) {
+    const reason = error instanceof Error ? error.message : String(error);
+    throw new Error(`Сборка листа, стадия «${name}»: ${reason}`);
+  }
+}

@@ -10,11 +10,10 @@
 import React from 'react';
 import {act, fireEvent, render, screen, waitFor} from '@testing-library/react-native';
 
-import {AdminScreen, endpointLabel} from '../AdminScreen';
+import {AdminScreen} from '../AdminScreen';
 import {DEFAULT_SETTINGS, useSettings} from '../../../store/settings';
 
 // ── Соседние слои ─────────────────────────────────────────────────────────
-const mockFindPrinters = jest.fn(async () => [] as unknown[]);
 const mockApplyPrinterSettings = jest.fn(async () => undefined);
 const mockQueueSnapshot = jest.fn(() => ({
   pending: 0,
@@ -26,7 +25,6 @@ const mockRetry = jest.fn(async (_id: string) => undefined);
 const mockCancel = jest.fn(async (_id: string) => undefined);
 
 jest.mock('../../../app/services', () => ({
-  findPrinters: () => mockFindPrinters(),
   applyPrinterSettings: (...args: unknown[]) => mockApplyPrinterSettings(...(args as [])),
   activeTransport: () => ({label: 'Демо-принтер', canTrackJobs: false}),
   printQueue: {
@@ -57,23 +55,9 @@ jest.mock('../../../platform/files', () => ({
   purgeAll: jest.fn(async () => undefined),
 }));
 
-jest.mock('../../../platform/network-info', () => ({
-  currentSsid: jest.fn(async () => 'Event-WiFi'),
-}));
-
-const PRINTER = {
-  displayName: 'Xiaomi Photo Printer',
-  endpoint: {host: '192.168.1.42', port: 631, path: '/ipp/print'},
-  source: 'mdns' as const,
-  capabilities: {
-    documentFormats: ['image/jpeg', 'image/pwg-raster'],
-    media: [{name: 'oe_photo-2x3_2x3in', widthMm: 50.8, heightMm: 76.2}],
-  },
-};
 
 beforeEach(() => {
   useSettings.setState({settings: {...DEFAULT_SETTINGS, adminPin: '2468'}});
-  mockFindPrinters.mockResolvedValue([]);
   mockCrashLog.mockResolvedValue('');
   mockQueueSnapshot.mockReturnValue({
     pending: 0,
@@ -128,42 +112,6 @@ describe('настройка принтера', () => {
     expect(screen.getByText('не выбран')).toBeTruthy();
   });
 
-  it('поиск показывает найденное с адресом и форматами', async () => {
-    mockFindPrinters.mockResolvedValue([PRINTER]);
-    await openAdmin();
-
-    fireEvent.press(screen.getByText('Найти принтер'));
-    await waitFor(() => expect(screen.getByText('Xiaomi Photo Printer')).toBeTruthy());
-
-    expect(screen.getByText(/192\.168\.1\.42:631/)).toBeTruthy();
-    expect(screen.getByText('image/jpeg, image/pwg-raster')).toBeTruthy();
-  });
-
-  it('пустой поиск объясняет, куда смотреть', async () => {
-    await openAdmin();
-    expect(screen.getByText(/в одной сети с ним/)).toBeTruthy();
-  });
-
-  it('выбор принтера сохраняется и применяется сразу', async () => {
-    // Оператор нажал «выбрать» — принтер должен заработать без перезапуска.
-    mockFindPrinters.mockResolvedValue([PRINTER]);
-    await openAdmin();
-
-    fireEvent.press(screen.getByText('Найти принтер'));
-    await waitFor(() => expect(screen.getByText('Xiaomi Photo Printer')).toBeTruthy());
-    fireEvent.press(screen.getByText('выбрать'));
-    await act(async () => {});
-
-    expect(useSettings.getState().settings.printer).toMatchObject({
-      transport: 'ipp',
-      endpoint: PRINTER.endpoint,
-      displayName: 'Xiaomi Photo Printer',
-    });
-    expect(mockApplyPrinterSettings).toHaveBeenCalledWith(
-      expect.objectContaining({transport: 'ipp', endpoint: PRINTER.endpoint}),
-    );
-  });
-
   it('формат бумаги показан, но не выбирается — он один', async () => {
     // Принтер печатает только на карманной бумаге ZINK. Переключатель из
     // одного варианта — это не выбор, а лишний повод в него ткнуть.
@@ -171,10 +119,20 @@ describe('настройка принтера', () => {
     expect(screen.getByText(/5 × 7,6 см/)).toBeTruthy();
   });
 
-  it('показывает сеть, в которой находится планшет', async () => {
-    // Половина проблем с печатью — планшет и принтер в разных сетях.
+  it('показывает адрес выбранного принтера', async () => {
+    useSettings.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        printer: {
+          ...DEFAULT_SETTINGS.printer,
+          bluetoothAddress: 'F0:13:C1:52:19:90',
+          displayName: 'Mi Portable Photo Printer',
+        },
+      },
+    });
     await openAdmin();
-    await waitFor(() => expect(screen.getByText('Event-WiFi')).toBeTruthy());
+    expect(screen.getByText('F0:13:C1:52:19:90')).toBeTruthy();
+    expect(screen.getByText('Mi Portable Photo Printer')).toBeTruthy();
   });
 
   it('состояние принтера переводится на человеческий', async () => {
@@ -301,52 +259,4 @@ describe('настройки мероприятия', () => {
     expect(useSettings.getState().settings.event.title).toBe('Юбилей');
   });
 
-  it('смена канала печати доходит до настроек', async () => {
-    await openAdmin();
-    fireEvent.press(screen.getByText('Демо'));
-    expect(useSettings.getState().settings.printer.transport).toBe('mock');
-  });
-
-  it('канал применяется сразу, а не при выходе из админки', async () => {
-    // Оператор переключает канал, чтобы тут же проверить печать.
-    // «Переключил, а ничего не изменилось» — худшее, что может случиться
-    // за пять минут до открытия.
-    await openAdmin();
-    await act(async () => {
-      fireEvent.press(screen.getByText('Демо'));
-    });
-    expect(mockApplyPrinterSettings).toHaveBeenCalledWith(
-      expect.objectContaining({transport: 'mock'}),
-    );
-  });
-
-  it('адрес показывается тот, что имеет смысл для канала', async () => {
-    // Пустой прочерк рядом с работающим принтером — повод настроить его
-    // заново, хотя настраивать нечего.
-    expect(
-      endpointLabel({
-        printer: {transport: 'bluetooth', bluetoothAddress: 'F0:13:C1:52:19:90', endpoint: null},
-      }),
-    ).toBe('F0:13:C1:52:19:90');
-    expect(
-      endpointLabel({
-        printer: {
-          transport: 'ipp',
-          bluetoothAddress: 'F0:13:C1:52:19:90',
-          endpoint: {host: '192.168.1.5', port: 631, path: '/ipp/print'},
-        },
-      }),
-    ).toBe('192.168.1.5:631/ipp/print');
-    expect(
-      endpointLabel({printer: {transport: 'bluetooth', bluetoothAddress: '', endpoint: null}}),
-    ).toBe('—');
-  });
-
-  it('Bluetooth есть в списке каналов — иначе основной путь недоступен', async () => {
-    await openAdmin();
-    await act(async () => {
-      fireEvent.press(screen.getByText('Bluetooth'));
-    });
-    expect(useSettings.getState().settings.printer.transport).toBe('bluetooth');
-  });
 });

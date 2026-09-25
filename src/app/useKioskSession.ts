@@ -10,10 +10,9 @@
 import {useCallback, useEffect, useMemo, useRef, useState} from 'react';
 
 import type {CameraLayerHandle} from './CameraLayer';
-import {activeTransport, printQueue} from './services';
+import {printQueue} from './services';
 import {composeSheet, DEFAULT_COMPOSE} from '../imaging/composer';
 import {loadTypeface} from '../imaging/typefaces';
-import {encodePwgRaster, type RasterImage} from '../printing/pwg/raster';
 import {layoutById, type LayoutId} from '../imaging/layouts';
 import {shouldFlip} from '../imaging/mirror';
 import {
@@ -279,26 +278,22 @@ export function useKioskSession(
     async (layoutId: LayoutId, shots: readonly PhotoShot[]) => {
       setBusy(true);
       try {
-        const printerFormat = activeTransport().documentFormat;
         const ready = composedSheet.current;
 
         let sheetPath: string;
-        let format: string;
+        // Принтер принимает только JPEG — другого формата в приложении нет.
+        const format = 'image/jpeg';
 
-        if (ready && ready.key === sheetKey(shots) && printerFormat !== 'image/pwg-raster') {
+        if (ready && ready.key === sheetKey(shots)) {
           // Лист уже собран для просмотра — печатаем ровно тот же файл.
           // Дальше им владеет очередь: она удалит его после печати.
           sheetPath = ready.path;
-          format = 'image/jpeg';
           composedSheet.current = null;
         } else {
-          // Собираем заново: либо просмотра не было, либо принтеру нужен
-          // растр, которого в готовом JPEG уже не получить.
+          // Просмотра не было — собираем лист сейчас.
           const sheet = await composeSheet(await composeOptionsFor(shots, layoutId));
-          const document = encodeSheetFor(printerFormat, sheet);
-          sheetPath = newFilePath(Paths.sheets, document.extension);
-          await writeBytes(sheetPath, document.data);
-          format = document.format;
+          sheetPath = newFilePath(Paths.sheets, 'jpg');
+          await writeBytes(sheetPath, sheet.jpeg);
           await dropComposedSheet();
         }
 
@@ -325,6 +320,10 @@ export function useKioskSession(
           now: Date.now(),
         });
       } catch (error) {
+        // Гость видит короткое сообщение и уходит, а разбираться приходится
+        // потом и без него. Поэтому подробности — в журнал: он остаётся на
+        // устройстве и отправляется из админки одной кнопкой.
+        void recordError('Печать', error);
         stats.countFailed();
         send({
           type: 'printFailed',
@@ -437,27 +436,6 @@ function mirrorFor(shots: readonly PhotoShot[], wantMirrored: boolean): boolean 
     fileIsMirrored: first.isMirrored,
     wantMirrored,
   });
-}
-
-/**
- * Кодирует собранный лист в формат, который принимает принтер.
- *
- * Растр заметно тяжелее JPEG — для «шумной» фотографии RLE почти не сжимает,
- * и лист 10×15 весит около 6,5 МБ против 2–3 МБ у JPEG. Поэтому он именно
- * запасной путь, а не основной.
- */
-function encodeSheetFor(
-  printerFormat: string | undefined,
-  sheet: {jpeg: Uint8Array; toRaster: () => RasterImage},
-): {data: Uint8Array; format: string; extension: string} {
-  if (printerFormat === 'image/pwg-raster') {
-    return {
-      data: encodePwgRaster(sheet.toRaster(), {dpi: PRINT_DPI}),
-      format: 'image/pwg-raster',
-      extension: 'pwg',
-    };
-  }
-  return {data: sheet.jpeg, format: 'image/jpeg', extension: 'jpg'};
 }
 
 /**

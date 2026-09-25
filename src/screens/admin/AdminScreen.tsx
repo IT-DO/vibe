@@ -22,16 +22,13 @@ import {
 import {AdminButton, Choice, Field, MultiChoice, Row, Section, Toggle} from './controls';
 import {BluetoothScan} from './BluetoothScan';
 import {PinGate} from './PinGate';
-import {activeTransport, applyPrinterSettings, findPrinters, printQueue} from '../../app/services';
+import {activeTransport, printQueue} from '../../app/services';
 import {describePrinterState, stringsFor} from '../../i18n/strings';
 import {LAYOUTS, type LayoutId} from '../../imaging/layouts';
 import {clearCrashLog, readCrashLog} from '../../platform/crashlog';
 import {countEntries, lastEntries, tailForSharing} from '../../utils/crashlog-format';
 import {purgeAll, usedBytes} from '../../platform/files';
 import {enterKioskMode, exitKioskMode, supportsLockTask} from '../../platform/kiosk';
-import {currentSsid} from '../../platform/network-info';
-import type {DiscoveredPrinter} from '../../printing/discovery';
-import {mediaChoiceFor} from '../../printing/media-choice';
 import type {QueueSnapshot} from '../../printing/queue';
 import {useSettings} from '../../store/settings';
 import {useStats} from '../../store/stats';
@@ -47,10 +44,7 @@ export function AdminScreen({onClose}: AdminScreenProps) {
   const stats = useStats();
 
   const [unlocked, setUnlocked] = useState(false);
-  const [found, setFound] = useState<DiscoveredPrinter[]>([]);
-  const [searching, setSearching] = useState(false);
   const [queue, setQueue] = useState<QueueSnapshot>(() => printQueue.snapshot());
-  const [ssid, setSsid] = useState<string | null>(null);
   const [disk, setDisk] = useState(0);
   const [kioskHint, setKioskHint] = useState<string | null>(null);
   const [crashLog, setCrashLog] = useState('');
@@ -63,40 +57,9 @@ export function AdminScreen({onClose}: AdminScreenProps) {
     if (!unlocked) {
       return;
     }
-    void currentSsid().then(setSsid);
     void usedBytes().then(setDisk);
     void readCrashLog().then(setCrashLog);
   }, [unlocked]);
-
-  const search = useCallback(async () => {
-    setSearching(true);
-    try {
-      setFound(await findPrinters());
-    } finally {
-      setSearching(false);
-    }
-  }, []);
-
-  const selectPrinter = useCallback(
-    async (printer: DiscoveredPrinter) => {
-      // Формат бумаги берём из ответа самого принтера. Угадывать по
-      // названию модели нельзя: у одного и того же «1S» встречаются и
-      // картриджи 10 × 15, и карманная бумага 50 × 76 мм, а между
-      // мероприятиями картридж меняют. Не узнали формат — оставляем тот,
-      // что выбрал оператор: испортить лист хуже, чем не угадать.
-      const detected = mediaChoiceFor(printer.capabilities.media);
-      const patch = {
-        transport: 'ipp' as const,
-        endpoint: printer.endpoint,
-        displayName: printer.displayName,
-        ...(detected ? {media: detected} : {}),
-      };
-
-      store.updatePrinter(patch);
-      await applyPrinterSettings({...settings.printer, ...patch});
-    },
-    [settings.printer, store],
-  );
 
   const confirmPurge = useCallback(() => {
     Alert.alert(t.purge!, t.purgeConfirm!, [
@@ -150,36 +113,11 @@ export function AdminScreen({onClose}: AdminScreenProps) {
               }
             />
             <Row label="Подключён" value={settings.printer.displayName || 'не выбран'} />
-            <Row label="Адрес" value={endpointLabel(settings)} />
-            <Row label="Сеть" value={ssid ?? '—'} />
+            <Row label="Адрес" value={settings.printer.bluetoothAddress || '—'} />
             {printerStatus?.suppliesPercent !== undefined ? (
               <Row label={t.ribbonLeft!} value={`${printerStatus.suppliesPercent} %`} />
             ) : null}
 
-            {/*
-              Bluetooth первым: Xiaomi 1S печатает только так, остальные
-              каналы — для площадки, где рядом оказался сетевой принтер, и
-              для показа приложения без принтера вообще.
-
-              Смена канала применяется сразу, а не при выходе из админки:
-              оператор переключает его, чтобы тут же проверить печать, и
-              «переключил, а ничего не изменилось» — худшее, что может
-              случиться за пять минут до открытия.
-            */}
-            <Choice
-              label="Канал печати"
-              value={settings.printer.transport}
-              onChange={transport => {
-                store.updatePrinter({transport});
-                void applyPrinterSettings({...settings.printer, transport});
-              }}
-              options={[
-                {value: 'bluetooth', label: 'Bluetooth'},
-                {value: 'ipp', label: 'Прямой IPP'},
-                {value: 'system', label: 'Системный'},
-                {value: 'mock', label: 'Демо'},
-              ]}
-            />
             {/*
               Формат не выбирают: принтер печатает на карманной бумаге ZINK
               50 × 76 мм и другой не принимает. Строка вместо переключателя —
@@ -198,41 +136,6 @@ export function AdminScreen({onClose}: AdminScreenProps) {
               ]}
             />
 
-            <View style={styles.buttonRow}>
-              <AdminButton
-                label={t.search!}
-                tone="accent"
-                busy={searching}
-                onPress={() => void search()}
-              />
-            </View>
-
-            {found.map(printer => (
-              <Pressable
-                key={`${printer.endpoint.host}${printer.endpoint.path}`}
-                accessibilityRole="button"
-                onPress={() => void selectPrinter(printer)}
-                style={styles.printerRow}>
-                <View style={styles.printerInfo}>
-                  <Text style={styles.printerName}>{printer.displayName}</Text>
-                  <Text style={styles.printerMeta}>
-                    {printer.endpoint.host}:{printer.endpoint.port}
-                    {printer.endpoint.path} · {sourceLabel(printer.source)}
-                  </Text>
-                  <Text style={styles.printerMeta}>
-                    {printer.capabilities.documentFormats.join(', ') || 'форматы не заявлены'}
-                  </Text>
-                </View>
-                <Text style={styles.printerPick}>выбрать</Text>
-              </Pressable>
-            ))}
-
-            {found.length === 0 && !searching ? (
-              <Row
-                label=""
-                value="Принтер не найден — проверьте, что планшет в одной сети с ним"
-              />
-            ) : null}
           </Section>
 
           <Section title={t.event!}>
@@ -513,16 +416,6 @@ export function endpointLabel(settings: {
   return e ? `${e.host}:${e.port}${e.path}` : '—';
 }
 
-function sourceLabel(source: DiscoveredPrinter['source']): string {
-  switch (source) {
-    case 'mdns':
-      return 'найден по сети';
-    case 'gateway':
-      return 'точка доступа принтера';
-    case 'manual':
-      return 'введён вручную';
-  }
-}
 
 function jobStateLabel(state: string): string {
   switch (state) {

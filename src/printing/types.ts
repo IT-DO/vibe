@@ -8,7 +8,13 @@
  * статистика остаются те же.
  */
 
-import type {PrinterHealth} from './ipp/capabilities';
+/**
+ * Состояние принтера с точки зрения оператора киоска.
+ *
+ * `blocked` — принтеру нужен человек: бумага, крышка, заряд, либо он
+ * вовсе недоступен. Очередь встаёт на паузу, ничего не теряя.
+ */
+export type PrinterHealth = 'ready' | 'busy' | 'warning' | 'blocked' | 'unknown';
 
 /** Документ, готовый к отправке на принтер. */
 export interface PrintDocument {

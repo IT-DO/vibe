@@ -5,6 +5,7 @@ import {
   MIN_SCALE,
   REFERENCE_HEIGHT,
   REFERENCE_WIDTH,
+  fitFontSize,
   fontScaleAdjustment,
   isPhoneSized,
   scaleAll,
@@ -257,5 +258,33 @@ describe('размеры текста на реальных устройства
       expect(s.title).toBeGreaterThan(s.body);
       expect(s.body).toBeGreaterThan(s.caption);
     }
+  });
+});
+
+describe('fitFontSize', () => {
+  it('не трогает кегль, когда слово и так помещается', () => {
+    expect(fitFontSize('Да', 400, 44)).toBe(44);
+  });
+
+  it('уменьшает кегль под самое длинное слово', () => {
+    // «сфотографироваться» — 18 знаков; в 289 pt при кегле 44 не влезает.
+    const size = fitFontSize('Нажмите, чтобы сфотографироваться', 289, 44);
+    expect(size).toBeLessThan(44);
+    expect(size * 18 * 0.5).toBeLessThanOrEqual(289);
+  });
+
+  it('меряет по длинному слову, а не по всей строке', () => {
+    // Строка длинная, но переносится по словам — кегль уменьшать незачем.
+    expect(fitFontSize('раз два три раз два три', 400, 44)).toBe(44);
+  });
+
+  it('не опускается ниже читаемого', () => {
+    expect(fitFontSize('невероятнопредлинноеслово', 40, 44)).toBe(16);
+    expect(fitFontSize('слово', 100, 44, 20)).toBeGreaterThanOrEqual(20);
+  });
+
+  it('пустой текст и нулевая ширина не ломают расчёт', () => {
+    expect(fitFontSize('', 300, 44)).toBe(44);
+    expect(fitFontSize('слово', 0, 44)).toBe(44);
   });
 });

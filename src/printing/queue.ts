@@ -213,6 +213,20 @@ export class PrintQueue {
     return true;
   }
 
+  /**
+   * Спрашивает принтер о состоянии, не дожидаясь задания.
+   *
+   * Иначе индикатор на заставке молчит до первого гостя, а до тех пор
+   * показывает «неизвестно» — то есть пугает оператора неисправностью там,
+   * где принтер просто ещё никто не спрашивал. Заодно кончившаяся бумага
+   * обнаруживается до того, как кто-то сфотографируется, а не после.
+   */
+  async refreshPrinter(): Promise<TransportStatus> {
+    const status = await this.checkPrinter();
+    this.emit();
+    return status;
+  }
+
   /** Текущее состояние для интерфейса. */
   snapshot(): QueueSnapshot {
     const current = this.jobs.find(j => j.state === 'sending' || j.state === 'printing') ?? null;

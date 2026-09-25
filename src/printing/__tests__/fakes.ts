@@ -1,8 +1,6 @@
 /** Подставные зависимости очереди печати для тестов. */
 
-import {IppError} from '../ipp/client';
-import {StatusCode} from '../ipp/constants';
-import {NetworkError} from '../net';
+import {PrinterBlockedError, PrinterFatalError} from '../errors';
 import type {DocumentLoader, QueueStorage, QueuedJob, Scheduler} from '../queue';
 import type {
   JobProgress,
@@ -61,7 +59,7 @@ export class FakeDocuments implements DocumentLoader {
   async read(path: string): Promise<Uint8Array> {
     const data = this.files.get(path);
     if (!data) {
-      throw new NetworkError(`Файл не найден: ${path}`);
+      throw new Error(`Файл не найден: ${path}`);
     }
     return data;
   }
@@ -115,12 +113,12 @@ export class FakeTransport implements PrinterTransport {
 }
 
 /** Ошибка, которую очередь должна счесть временной. */
-export const transientError = (): Error => new NetworkError('Wi-Fi отвалился');
+export const transientError = (): Error => new Error('Связь с принтером прервана');
 
 /** Ошибка, после которой повторять бессмысленно. */
 export const fatalError = (): Error =>
-  new IppError('формат не поддерживается', StatusCode.ClientErrorDocumentFormatNotSupported);
+  new PrinterFatalError('формат не поддерживается');
 
 /** Ошибка «принтеру нужен человек». */
 export const blockedError = (): Error =>
-  new IppError('принтер не принимает задания', StatusCode.ServerErrorNotAcceptingJobs);
+  new PrinterBlockedError('Закончилась бумага');

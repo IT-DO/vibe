@@ -1,4 +1,3 @@
-import {MEDIA_3X3, MEDIA_4X6} from '../../printing/ipp/client';
 import {
   aspect,
   bleedOffset,
@@ -12,6 +11,17 @@ import {
   sheetPixels,
   withBleed,
 } from '../geometry';
+
+/**
+ * Размеры листов для проверки геометрии.
+ *
+ * Приложение печатает только на карманной бумаге 50 × 76 мм, но сама
+ * геометрия форматом не ограничена, и проверять её стоит на нескольких:
+ * ошибка в округлении или в порядке сторон видна именно на сравнении.
+ */
+const MEDIA_2X3 = {widthMm: 50.8, heightMm: 76.2};
+const MEDIA_4X6 = {widthMm: 101.6, heightMm: 152.4};
+const MEDIA_3X3 = {widthMm: 76.2, heightMm: 76.2};
 
 describe('sheetPixels', () => {
   it('переводит лист 10×15 в 1200×1800 при 300 dpi', () => {
@@ -42,10 +52,7 @@ describe('sheetPixels', () => {
     // ушёл в принтер при настоящей печати (перехват расшифрован). Ошибиться
     // тут нельзя: прошивка не уменьшает картинку больше нужной, а обрезает
     // её по центру, молча теряя края отпечатка.
-    expect(sheetPixels({widthMm: 50.8, heightMm: 76.2}, 520)).toEqual({
-      width: 1040,
-      height: 1560,
-    });
+    expect(sheetPixels(MEDIA_2X3, 520)).toEqual({width: 1040, height: 1560});
   });
 });
 
