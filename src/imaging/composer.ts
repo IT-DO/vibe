@@ -99,7 +99,18 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
     подпись: options.caption?.title ?? '—',
   });
 
-  const surface = Skia.Surface.MakeOffscreen(canvasSize.width, canvasSize.height);
+  // Холст в обычной памяти, а не на видеокарте.
+  //
+  // `MakeOffscreen` создаёт холст на GPU, и снимок с него — изображение-
+  // текстура. Закодировать такую в JPEG из потока JavaScript нельзя: сами
+  // авторы Skia перед использованием такого снимка вне главного потока
+  // зовут `makeNonTextureImage`. Мы же кодировали сразу — отсюда и пустой
+  // лист на устройстве при исправном коде и зелёных тестах.
+  //
+  // `Make` даёт холст, пиксели которого лежат в памяти. Для одного листа
+  // 1040×1560, рисуемого один раз, разницы в скорости нет, а целый класс
+  // отказов, связанных с контекстом видеокарты, исчезает.
+  const surface = makeSurface(canvasSize.width, canvasSize.height);
   if (!surface) {
     // Размер в сообщении не для красоты: если холст не создаётся, первое,
     // что надо знать, — не упёрлись ли мы в ограничение видеопамяти.
@@ -139,7 +150,7 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
 
   trace('сборка', 'рисование закончено, кодируем');
   surface.flush();
-  const snapshot = surface.makeImageSnapshot();
+  const snapshot = readable(surface.makeImageSnapshot());
   const encoded = snapshot.encodeToBytes(ImageFormat.JPEG, options.jpegQuality);
   if (!encoded) {
     throw new Error(
@@ -324,7 +335,7 @@ export async function makePreview(
   const width = Math.round(source.width() * scale);
   const height = Math.round(source.height() * scale);
 
-  const surface = Skia.Surface.MakeOffscreen(width, height);
+  const surface = makeSurface(width, height);
   if (!surface) {
     return null;
   }
@@ -339,7 +350,7 @@ export async function makePreview(
       paint,
     );
   surface.flush();
-  const preview = surface.makeImageSnapshot().encodeToBytes(ImageFormat.JPEG, 80);
+  const preview = readable(surface.makeImageSnapshot()).encodeToBytes(ImageFormat.JPEG, 80);
   source.dispose?.();
   return preview ?? null;
 }
@@ -362,4 +373,36 @@ async function stage<T>(name: string, run: () => Promise<T>): Promise<T> {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`Сборка листа, стадия «${name}»: ${reason}`);
   }
+}
+
+/**
+ * Холст для сборки: в памяти, а не на видеокарте.
+ *
+ * `Make` — холст с пикселями в обычной памяти, `MakeOffscreen` — на GPU.
+ * Нам нужен первый: лист рисуется один раз и сразу кодируется в JPEG, а
+ * читать пиксели холста видеокарты из потока JavaScript нельзя.
+ *
+ * Запасной путь оставлен на случай сборки Skia без `Make`: лучше холст на
+ * видеокарте, чем никакого, — снимок с него приводится к обычному в
+ * `readable`.
+ */
+function makeSurface(width: number, height: number): SkSurface | null {
+  const factory = Skia.Surface as {
+    Make?: (w: number, h: number) => SkSurface | null;
+    MakeOffscreen: (w: number, h: number) => SkSurface | null;
+  };
+  return factory.Make
+    ? factory.Make(width, height)
+    : factory.MakeOffscreen(width, height);
+}
+
+/**
+ * Приводит снимок к изображению, пиксели которого можно прочитать.
+ *
+ * Со снимком холста в памяти это ничего не меняет и ничего не стоит. Со
+ * снимком холста видеокарты — обязательный шаг: иначе `encodeToBytes`
+ * возвращает пустоту или мусор.
+ */
+function readable(snapshot: SkImage): SkImage {
+  return snapshot.makeNonTextureImage?.() ?? snapshot;
 }

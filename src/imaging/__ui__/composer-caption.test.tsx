@@ -49,22 +49,45 @@ beforeEach(() => {
   log = [];
   surfaceAvailable = true;
 
-  const snapshot = {
+  // Снимок холста видеокарты — изображение-текстура: прочитать его
+  // пиксели нельзя, пока не приведёшь к обычному изображению. Ровно так
+  // ведёт себя настоящая Skia, и ровно на этом ломался лист на устройстве.
+  const plain = {
     encodeToBytes: () => Uint8Array.from([1, 2, 3]),
     readPixels: () => new Uint8Array(4),
+    makeNonTextureImage: () => plain,
     dispose: jest.fn(),
   };
+  const texture = {
+    encodeToBytes: () => null,
+    readPixels: () => null,
+    makeNonTextureImage: () => plain,
+    dispose: jest.fn(),
+  };
+  const snapshot = plain;
 
   Object.assign(Skia as object, {
     Surface: {
-      MakeOffscreen: (width: number, height: number) =>
-        surfaceAvailable
+      Make: (width: number, height: number) => {
+        log.push(`холст в памяти ${width}×${height}`);
+        return surfaceAvailable
           ? {
               getCanvas: () => canvas,
               flush: () => log.push(`растеризация ${width}×${height}`),
               makeImageSnapshot: () => snapshot,
             }
-          : null,
+          : null;
+      },
+      MakeOffscreen: (width: number, height: number) => {
+        log.push(`холст на видеокарте ${width}×${height}`);
+        return surfaceAvailable
+          ? {
+              getCanvas: () => canvas,
+              flush: () => log.push(`растеризация ${width}×${height}`),
+              makeImageSnapshot: () => texture,
+            }
+          : null;
+      },
     },
     Color: (value: string) => value,
     Paint: () => ({
@@ -289,5 +312,28 @@ describe('ошибка сборки называет место', () => {
     await expect(compose('duo', {typeface: TYPEFACE})).rejects.toThrow(
       /стадия «подпись»/,
     );
+  });
+});
+
+describe('холст для сборки листа', () => {
+  it('берётся в памяти, а не на видеокарте', async () => {
+    // Пиксели холста видеокарты из потока JavaScript не прочитать, и лист
+    // выходил пустым при исправном коде и зелёных тестах.
+    await compose('single');
+    expect(log.some(entry => entry.startsWith('холст в памяти'))).toBe(true);
+    expect(log.some(entry => entry.startsWith('холст на видеокарте'))).toBe(false);
+  });
+
+  it('снимок приводится к читаемому — иначе JPEG не закодировать', async () => {
+    // Сборка Skia без `Make`: остаётся холст видеокарты, и снимок с него
+    // обязан пройти через `makeNonTextureImage`.
+    const surface = (Skia as unknown as {Surface: Record<string, unknown>}).Surface;
+    const withoutMake = {MakeOffscreen: surface.MakeOffscreen};
+    Object.assign(Skia as object, {Surface: withoutMake});
+
+    const sheet = await compose('single');
+    expect(log.some(entry => entry.startsWith('холст на видеокарте'))).toBe(true);
+    // Текстура вернула бы `null` и уронила сборку; приведённый снимок — байты.
+    expect(sheet.jpeg.length).toBeGreaterThan(0);
   });
 });
