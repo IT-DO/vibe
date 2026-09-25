@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Адаптивный значок для Android 8 и новее.
+
+  Система сама обрезает его под форму, принятую в прошивке: круг, квадрат
+  со скруглением, каплю. Поэтому фон задан отдельным слоем, а фотоаппарат
+  держится в середине — по краям система вправе срезать.
+
+  Без этого файла новые версии Android берут обычный PNG, уменьшают его и
+  кладут на белую подложку: значок выходит мелким, в белой рамке и не
+  похожим на остальное приложение.
+-->
+<adaptive-icon xmlns:android="http://schemas.android.com/apk/res/android">
+    <background android:drawable="@color/ic_launcher_background"/>
+    <foreground android:drawable="@mipmap/ic_launcher_foreground"/>
+</adaptive-icon>

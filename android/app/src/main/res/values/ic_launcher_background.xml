@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Фон значка. Тот же цвет, что у заставки приложения, — иконка и будка
+  должны выглядеть одним, а не двумя разными вещами.
+-->
+<resources>
+    <color name="ic_launcher_background">#0B0B10</color>
+</resources>
