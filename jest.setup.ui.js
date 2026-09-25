@@ -98,23 +98,16 @@ jest.mock('react-native-image-picker', () => ({
 // ── Bluetooth ─────────────────────────────────────────────────────────────
 // Библиотека поставляется в ES-модулях и поднимает нативный стек: в тестах
 // вместо неё управляемая заглушка, которой тест задаёт нужный исход.
-jest.mock('react-native-ble-plx', () => ({
-  BleManager: class BleManager {
-    state() {
-      return globalThis.__bleMock.state();
-    }
-    startDeviceScan(...args) {
-      return globalThis.__bleMock.startDeviceScan(...args);
-    }
-    stopDeviceScan() {
-      return globalThis.__bleMock.stopDeviceScan();
-    }
-    connectToDevice(...args) {
-      return globalThis.__bleMock.connectToDevice(...args);
-    }
-    destroy() {
-      return globalThis.__bleMock.destroy();
-    }
+// ── Классический Bluetooth ────────────────────────────────────────────────
+// Принтер Xiaomi 1S работает по RFCOMM/SPP, а не BLE: это видно в журнале
+// настоящей печати — канал L2CAP есть, пакетов ATT нет ни одного.
+jest.mock('react-native-bluetooth-classic', () => ({
+  __esModule: true,
+  default: {
+    isBluetoothEnabled: (...a) => globalThis.__btMock.isBluetoothEnabled(...a),
+    getBondedDevices: (...a) => globalThis.__btMock.getBondedDevices(...a),
+    connectToDevice: (...a) => globalThis.__btMock.connectToDevice(...a),
+    openBluetoothSettings: (...a) => globalThis.__btMock.openBluetoothSettings(...a),
   },
 }));
 
@@ -184,14 +177,15 @@ beforeEach(() => {
   globalThis.__galleryMock = {
     launch: jest.fn(async () => ({didCancel: true})),
   };
-  globalThis.__bleMock = {
-    state: jest.fn(async () => 'PoweredOn'),
-    startDeviceScan: jest.fn(),
-    stopDeviceScan: jest.fn(),
+  globalThis.__btMock = {
+    isBluetoothEnabled: jest.fn(async () => true),
+    getBondedDevices: jest.fn(async () => []),
+    // По умолчанию принтера нет: тест, которому он нужен, подменяет ответ
+    // сам, а остальные не должны случайно «подключиться» к пустоте.
     connectToDevice: jest.fn(async () => {
       throw new Error('Устройство не отвечает');
     }),
-    destroy: jest.fn(),
+    openBluetoothSettings: jest.fn(),
   };
 });
 

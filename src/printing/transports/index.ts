@@ -5,4 +5,11 @@ export {
   type SystemPrintBridge,
   type TempFileWriter,
 } from './system';
+export {
+  HanntoTransport,
+  describeStatus,
+  mapJobState as mapHanntoJobState,
+  type HanntoTransportOptions,
+  type PrinterConnector,
+} from './hannto';
 export {UnconfiguredTransport, PRINTER_NOT_CONFIGURED} from './unconfigured';

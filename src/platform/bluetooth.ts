@@ -1,80 +1,83 @@
 /**
- * Bluetooth: поиск принтера и разведка его устройства.
+ * Bluetooth-связь с фотопринтером.
  *
- * Xiaomi Portable Photo Printer 1S (BHR9974GL) работает только по Bluetooth
- * 5.2. Wi-Fi у него нет вовсе, а значит нет ни AirPrint, ни Mopria, ни IPP —
- * всей той стандартной печати, на которую рассчитан слой `printing/ipp`.
- * Штатно он печатает единственным способом: из приложения Xiaomi Home по
- * закрытому протоколу поверх BLE.
+ * Xiaomi Portable Photo Printer 1S (BHR9974GL) работает только по Bluetooth:
+ * Wi-Fi у него нет вовсе, а значит нет ни AirPrint, ни Mopria, ни IPP.
  *
- * Протокол не опубликован, и угадать его нельзя. Но разобрать — можно, и
- * первый шаг разбора делает этот модуль: находит принтер, подключается и
- * показывает, из чего он состоит — какие у него сервисы и характеристики,
- * какие из них принимают запись, какие шлют уведомления. Этого достаточно,
- * чтобы понять, куда именно уходят данные снимка, и сузить задачу с «разбери
- * весь протокол» до «разбери, что пишут вот в эту характеристику».
+ * Важно, какой именно Bluetooth. Журнал настоящей печати показал канал
+ * RFCOMM поверх L2CAP и ни одного пакета ATT — это классический Bluetooth,
+ * профиль последовательного порта (SPP), а не BLE. Первая версия этого
+ * модуля искала принтер сканированием BLE и не нашла бы его никогда: в
+ * списке BLE-устройств он попросту не появляется.
  *
- * Пока протокол не разобран, печатать модуль не умеет — и не притворяется,
- * что умеет.
+ * Отсюда и порядок работы. Классический Bluetooth требует сопряжения
+ * средствами системы, поэтому приложение не ищет принтер в эфире, а берёт
+ * его из списка уже сопряжённых устройств. Оператор один раз связывает
+ * планшет с принтером в настройках Android — дальше приложение подключается
+ * само.
  */
 
 import {PermissionsAndroid, Platform} from 'react-native';
-import {BleManager, type Device, type Subscription} from 'react-native-ble-plx';
+import RNBluetoothClassic, {
+  type BluetoothDevice,
+  type StandardOptions,
+} from 'react-native-bluetooth-classic';
+import type {HanntoLink} from '../printing/hannto/session';
+import {fromBase64, toBase64} from './base64';
 
-/** Найденное рядом устройство. */
-export interface FoundDevice {
-  readonly id: string;
-  /** Имя, которым устройство представляется. Пусто — безымянное. */
+/** Сопряжённое устройство, видимое приложению. */
+export interface PairedDevice {
+  /** MAC-адрес — он же ключ для подключения. */
+  readonly address: string;
   readonly name: string;
-  /** Уровень сигнала, дБм. Ближе к нулю — ближе устройство. */
-  readonly rssi: number | null;
   /** Похоже ли на наш принтер по имени. */
   readonly looksLikePrinter: boolean;
 }
 
-/** Характеристика сервиса — то, через что идёт обмен. */
-export interface CharacteristicInfo {
-  readonly uuid: string;
-  readonly isReadable: boolean;
-  readonly isWritable: boolean;
-  /** Шлёт ли уведомления — обычно так принтер отвечает о состоянии. */
-  readonly isNotifiable: boolean;
-}
-
-export interface ServiceInfo {
-  readonly uuid: string;
-  readonly characteristics: readonly CharacteristicInfo[];
-}
-
-/** Из чего состоит подключённое устройство. */
-export interface DeviceProfile {
-  readonly id: string;
-  readonly name: string;
-  readonly mtu: number;
-  readonly services: readonly ServiceInfo[];
-}
-
 /**
- * По этим словам в имени устройство похоже на наш принтер.
+ * По этим словам в имени устройство похоже на фотопринтер.
  * Xiaomi представляется по-разному в зависимости от прошивки и региона.
  */
-const PRINTER_NAME_HINTS = ['printer', 'mi photo', 'xiaomi', 'zink', 'mijia'];
-
-let manager: BleManager | null = null;
-
-/** Менеджер BLE создаётся лениво: он поднимает нативный стек. */
-function bleManager(): BleManager {
-  manager ??= new BleManager();
-  return manager;
-}
+const PRINTER_NAME_HINTS = [
+  'printer',
+  'photo',
+  'mi portable',
+  'xiaomi',
+  'mijia',
+  'hannto',
+  'zink',
+  'instant',
+];
 
 /**
- * Спрашивает разрешения, без которых Android не отдаёт результаты поиска.
+ * Настройки соединения.
  *
- * До Android 12 система требовала разрешение на местоположение: по видимым
- * рядом устройствам можно определить, где находится человек. Начиная с
- * Android 12 для поиска и подключения есть отдельные разрешения, а
- * местоположение больше не нужно.
+ * `binary` — единственный подходящий тип: соединение по умолчанию режет
+ * поток по символу перевода строки и декодирует его как текст, а у нас в
+ * кадрах встречаются любые байты, включая 0x0A. Двоичный режим отдаёт
+ * данные как есть, строкой base64.
+ *
+ * `readSize` увеличен: кадр протокола доходит до 1045 байт, а буфер по
+ * умолчанию — 1024, и длинный ответ принтера в него не помещается.
+ */
+const CONNECTION_OPTIONS: StandardOptions = {
+  connectorType: 'rfcomm',
+  connectionType: 'binary',
+  readSize: 8192,
+  secureSocket: true,
+};
+
+/**
+ * Спрашивает разрешение, без которого Android не отдаёт список устройств.
+ *
+ * До Android 12 спрашивать нечего: обычное разрешение BLUETOOTH выдаётся
+ * при установке, и его хватает и на список сопряжённых устройств, и на
+ * подключение к ним.
+ *
+ * С Android 12 нужно одно разрешение — BLUETOOTH_CONNECT. Поиска в эфире
+ * приложение не ведёт (подключиться к классическому Bluetooth без
+ * сопряжения всё равно нельзя), поэтому ни BLUETOOTH_SCAN, ни тем более
+ * местоположение не требуются.
  */
 export async function requestBluetoothPermissions(): Promise<boolean> {
   if (Platform.OS !== 'android') {
@@ -83,27 +86,20 @@ export async function requestBluetoothPermissions(): Promise<boolean> {
 
   const version =
     typeof Platform.Version === 'number' ? Platform.Version : Number(Platform.Version);
+  if (version < 31) {
+    return true;
+  }
 
-  // Имена разрешений задаём строками: в типах React Native те, что
-  // появились в Android 12, объявлены необязательными, потому что на
-  // старых версиях их нет.
-  const needed: string[] =
-    version >= 31
-      ? [
-          'android.permission.BLUETOOTH_SCAN',
-          'android.permission.BLUETOOTH_CONNECT',
-        ]
-      : ['android.permission.ACCESS_FINE_LOCATION'];
+  // Имя разрешения задаём строкой: в типах React Native те, что появились
+  // в Android 12, объявлены необязательными, потому что на старых версиях
+  // их нет.
+  const permission = 'android.permission.BLUETOOTH_CONNECT';
 
   try {
-    const granted = await PermissionsAndroid.requestMultiple(
-      needed as Parameters<typeof PermissionsAndroid.requestMultiple>[0],
+    const granted = await PermissionsAndroid.request(
+      permission as Parameters<typeof PermissionsAndroid.request>[0],
     );
-    return needed.every(
-      permission =>
-        (granted as Record<string, string>)[permission] ===
-        PermissionsAndroid.RESULTS.GRANTED,
-    );
+    return granted === PermissionsAndroid.RESULTS.GRANTED;
   } catch {
     // Отказ в разрешении — не сбой приложения: оператор увидит пустой
     // список и подсказку в админке.
@@ -114,58 +110,42 @@ export async function requestBluetoothPermissions(): Promise<boolean> {
 /** Включён ли Bluetooth на устройстве прямо сейчас. */
 export async function isBluetoothOn(): Promise<boolean> {
   try {
-    return (await bleManager().state()) === 'PoweredOn';
+    return await RNBluetoothClassic.isBluetoothEnabled();
   } catch {
     return false;
   }
 }
 
+/** Открывает системные настройки Bluetooth — там оператор сопрягает принтер. */
+export function openBluetoothSettings(): void {
+  try {
+    RNBluetoothClassic.openBluetoothSettings();
+  } catch {
+    // Экран настроек может быть недоступен на нестандартной прошивке —
+    // это не повод падать.
+  }
+}
+
 /**
- * Ищет устройства рядом в течение указанного времени.
+ * Сопряжённые устройства, принтеры — первыми.
  *
- * Возвращает найденное, отсортированное по силе сигнала: принтер стоит
- * рядом с планшетом, поэтому обычно оказывается вверху списка.
+ * Поиск в эфире здесь не нужен и даже вреден: подключиться к классическому
+ * Bluetooth без сопряжения всё равно нельзя, а сканирование эфира заметно
+ * замедляет обмен с уже подключённым устройством.
  */
-export async function scanForDevices(durationMs = 8_000): Promise<FoundDevice[]> {
+export async function listPairedDevices(): Promise<PairedDevice[]> {
   if (!(await requestBluetoothPermissions())) {
     throw new Error('Нет разрешения на Bluetooth');
   }
 
-  const found = new Map<string, FoundDevice>();
-  const ble = bleManager();
-
-  return new Promise<FoundDevice[]>((resolve, reject) => {
-    const stop = (error?: Error) => {
-      clearTimeout(timer);
-      ble.stopDeviceScan();
-      if (error) {
-        reject(error);
-      } else {
-        resolve(
-          [...found.values()].sort((a, b) => (b.rssi ?? -999) - (a.rssi ?? -999)),
-        );
-      }
-    };
-
-    const timer = setTimeout(() => stop(), durationMs);
-
-    ble.startDeviceScan(null, {allowDuplicates: false}, (error, device) => {
-      if (error) {
-        stop(new Error(error.message));
-        return;
-      }
-      if (!device) {
-        return;
-      }
-      const name = device.name ?? device.localName ?? '';
-      found.set(device.id, {
-        id: device.id,
-        name,
-        rssi: device.rssi,
-        looksLikePrinter: looksLikePrinter(name),
-      });
-    });
-  });
+  const devices = await RNBluetoothClassic.getBondedDevices();
+  return devices
+    .map(device => ({
+      address: device.address,
+      name: device.name ?? '',
+      looksLikePrinter: looksLikePrinter(device.name ?? ''),
+    }))
+    .sort((a, b) => Number(b.looksLikePrinter) - Number(a.looksLikePrinter));
 }
 
 /** Похоже ли имя устройства на фотопринтер. */
@@ -175,67 +155,80 @@ export function looksLikePrinter(name: string): boolean {
 }
 
 /**
- * Подключается к устройству и перечисляет его сервисы и характеристики.
+ * Открытое соединение с принтером.
  *
- * Это и есть разведка: по списку видно, куда устройство принимает запись
- * (туда уходит снимок) и что шлёт уведомления (оттуда приходит состояние).
+ * Реализует `HanntoLink`, поэтому протокол печати работает поверх него,
+ * ничего не зная ни про React Native, ни про Bluetooth.
  */
-export async function describeDevice(deviceId: string): Promise<DeviceProfile> {
-  const ble = bleManager();
-  let device: Device | null = null;
+export interface PrinterConnection extends HanntoLink {
+  readonly address: string;
+  readonly name: string;
+  close(): Promise<void>;
+}
 
-  try {
-    device = await ble.connectToDevice(deviceId, {timeout: 10_000});
-    // Размер пакета важен: снимок уходит кусками, и от MTU зависит,
-    // сколькими именно.
-    const mtu = await negotiateMtu(device);
-    await device.discoverAllServicesAndCharacteristics();
-
-    const services = await device.services();
-    const described: ServiceInfo[] = [];
-    for (const service of services) {
-      const characteristics = await service.characteristics();
-      described.push({
-        uuid: service.uuid,
-        characteristics: characteristics.map(c => ({
-          uuid: c.uuid,
-          isReadable: c.isReadable,
-          isWritable: c.isWritableWithResponse || c.isWritableWithoutResponse,
-          isNotifiable: c.isNotifiable || c.isIndicatable,
-        })),
-      });
-    }
-
-    return {
-      id: device.id,
-      name: device.name ?? device.localName ?? '',
-      mtu,
-      services: described,
-    };
-  } finally {
-    if (device) {
-      // Держать соединение незачем: разведка разовая, а занятый принтер
-      // не даст подключиться приложению Xiaomi Home.
-      await device.cancelConnection().catch(() => undefined);
-    }
+/** Подключается к сопряжённому принтеру по его адресу. */
+export async function connectToPrinter(address: string): Promise<PrinterConnection> {
+  if (!(await requestBluetoothPermissions())) {
+    throw new Error('Нет разрешения на Bluetooth');
   }
-}
-
-/** Просит увеличить размер пакета; отказ не помеха — берём, что дали. */
-async function negotiateMtu(device: Device): Promise<number> {
-  try {
-    const updated = await device.requestMTU(512);
-    return updated.mtu;
-  } catch {
-    // Стандартный BLE MTU без согласования.
-    return 23;
+  if (!(await isBluetoothOn())) {
+    throw new Error('Bluetooth выключен');
   }
+
+  const device = await RNBluetoothClassic.connectToDevice(address, CONNECTION_OPTIONS);
+  return wrapDevice(device);
 }
 
-/** Освобождает нативный стек — вызывать при выходе из режима диагностики. */
-export function releaseBluetooth(): void {
-  manager?.destroy();
-  manager = null;
-}
+/**
+ * Оборачивает устройство в канал байтов.
+ *
+ * Вынесено отдельно, чтобы то же самое можно было проверить в тестах на
+ * поддельном устройстве, не поднимая нативный модуль.
+ */
+export function wrapDevice(device: BluetoothDevice): PrinterConnection {
+  let listeners: ((data: Uint8Array) => void)[] = [];
 
-export type {Subscription};
+  // Подписка на устройство одна на всё соединение: нативный модуль шлёт
+  // прочитанное всем подписчикам сразу, и вторая подписка удвоила бы поток.
+  const subscription = device.onDataReceived(event => {
+    const bytes = fromBase64(event.data);
+    if (bytes.length === 0) {
+      return;
+    }
+    for (const listener of [...listeners]) {
+      listener(bytes);
+    }
+  });
+
+  return {
+    address: device.address,
+    name: device.name ?? '',
+
+    async write(data: Uint8Array): Promise<void> {
+      // Строка base64 с пометкой «base64» доходит до устройства как исходные
+      // байты: мост декодирует её обратно. Передавать текстом нельзя —
+      // всё выше 0x7F исказится.
+      const ok = await device.write(toBase64(data), 'base64');
+      if (ok === false) {
+        throw new Error('Принтер не принял данные');
+      }
+    },
+
+    subscribe(listener: (data: Uint8Array) => void): () => void {
+      listeners.push(listener);
+      return () => {
+        listeners = listeners.filter(item => item !== listener);
+      };
+    },
+
+    async close(): Promise<void> {
+      listeners = [];
+      subscription.remove();
+      try {
+        await device.disconnect();
+      } catch {
+        // Принтер мог отключиться сам — для нас это тот же результат.
+      }
+    },
+  };
+}

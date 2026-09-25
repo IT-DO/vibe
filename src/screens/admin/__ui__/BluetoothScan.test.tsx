@@ -1,159 +1,174 @@
 /**
- * Экран разведки Bluetooth в админке.
+ * Экран выбора принтера в админке.
  *
- * Он нужен, чтобы разобрать протокол принтера, а пользоваться им будет
- * человек за пятнадцать минут до мероприятия. Поэтому проверяется не
- * красота, а понятность: почему список пуст, что нажать дальше и что
- * означает найденное.
+ * Проверяется путь оператора целиком: открыл раздел — увидел сопряжённые
+ * устройства, выбрал принтер — он сохранился в настройках, нажал «Проверить
+ * связь» — приложение действительно поговорило с принтером и показало, что
+ * тот ответил.
+ *
+ * На другом конце канала — `FakePrinter`, отвечающий теми же кадрами, что
+ * снятые с настоящего устройства. То есть проверка связи в тесте проходит
+ * настоящее рукопожатие Диффи — Хеллмана и настоящие команды, а не заглушку.
  */
 
 import React from 'react';
 import {PermissionsAndroid} from 'react-native';
-import {act, fireEvent, render, screen} from '@testing-library/react-native';
+import {act, fireEvent, render, screen, waitFor} from '@testing-library/react-native';
 
-import {BluetoothScan, describeAsText} from '../BluetoothScan';
+import {BluetoothScan, askPrinter, describeState} from '../BluetoothScan';
+import {FakePrinter} from '../../../printing/hannto/__tests__/fake-printer';
+import {toBase64} from '../../../platform/base64';
+import {DEFAULT_SETTINGS, useSettings} from '../../../store/settings';
 
-/** По умолчанию разрешения выданы — иначе поиск и не начнётся. */
-beforeEach(() => {
-  jest.spyOn(PermissionsAndroid, 'requestMultiple').mockResolvedValue({
-    'android.permission.BLUETOOTH_SCAN': 'granted',
-    'android.permission.BLUETOOTH_CONNECT': 'granted',
-    'android.permission.ACCESS_FINE_LOCATION': 'granted',
-  } as never);
-});
-
-afterEach(() => jest.restoreAllMocks());
-
-/** Подсовывает поиску заранее заготовленные устройства. */
-function scanFinds(devices: {id: string; name?: string; rssi?: number}[]) {
-  globalThis.__bleMock.startDeviceScan.mockImplementation(
-    (_uuids, _options, listener) => {
-      for (const device of devices) {
-        listener(null, {
-          id: device.id,
-          name: device.name ?? null,
-          localName: null,
-          rssi: device.rssi ?? null,
-        });
-      }
+/** Оборачивает поддельный принтер в то, что отдаёт нативный модуль. */
+function deviceFor(printer: FakePrinter, address = 'F0:13:C1:52:19:90') {
+  return {
+    address,
+    name: 'Mi Portable Photo Printer',
+    onDataReceived(listener: (event: {data: string}) => void) {
+      const stop = printer.subscribe(bytes => listener({data: toBase64(bytes)}));
+      return {remove: stop};
     },
-  );
+    async write(data: string, _encoding?: string) {
+      // Нативный модуль декодирует base64 обратно в байты.
+      const raw = Uint8Array.from(atobBytes(data));
+      await printer.write(raw);
+      return true;
+    },
+    async disconnect() {
+      printer.disconnect();
+      return true;
+    },
+  };
 }
 
-describe('поиск', () => {
-  /**
-   * Нажимает «искать» и прокручивает поддельные часы до конца поиска.
-   * Восемь секунд ожидания на площадке уместны, в тесте — нет.
-   */
-  async function search() {
-    fireEvent.press(screen.getByText('Искать устройства'));
-    // Сначала разрешения и опрос адаптера — это промисы, и таймер поиска
-    // заводится только после них. Потом прокручиваем сам поиск.
-    for (let i = 0; i < 3; i++) {
-      await act(async () => {
-        jest.advanceTimersByTime(9_000);
-      });
-    }
-  }
+function atobBytes(text: string): number[] {
+  const {fromBase64} = require('../../../platform/base64');
+  return Array.from(fromBase64(text) as Uint8Array);
+}
 
-  beforeEach(() => jest.useFakeTimers());
-  afterEach(() => jest.useRealTimers());
+beforeEach(() => {
+  jest.spyOn(PermissionsAndroid, 'request').mockResolvedValue('granted' as never);
+  useSettings.setState({settings: DEFAULT_SETTINGS});
+  globalThis.__btMock.getBondedDevices.mockResolvedValue([
+    {address: 'F0:13:C1:52:19:90', name: 'Mi Portable Photo Printer'},
+    {address: '11:22:33:44:55:66', name: 'Колонка JBL'},
+  ]);
+});
 
-  it('находит принтер и помечает его', async () => {
-    scanFinds([{id: 'AA:BB', name: 'Xiaomi Photo Printer', rssi: -40}]);
+describe('список устройств', () => {
+  it('показывается сразу при открытии раздела', async () => {
     render(<BluetoothScan />);
-
-    await search();
-
-    expect(screen.getByText(/Xiaomi Photo Printer/)).toBeTruthy();
-    expect(screen.getByText(/похоже на принтер/)).toBeTruthy();
-    expect(screen.getByText(/AA:BB/)).toBeTruthy();
+    expect(await screen.findByText(/Mi Portable Photo Printer/)).toBeTruthy();
+    expect(screen.getByText(/Колонка JBL/)).toBeTruthy();
   });
 
-  it('ближний принтер показан выше дальней колонки', async () => {
-    scanFinds([
-      {id: 'FAR', name: 'Колонка', rssi: -90},
-      {id: 'NEAR', name: 'Xiaomi Photo Printer', rssi: -35},
-    ]);
+  it('принтер помечен, чтобы оператор не гадал', async () => {
     render(<BluetoothScan />);
-
-    await search();
-
-    const printer = screen.getByText(/Xiaomi Photo Printer/);
-    const speaker = screen.getByText(/Колонка/);
-    const order = JSON.stringify(screen.toJSON());
-    expect(order.indexOf('Xiaomi')).toBeLessThan(order.indexOf('Колонка'));
-    expect(printer).toBeTruthy();
-    expect(speaker).toBeTruthy();
+    expect(await screen.findByText(/похоже на принтер/)).toBeTruthy();
   });
 
-  it('выключенный Bluetooth объясняется, а не выглядит как пустой список', async () => {
-    globalThis.__bleMock.state.mockResolvedValue('PoweredOff');
+  it('выключенный Bluetooth объясняется, а не оставляет пустой экран', async () => {
+    globalThis.__btMock.isBluetoothEnabled.mockResolvedValue(false);
     render(<BluetoothScan />);
-
-    await search();
-
-    expect(screen.getByText(/Bluetooth выключен/)).toBeTruthy();
-    expect(globalThis.__bleMock.startDeviceScan).not.toHaveBeenCalled();
+    expect(await screen.findByText(/Bluetooth выключен/)).toBeTruthy();
   });
 
-  it('пустой результат подсказывает, что проверить', async () => {
-    scanFinds([]);
+  it('пустой список подсказывает, что делать', async () => {
+    globalThis.__btMock.getBondedDevices.mockResolvedValue([]);
     render(<BluetoothScan />);
-
-    await search();
-
-    expect(screen.getByText(/Рядом ничего не найдено/)).toBeTruthy();
-  });
-
-  it('отказ в разрешении показан словами', async () => {
-    globalThis.__bleMock.state.mockResolvedValue('PoweredOn');
-    (PermissionsAndroid.requestMultiple as jest.Mock).mockResolvedValue({} as never);
-    render(<BluetoothScan />);
-
-    await search();
-
-    expect(screen.getByText(/Нет разрешения на Bluetooth/)).toBeTruthy();
+    expect(await screen.findByText(/Свяжите планшет с принтером/)).toBeTruthy();
   });
 });
 
-describe('состав устройства текстом', () => {
-  const profile = {
-    id: 'AA:BB',
-    name: 'Xiaomi Photo Printer',
-    mtu: 247,
-    services: [
-      {
-        uuid: 'ff00',
-        characteristics: [
-          {uuid: 'ff01', isReadable: false, isWritable: true, isNotifiable: false},
-          {uuid: 'ff02', isReadable: true, isWritable: false, isNotifiable: true},
-        ],
+describe('выбор принтера', () => {
+  it('сохраняется в настройках вместе с каналом печати', async () => {
+    render(<BluetoothScan />);
+    const buttons = await screen.findAllByText('Выбрать');
+    await act(async () => {
+      fireEvent.press(buttons[0]!);
+    });
+
+    const printer = useSettings.getState().settings.printer;
+    expect(printer.bluetoothAddress).toBe('F0:13:C1:52:19:90');
+    expect(printer.transport).toBe('bluetooth');
+    expect(printer.displayName).toBe('Mi Portable Photo Printer');
+  });
+
+  it('выбранный принтер отмечен в списке', async () => {
+    useSettings.setState({
+      settings: {
+        ...DEFAULT_SETTINGS,
+        printer: {...DEFAULT_SETTINGS.printer, bluetoothAddress: 'F0:13:C1:52:19:90'},
       },
-    ],
-  };
+    });
+    render(<BluetoothScan />);
+    expect(await screen.findByText(/· выбран/)).toBeTruthy();
+  });
+});
 
-  it('выделяет характеристику, принимающую запись', () => {
-    // Именно туда приложение Xiaomi Home передаёт снимок — с неё начнётся
-    // разбор протокола.
-    const text = describeAsText(profile);
-    expect(text).toContain('ff01 — ЗАПИСЬ');
+describe('проверка связи', () => {
+  it('проходит рукопожатие и показывает, что ответил принтер', async () => {
+    const printer = new FakePrinter({battery: 77, cleanRemain: 4});
+    globalThis.__btMock.connectToDevice.mockResolvedValue(deviceFor(printer));
+
+    render(<BluetoothScan />);
+    const buttons = await screen.findAllByText('Проверить связь');
+    await act(async () => {
+      fireEvent.press(buttons[0]!);
+    });
+
+    await waitFor(() => expect(screen.getByText('BHR9974GL')).toBeTruthy());
+    expect(screen.getByText('2.1.2_0015')).toBeTruthy();
+    expect(screen.getByText('свободен')).toBeTruthy();
+    expect(screen.getByText('77%')).toBeTruthy();
+    expect(screen.getByText('4 отпечатков')).toBeTruthy();
   });
 
-  it('отмечает уведомления — оттуда приходит состояние печати', () => {
-    expect(describeAsText(profile)).toContain('ff02 — чтение, уведомления');
+  it('неотвечающий принтер объясняется, а не молчит', async () => {
+    globalThis.__btMock.connectToDevice.mockRejectedValue(new Error('Устройство занято'));
+
+    render(<BluetoothScan />);
+    const buttons = await screen.findAllByText('Проверить связь');
+    await act(async () => {
+      fireEvent.press(buttons[0]!);
+    });
+
+    expect(await screen.findByText(/Принтер не отвечает: Устройство занято/)).toBeTruthy();
+  });
+});
+
+describe('askPrinter', () => {
+  it('отпускает принтер после проверки', async () => {
+    const printer = new FakePrinter();
+    const device = deviceFor(printer);
+    const disconnect = jest.spyOn(device, 'disconnect');
+    globalThis.__btMock.connectToDevice.mockResolvedValue(device);
+
+    await askPrinter('F0:13:C1:52:19:90');
+    // Занятый принтер не примет ни печать, ни телефон оператора.
+    expect(disconnect).toHaveBeenCalled();
   });
 
-  it('называет размер пакета: от него зависит, сколькими кусками уйдёт снимок', () => {
-    expect(describeAsText(profile)).toContain('Размер пакета (MTU): 247');
+  it('отпускает принтер даже когда проверка сорвалась', async () => {
+    const printer = new FakePrinter({rejectHandshake: true});
+    const device = deviceFor(printer);
+    const disconnect = jest.spyOn(device, 'disconnect');
+    globalThis.__btMock.connectToDevice.mockResolvedValue(device);
+
+    await expect(askPrinter('F0:13:C1:52:19:90')).rejects.toThrow();
+    expect(disconnect).toHaveBeenCalled();
+  });
+});
+
+describe('состояния принтера по-русски', () => {
+  it('переводятся понятно', () => {
+    expect(describeState('idle')).toBe('свободен');
+    expect(describeState('processing')).toBe('печатает');
+    expect(describeState('error')).toBe('неисправность');
   });
 
-  it('сервис без характеристик не выглядит как обрыв текста', () => {
-    const text = describeAsText({...profile, services: [{uuid: 'ff10', characteristics: []}]});
-    expect(text).toContain('(характеристик нет)');
-  });
-
-  it('безымянное устройство подписано явно', () => {
-    expect(describeAsText({...profile, name: ''})).toContain('(без имени)');
+  it('незнакомое состояние показывается как есть, а не теряется', () => {
+    expect(describeState('calibrating')).toBe('calibrating');
   });
 });

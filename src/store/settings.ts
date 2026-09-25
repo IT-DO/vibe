@@ -29,12 +29,20 @@ const storage = new MMKV({id: 'photo-na-pamyat'});
  */
 export type MediaChoice = '2x3';
 
-/** Какой канал печати использовать. */
-export type TransportChoice = 'ipp' | 'system' | 'mock';
+/**
+ * Какой канал печати использовать.
+ *
+ * `bluetooth` — основной: Xiaomi 1S печатает только так, Wi-Fi у него нет.
+ * Остальные оставлены для площадок, где рядом оказался сетевой принтер,
+ * и для проверки приложения без принтера вообще.
+ */
+export type TransportChoice = 'bluetooth' | 'ipp' | 'system' | 'mock';
 
 export interface PrinterSettings {
   readonly transport: TransportChoice;
-  /** Адрес принтера, найденный при подключении. */
+  /** MAC-адрес сопряжённого принтера. Пусто — принтер ещё не выбран. */
+  readonly bluetoothAddress: string;
+  /** Адрес сетевого принтера, если печатаем по IPP. */
   readonly endpoint: IppEndpoint | null;
   readonly displayName: string;
   readonly media: MediaChoice;
@@ -88,7 +96,8 @@ export const DEFAULT_SETTINGS: Settings = {
   locale: 'ru',
   event: DEFAULT_EVENT_THEME,
   printer: {
-    transport: 'ipp',
+    transport: 'bluetooth',
+    bluetoothAddress: '',
     endpoint: null,
     displayName: '',
     media: '2x3',

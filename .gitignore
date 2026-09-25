@@ -27,3 +27,4 @@ ios/.xcode.env.local
 # Метро/сборка
 .metro-health-check*
 dist/
+__pycache__/

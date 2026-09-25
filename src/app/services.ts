@@ -13,11 +13,15 @@ import {parseCapabilities} from '../printing/ipp/capabilities';
 import {IppClient, MEDIA_2X3} from '../printing/ipp/client';
 import {PrintQueue, type QueueStorage, type QueuedJob, type Scheduler} from '../printing/queue';
 import {
+  HanntoTransport,
   IppTransport,
   MockTransport,
   SystemPrintTransport,
   UnconfiguredTransport,
+  type PrinterConnector,
 } from '../printing/transports';
+import {HanntoSession} from '../printing/hannto/session';
+import {connectToPrinter, type PrinterConnection} from '../platform/bluetooth';
 import type {PrinterTransport} from '../printing/types';
 import {ZeroconfBrowser} from '../platform/mdns';
 import {networkInfo} from '../platform/network-info';
@@ -51,6 +55,33 @@ const queueStorage: QueueStorage = {
 
 export const connector = new RnTcpConnector();
 export const mdns = new ZeroconfBrowser();
+
+/**
+ * Соединение с фотопринтером по Bluetooth.
+ *
+ * Держит одно подключение на все задания: рукопожатие Диффи — Хеллмана
+ * занимает заметное время, а на площадке снимки идут один за другим.
+ * Транспорт сам закроет и откроет его заново, если принтер отвалился.
+ */
+class BluetoothPrinterConnector implements PrinterConnector {
+  private connection: PrinterConnection | null = null;
+
+  constructor(private readonly address: string, readonly name: string) {}
+
+  async open(): Promise<HanntoSession> {
+    await this.close();
+    this.connection = await connectToPrinter(this.address);
+    const session = new HanntoSession(this.connection, {timeoutMs: 15_000});
+    await session.connect();
+    return session;
+  }
+
+  async close(): Promise<void> {
+    const connection = this.connection;
+    this.connection = null;
+    await connection?.close();
+  }
+}
 
 /** До выбора принтера — явное состояние «не настроен», а не тихая заглушка. */
 let currentTransport: PrinterTransport = new UnconfiguredTransport();
@@ -95,8 +126,28 @@ export function activeTransport(): PrinterTransport {
 export async function applyPrinterSettings(settings: PrinterSettings): Promise<void> {
   const targetMedia = MEDIA_2X3;
 
+  // Транспорт мог держать открытое соединение — отпускаем принтер,
+  // иначе он останется занятым и к нему не подключится ни новый
+  // транспорт, ни телефон оператора.
+  await releaseTransport();
+
   if (settings.transport === 'mock') {
     currentTransport = new MockTransport();
+    return;
+  }
+
+  if (settings.transport === 'bluetooth') {
+    if (!settings.bluetoothAddress) {
+      // Принтер ещё не выбран в админке. Не притворяемся рабочими.
+      currentTransport = new UnconfiguredTransport();
+      return;
+    }
+    currentTransport = new HanntoTransport({
+      connector: new BluetoothPrinterConnector(
+        settings.bluetoothAddress,
+        settings.displayName || 'Фотопринтер',
+      ),
+    });
     return;
   }
 
@@ -120,6 +171,14 @@ export async function applyPrinterSettings(settings: PrinterSettings): Promise<v
     capabilities,
     targetMedia,
   });
+}
+
+/** Отпускает принтер, если прежний транспорт держал соединение. */
+async function releaseTransport(): Promise<void> {
+  const previous = currentTransport as {dispose?: () => Promise<void>};
+  if (typeof previous.dispose === 'function') {
+    await previous.dispose().catch(() => undefined);
+  }
 }
 
 /** Ищет принтеры в сети — кнопка «Найти принтер» в админке. */

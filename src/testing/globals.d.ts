@@ -26,18 +26,17 @@ declare global {
   };
 
   /**
-   * Заглушка Bluetooth: состояние адаптера, поиск и подключение.
-   * Принтер работает только по нему, поэтому проверять надо и отказы.
+   * Заглушка классического Bluetooth: состояние адаптера, список
+   * сопряжённых устройств и подключение.
+   *
+   * Принтер печатает только по RFCOMM/SPP, поэтому проверять надо и
+   * отказы: выключенный адаптер, пустой список, неотвечающее устройство.
    */
-  var __bleMock: {
-    state: jest.Mock<Promise<string>, []>;
-    startDeviceScan: jest.Mock<
-      void,
-      [unknown, unknown, (error: {message: string} | null, device: unknown) => void]
-    >;
-    stopDeviceScan: jest.Mock<void, []>;
+  var __btMock: {
+    isBluetoothEnabled: jest.Mock<Promise<boolean>, []>;
+    getBondedDevices: jest.Mock<Promise<unknown[]>, []>;
     connectToDevice: jest.Mock<Promise<unknown>, [string, unknown?]>;
-    destroy: jest.Mock<void, []>;
+    openBluetoothSettings: jest.Mock<void, []>;
   };
 }
 

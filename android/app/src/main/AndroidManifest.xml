@@ -38,18 +38,28 @@
     <uses-permission android:name="android.permission.VIBRATE" />
 
     <!--
-      Bluetooth. Принтер Xiaomi Portable Photo Printer 1S работает только по
-      Bluetooth 5.2 — Wi-Fi у него нет вовсе, а значит нет ни AirPrint, ни
-      Mopria. Разрешения разделены по версиям Android намеренно:
+      Bluetooth: связь с фотопринтером.
 
-      - до Android 12 система требовала разрешение на местоположение даже
-        для поиска устройств, потому что по видимым рядом маячкам можно
-        определить, где человек находится. Приложению киоска местоположение
-        не нужно ни для чего, поэтому оно ограничено версиями, где иначе
-        поиск не работает вовсе, и помечено `neverForLocation` — так система
-        знает, что мы не пытаемся выяснить, где стоит планшет;
-      - с Android 12 появились отдельные разрешения на поиск и подключение,
-        и местоположение больше не нужно.
+      Принтер Xiaomi 1S работает по КЛАССИЧЕСКОМУ Bluetooth (профиль
+      последовательного порта), а не по Bluetooth Low Energy — это видно в
+      журнале настоящей печати: канал L2CAP есть, пакетов ATT нет ни
+      одного.
+
+      Приложение не ищет устройства в эфире: подключиться к классическому
+      Bluetooth без сопряжения всё равно нельзя, поэтому принтер берётся из
+      списка уже сопряжённых. Отсюда и узкий набор прав:
+
+      - до Android 12 хватает обычного BLUETOOTH, выдаваемого при
+        установке: и список сопряжённых устройств, и подключение к ним
+        доступны без запроса у человека;
+      - с Android 12 нужно одно разрешение — BLUETOOTH_CONNECT.
+
+      BLUETOOTH_SCAN и ACCESS_FINE_LOCATION нужны только для поиска в
+      эфире, которого здесь нет. Библиотека `react-native-bluetooth-classic`
+      объявляет их в своём манифесте без ограничения версии, и при слиянии
+      фотобудка получила бы право на местоположение — поэтому они сняты
+      явно. Приложение, которое просит доступ к геолокации, вызывает
+      вопросы на ровном месте.
     -->
     <uses-permission
         android:name="android.permission.BLUETOOTH"
@@ -57,17 +67,18 @@
     <uses-permission
         android:name="android.permission.BLUETOOTH_ADMIN"
         android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.ACCESS_FINE_LOCATION"
-        android:maxSdkVersion="30" />
-    <uses-permission
-        android:name="android.permission.BLUETOOTH_SCAN"
-        android:usesPermissionFlags="neverForLocation"
-        tools:targetApi="s" />
     <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
 
+    <uses-permission
+        android:name="android.permission.ACCESS_FINE_LOCATION"
+        tools:node="remove" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        tools:node="remove" />
+
+    <!-- Классический Bluetooth обязателен: без него печатать нечем. -->
     <uses-feature
-        android:name="android.hardware.bluetooth_le"
+        android:name="android.hardware.bluetooth"
         android:required="true" />
 
     <uses-feature android:name="android.hardware.camera" android:required="true" />

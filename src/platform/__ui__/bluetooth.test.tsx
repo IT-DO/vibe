@@ -1,301 +1,290 @@
 /**
- * Разведка принтера по Bluetooth.
+ * Связь с принтером по классическому Bluetooth.
  *
- * Xiaomi 1S печатает по закрытому протоколу поверх BLE — угадать его нельзя,
- * а разобрать можно, и разбор начинается с состава устройства. Здесь
- * проверяется не сам протокол (его ещё нет), а то, что разведка переживает
- * реальную площадку: выключенный Bluetooth, отказ в разрешении, занятый
- * другим телефоном принтер.
+ * Что именно проверяется: не протокол печати (он проверен отдельно и на
+ * настоящих байтах), а слой между ним и нативным модулем — тот, где
+ * ломается площадка. Выключённый адаптер, отказ в разрешении, принтер не
+ * сопряжён, соединение оборвалось посреди снимка.
+ *
+ * Отдельно — двоичность канала. Мост в нативный модуль передаёт строки,
+ * поэтому кадры едут через base64: если в этом месте ошибиться, всё
+ * сломается не сразу, а на первом же байте выше 0x7F, то есть на
+ * зашифрованных данных.
  */
 
 import {PermissionsAndroid, Platform} from 'react-native';
 
 import {
-  describeDevice,
+  connectToPrinter,
   isBluetoothOn,
+  listPairedDevices,
   looksLikePrinter,
-  releaseBluetooth,
   requestBluetoothPermissions,
-  scanForDevices,
+  wrapDevice,
 } from '../bluetooth';
-
-const GRANTED = {
-  'android.permission.BLUETOOTH_SCAN': 'granted',
-  'android.permission.BLUETOOTH_CONNECT': 'granted',
-  'android.permission.ACCESS_FINE_LOCATION': 'granted',
-};
+import {fromBase64, toBase64} from '../base64';
 
 beforeEach(() => {
-  releaseBluetooth();
-  jest.spyOn(PermissionsAndroid, 'requestMultiple').mockResolvedValue(GRANTED as never);
+  // Версия по умолчанию — Android 12+: там разрешение спрашивается, и
+  // ветка с запросом должна покрываться тестами связи, а не обходиться.
+  Object.defineProperty(Platform, 'Version', {value: 33, configurable: true});
+  jest.spyOn(PermissionsAndroid, 'request').mockResolvedValue('granted' as never);
 });
 
 afterEach(() => {
   jest.restoreAllMocks();
-  releaseBluetooth();
 });
 
+/** Поддельное устройство нативного модуля. */
+function fakeDevice(overrides: Record<string, unknown> = {}) {
+  let listener: ((event: {data: string}) => void) | null = null;
+  const written: string[] = [];
+  return {
+    address: 'F0:13:C1:52:19:90',
+    name: 'Mi Portable Photo Printer',
+    written,
+    removed: false,
+    disconnected: false,
+    /** Имитирует приход данных от принтера. */
+    emit(bytes: Uint8Array) {
+      listener?.({data: toBase64(bytes)});
+    },
+    onDataReceived(next: (event: {data: string}) => void) {
+      listener = next;
+      return {
+        remove: () => {
+          this.removed = true;
+          listener = null;
+        },
+      };
+    },
+    async write(data: string) {
+      written.push(data);
+      return true;
+    },
+    async disconnect() {
+      this.disconnected = true;
+      return true;
+    },
+    ...overrides,
+  };
+}
+
 describe('разрешения', () => {
-  /** Подменяет версию Android на время одной проверки. */
   function onAndroid(version: number) {
     Object.defineProperty(Platform, 'Version', {value: version, configurable: true});
   }
 
-  /** Разрешения, которые приложение запросило у системы. */
-  function asked(): string[] {
-    return (PermissionsAndroid.requestMultiple as jest.Mock).mock.calls[0]![0];
-  }
-
-  it('на Android 12 и новее просит только Bluetooth, без местоположения', async () => {
-    // Местоположение приложению киоска не нужно ни для чего, и спрашивать
-    // его там, где система этого больше не требует, — значит пугать
-    // владельца устройства на ровном месте.
+  it('на Android 12 и новее просит одно разрешение — на связь', async () => {
+    // Поиска в эфире приложение не ведёт: к классическому Bluetooth без
+    // сопряжения всё равно не подключиться. Значит ни BLUETOOTH_SCAN, ни
+    // местоположение не нужны, а фотобудка, просящая геолокацию, вызывает
+    // вопросы на ровном месте.
     onAndroid(33);
     await requestBluetoothPermissions();
-    expect(asked()).toEqual([
-      'android.permission.BLUETOOTH_SCAN',
+    expect(PermissionsAndroid.request).toHaveBeenCalledWith(
       'android.permission.BLUETOOTH_CONNECT',
-    ]);
+    );
   });
 
-  it('на старых версиях без местоположения поиск не работает вовсе', async () => {
-    // До Android 12 система считала список видимых рядом устройств
-    // сведениями о том, где находится человек, и без этого разрешения
-    // просто не отдавала результаты поиска.
+  it('на Android 11 не спрашивает вовсе — хватает выданного при установке', async () => {
     onAndroid(30);
-    await requestBluetoothPermissions();
-    expect(asked()).toEqual(['android.permission.ACCESS_FINE_LOCATION']);
+    expect(await requestBluetoothPermissions()).toBe(true);
+    expect(PermissionsAndroid.request).not.toHaveBeenCalled();
   });
 
-  it('отказ возвращает false, а не исключение', async () => {
-    (PermissionsAndroid.requestMultiple as jest.Mock).mockResolvedValue({
-      'android.permission.BLUETOOTH_SCAN': 'denied',
-      'android.permission.BLUETOOTH_CONNECT': 'granted',
-    } as never);
+  it('отказ пользователя не ломает приложение', async () => {
+    onAndroid(33);
+    (PermissionsAndroid.request as jest.Mock).mockResolvedValue('denied' as never);
     expect(await requestBluetoothPermissions()).toBe(false);
   });
 
-  it('сбой самого запроса тоже не роняет приложение', async () => {
-    (PermissionsAndroid.requestMultiple as jest.Mock).mockRejectedValue(
-      new Error('Система отказала'),
-    );
+  it('сбой системного диалога тоже не ломает', async () => {
+    onAndroid(33);
+    (PermissionsAndroid.request as jest.Mock).mockRejectedValue(new Error('сбой'));
     expect(await requestBluetoothPermissions()).toBe(false);
   });
 });
 
 describe('состояние адаптера', () => {
-  it('включённый Bluetooth виден', async () => {
-    globalThis.__bleMock.state.mockResolvedValue('PoweredOn');
+  it('включённый адаптер виден', async () => {
     expect(await isBluetoothOn()).toBe(true);
   });
 
-  it('выключенный — тоже', async () => {
-    globalThis.__bleMock.state.mockResolvedValue('PoweredOff');
+  it('сбой нативного модуля читается как «выключен», а не как исключение', async () => {
+    globalThis.__btMock.isBluetoothEnabled.mockRejectedValue(new Error('нет модуля'));
     expect(await isBluetoothOn()).toBe(false);
   });
+});
 
-  it('сбой опроса считается «выключено», а не падением', async () => {
-    globalThis.__bleMock.state.mockRejectedValue(new Error('Стек не поднялся'));
-    expect(await isBluetoothOn()).toBe(false);
+describe('список сопряжённых устройств', () => {
+  it('принтеры идут первыми — оператору не придётся их искать', async () => {
+    globalThis.__btMock.getBondedDevices.mockResolvedValue([
+      {address: '11', name: 'Колонка JBL'},
+      {address: '22', name: 'Mi Portable Photo Printer'},
+      {address: '33', name: 'Наушники'},
+    ]);
+    const devices = await listPairedDevices();
+    expect(devices[0]!.name).toBe('Mi Portable Photo Printer');
+    expect(devices[0]!.looksLikePrinter).toBe(true);
+    expect(devices).toHaveLength(3);
+  });
+
+  it('устройство без имени не роняет список', async () => {
+    globalThis.__btMock.getBondedDevices.mockResolvedValue([{address: '11', name: null}]);
+    const devices = await listPairedDevices();
+    expect(devices[0]!.name).toBe('');
+    expect(devices[0]!.looksLikePrinter).toBe(false);
+  });
+
+  it('без разрешения — понятная ошибка, а не пустой список', async () => {
+    (PermissionsAndroid.request as jest.Mock).mockResolvedValue('denied' as never);
+    await expect(listPairedDevices()).rejects.toThrow(/разрешения/);
   });
 });
 
 describe('узнавание принтера по имени', () => {
-  it.each([
-    'Xiaomi Photo Printer',
-    'Mi Photo Printer 1S',
-    'MIJIA PRINTER',
-    'zink-printer',
-  ])('«%s» похоже на принтер', name => {
-    expect(looksLikePrinter(name)).toBe(true);
+  it('узнаёт разные написания Xiaomi', () => {
+    for (const name of [
+      'Mi Portable Photo Printer',
+      'XIAOMI Photo Printer 1S',
+      'Mijia Instant Photo',
+      'Hannto ZINK',
+    ]) {
+      expect(looksLikePrinter(name)).toBe(true);
+    }
   });
 
-  it.each(['Galaxy Buds', 'JBL Flip 5', '', 'Mi Band 7'])(
-    '«%s» — не принтер',
-    name => {
+  it('не принимает за принтер что попало', () => {
+    for (const name of ['Колонка JBL', 'Galaxy Buds', '', 'Mi Band 5']) {
       expect(looksLikePrinter(name)).toBe(false);
-    },
-  );
-});
-
-describe('поиск устройств', () => {
-  /** Подсовывает поиску заранее заготовленные устройства. */
-  function scanFinds(devices: {id: string; name?: string; rssi?: number}[]) {
-    globalThis.__bleMock.startDeviceScan.mockImplementation(
-      (_uuids, _options, listener) => {
-        for (const device of devices) {
-          listener(null, {
-            id: device.id,
-            name: device.name ?? null,
-            localName: null,
-            rssi: device.rssi ?? null,
-          });
-        }
-      },
-    );
-  }
-
-  it('возвращает найденное и останавливает поиск', async () => {
-    scanFinds([{id: 'AA', name: 'Xiaomi Photo Printer', rssi: -40}]);
-    const found = await scanForDevices(10);
-
-    expect(found).toEqual([
-      {id: 'AA', name: 'Xiaomi Photo Printer', rssi: -40, looksLikePrinter: true},
-    ]);
-    expect(globalThis.__bleMock.stopDeviceScan).toHaveBeenCalled();
-  });
-
-  it('ближние устройства идут первыми — принтер стоит рядом с планшетом', async () => {
-    scanFinds([
-      {id: 'FAR', name: 'Колонка', rssi: -90},
-      {id: 'NEAR', name: 'Xiaomi Photo Printer', rssi: -35},
-    ]);
-    const found = await scanForDevices(10);
-    expect(found.map(d => d.id)).toEqual(['NEAR', 'FAR']);
-  });
-
-  it('одно устройство не попадает в список дважды', async () => {
-    scanFinds([
-      {id: 'AA', name: 'Принтер', rssi: -50},
-      {id: 'AA', name: 'Принтер', rssi: -48},
-    ]);
-    expect(await scanForDevices(10)).toHaveLength(1);
-  });
-
-  it('безымянные устройства не теряются — принтер может не назваться', async () => {
-    scanFinds([{id: 'AA', rssi: -50}]);
-    const found = await scanForDevices(10);
-    expect(found[0]).toMatchObject({name: '', looksLikePrinter: false});
-  });
-
-  it('без разрешения поиск честно отказывается', async () => {
-    (PermissionsAndroid.requestMultiple as jest.Mock).mockResolvedValue({
-      'android.permission.BLUETOOTH_SCAN': 'denied',
-    } as never);
-    await expect(scanForDevices(10)).rejects.toThrow('Нет разрешения');
-  });
-
-  it('сбой поиска не оставляет сканер включённым', async () => {
-    // Иначе Bluetooth продолжает искать в фоне и сажает батарею планшета.
-    globalThis.__bleMock.startDeviceScan.mockImplementation(
-      (_uuids, _options, listener) => {
-        listener({message: 'Адаптер занят'}, null);
-      },
-    );
-    await expect(scanForDevices(10)).rejects.toThrow('Адаптер занят');
-    expect(globalThis.__bleMock.stopDeviceScan).toHaveBeenCalled();
+    }
   });
 });
 
-describe('состав подключённого устройства', () => {
-  /** Устройство, отвечающее заданным набором сервисов. */
-  function connectsWith(services: {uuid: string; chars: object[]}[]) {
-    globalThis.__bleMock.connectToDevice.mockResolvedValue({
-      id: 'AA',
-      name: 'Xiaomi Photo Printer',
-      localName: null,
-      requestMTU: async () => ({mtu: 247}),
-      discoverAllServicesAndCharacteristics: async () => undefined,
-      services: async () =>
-        services.map(s => ({
-          uuid: s.uuid,
-          characteristics: async () => s.chars,
-        })),
-      cancelConnection: async () => undefined,
-    } as never);
-  }
+describe('подключение', () => {
+  it('выключенный адаптер объясняется человеку', async () => {
+    globalThis.__btMock.isBluetoothEnabled.mockResolvedValue(false);
+    await expect(connectToPrinter('11')).rejects.toThrow(/Bluetooth выключен/);
+  });
 
-  it('перечисляет сервисы и помечает, куда можно писать', async () => {
-    // Пометки важнее номеров: снимок уходит в характеристику, принимающую
-    // запись, а состояние печати приходит из той, что шлёт уведомления.
-    connectsWith([
-      {
-        uuid: '0000ff00-0000-1000-8000-00805f9b34fb',
-        chars: [
-          {
-            uuid: 'ff01',
-            isReadable: false,
-            isWritableWithResponse: false,
-            isWritableWithoutResponse: true,
-            isNotifiable: false,
-            isIndicatable: false,
-          },
-          {
-            uuid: 'ff02',
-            isReadable: true,
-            isWritableWithResponse: false,
-            isWritableWithoutResponse: false,
-            isNotifiable: true,
-            isIndicatable: false,
-          },
-        ],
+  it('без разрешения не подключаемся', async () => {
+    (PermissionsAndroid.request as jest.Mock).mockResolvedValue('denied' as never);
+    await expect(connectToPrinter('11')).rejects.toThrow(/разрешения/);
+  });
+
+  it('просит двоичное соединение, а не разбор по строкам', async () => {
+    globalThis.__btMock.connectToDevice.mockResolvedValue(fakeDevice());
+    await connectToPrinter('F0:13:C1:52:19:90');
+
+    const [, options] = globalThis.__btMock.connectToDevice.mock.calls[0]!;
+    // Соединение по умолчанию режет поток по переводу строки и декодирует
+    // его как текст — в кадрах встречается любой байт, включая 0x0A.
+    expect(options).toMatchObject({connectionType: 'binary', connectorType: 'rfcomm'});
+    // Кадр доходит до 1045 байт, а буфер по умолчанию — 1024.
+    expect((options as {readSize: number}).readSize).toBeGreaterThan(1045);
+  });
+});
+
+describe('канал байтов', () => {
+  it('отправленное доходит до устройства без искажений', async () => {
+    const device = fakeDevice();
+    const link = wrapDevice(device as never);
+
+    // В кадре есть и метка 0x7e, и нули, и байты выше 0x7F.
+    const frame = Uint8Array.from([0x7e, 0x64, 0x00, 0xff, 0x80, 0x0a, 0x7e]);
+    await link.write(frame);
+
+    expect(device.written).toHaveLength(1);
+    expect(fromBase64(device.written[0]!)).toEqual(frame);
+  });
+
+  it('пришедшее от устройства разбирается обратно в байты', async () => {
+    const device = fakeDevice();
+    const link = wrapDevice(device as never);
+
+    const received: Uint8Array[] = [];
+    link.subscribe(data => received.push(data));
+
+    const answer = Uint8Array.from([0x7e, 0x64, 0x00, 0xff, 0x11, 0x02, 0x7e]);
+    device.emit(answer);
+    expect(received).toEqual([answer]);
+  });
+
+  it('все 256 значений байта проходят в обе стороны', async () => {
+    const device = fakeDevice();
+    const link = wrapDevice(device as never);
+    const all = new Uint8Array(256);
+    for (let i = 0; i < 256; i++) {
+      all[i] = i;
+    }
+
+    await link.write(all);
+    expect(fromBase64(device.written[0]!)).toEqual(all);
+
+    const received: Uint8Array[] = [];
+    link.subscribe(data => received.push(data));
+    device.emit(all);
+    expect(received[0]).toEqual(all);
+  });
+
+  it('отписка прекращает поток именно этому слушателю', async () => {
+    const device = fakeDevice();
+    const link = wrapDevice(device as never);
+
+    const first: Uint8Array[] = [];
+    const second: Uint8Array[] = [];
+    const stop = link.subscribe(data => first.push(data));
+    link.subscribe(data => second.push(data));
+
+    stop();
+    device.emit(Uint8Array.from([1, 2, 3]));
+    expect(first).toHaveLength(0);
+    expect(second).toHaveLength(1);
+  });
+
+  it('пустой пакет не будит разбор понапрасну', () => {
+    const device = fakeDevice();
+    const link = wrapDevice(device as never);
+    const received: Uint8Array[] = [];
+    link.subscribe(data => received.push(data));
+
+    device.emit(new Uint8Array(0));
+    expect(received).toHaveLength(0);
+  });
+
+  it('отказ устройства принять данные виден как ошибка', async () => {
+    const device = fakeDevice({write: async () => false});
+    const link = wrapDevice(device as never);
+    await expect(link.write(Uint8Array.from([1]))).rejects.toThrow(/не принял/);
+  });
+
+  it('закрытие отпускает принтер — иначе к нему не подключится никто', async () => {
+    const device = fakeDevice();
+    const link = wrapDevice(device as never);
+    await link.close();
+    expect(device.removed).toBe(true);
+    expect(device.disconnected).toBe(true);
+  });
+
+  it('принтер, отключившийся сам, не мешает закрыться', async () => {
+    const device = fakeDevice({
+      disconnect: async () => {
+        throw new Error('уже отключён');
       },
-    ]);
-
-    const profile = await describeDevice('AA');
-
-    expect(profile).toMatchObject({id: 'AA', name: 'Xiaomi Photo Printer', mtu: 247});
-    expect(profile.services[0]!.characteristics).toEqual([
-      {uuid: 'ff01', isReadable: false, isWritable: true, isNotifiable: false},
-      {uuid: 'ff02', isReadable: true, isWritable: false, isNotifiable: true},
-    ]);
+    });
+    const link = wrapDevice(device as never);
+    await expect(link.close()).resolves.toBeUndefined();
   });
 
-  it('соединение закрывается — иначе принтер не отдастся Xiaomi Home', async () => {
-    const cancelConnection = jest.fn(async () => undefined);
-    globalThis.__bleMock.connectToDevice.mockResolvedValue({
-      id: 'AA',
-      name: null,
-      localName: null,
-      requestMTU: async () => ({mtu: 247}),
-      discoverAllServicesAndCharacteristics: async () => undefined,
-      services: async () => [],
-      cancelConnection,
-    } as never);
+  it('после закрытия данные больше не приходят', async () => {
+    const device = fakeDevice();
+    const link = wrapDevice(device as never);
+    const received: Uint8Array[] = [];
+    link.subscribe(data => received.push(data));
 
-    await describeDevice('AA');
-    expect(cancelConnection).toHaveBeenCalled();
-  });
-
-  it('соединение закрывается и когда разведка упала на середине', async () => {
-    const cancelConnection = jest.fn(async () => undefined);
-    globalThis.__bleMock.connectToDevice.mockResolvedValue({
-      id: 'AA',
-      name: null,
-      localName: null,
-      requestMTU: async () => ({mtu: 247}),
-      discoverAllServicesAndCharacteristics: async () => {
-        throw new Error('Устройство отключилось');
-      },
-      services: async () => [],
-      cancelConnection,
-    } as never);
-
-    await expect(describeDevice('AA')).rejects.toThrow('отключилось');
-    expect(cancelConnection).toHaveBeenCalled();
-  });
-
-  it('отказ увеличить пакет не мешает разведке', async () => {
-    // Принтер может не согласовать MTU — тогда работает стандартный 23.
-    globalThis.__bleMock.connectToDevice.mockResolvedValue({
-      id: 'AA',
-      name: null,
-      localName: null,
-      requestMTU: async () => {
-        throw new Error('Не поддерживается');
-      },
-      discoverAllServicesAndCharacteristics: async () => undefined,
-      services: async () => [],
-      cancelConnection: async () => undefined,
-    } as never);
-
-    expect((await describeDevice('AA')).mtu).toBe(23);
-  });
-
-  it('занятый другим телефоном принтер даёт понятный отказ', async () => {
-    globalThis.__bleMock.connectToDevice.mockRejectedValue(
-      new Error('Device is already connected'),
-    );
-    await expect(describeDevice('AA')).rejects.toThrow('already connected');
+    await link.close();
+    device.emit(Uint8Array.from([1, 2, 3]));
+    expect(received).toHaveLength(0);
   });
 });

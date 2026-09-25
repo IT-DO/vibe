@@ -1,68 +1,91 @@
 /**
- * Разведка Bluetooth в админке.
+ * Выбор принтера в админке.
  *
- * Принтер Xiaomi 1S печатает по закрытому протоколу поверх BLE — угадать
- * его нельзя, а разобрать можно, и начинается разбор отсюда. Экран находит
- * устройства рядом, подключается к выбранному и показывает, из чего оно
- * состоит: какие сервисы, какие характеристики, какие из них принимают
- * запись (туда уходит снимок) и какие шлют уведомления (оттуда приходит
- * состояние печати).
+ * Xiaomi 1S печатает только по классическому Bluetooth (профиль
+ * последовательного порта), а такое соединение требует сопряжения
+ * средствами системы. Поэтому здесь не поиск в эфире, а список уже
+ * сопряжённых устройств: оператор один раз связывает планшет с принтером в
+ * настройках Android, выбирает его тут — и дальше приложение подключается
+ * само при каждой печати.
  *
- * Список можно отправить одной кнопкой — по нему видно, куда именно
- * приложение Xiaomi Home передаёт данные, и задача сужается с «разобрать
- * протокол» до «разобрать формат вот этой характеристики».
+ * Кнопка «Проверить связь» делает полный круг: подключается, проводит
+ * рукопожатие, спрашивает модель и состояние. Если она отвечает — печать
+ * заработает; если нет, видно, на каком шаге сломалось.
  */
 
-import React, {useCallback, useState} from 'react';
-import {ScrollView, Share, StyleSheet, Text, View} from 'react-native';
+import React, {useCallback, useEffect, useState} from 'react';
+import {StyleSheet, Text, View} from 'react-native';
 
 import {AdminButton, Row, Section} from './controls';
 import {
-  describeDevice,
+  connectToPrinter,
   isBluetoothOn,
-  scanForDevices,
-  type DeviceProfile,
-  type FoundDevice,
+  listPairedDevices,
+  openBluetoothSettings,
+  type PairedDevice,
 } from '../../platform/bluetooth';
-import {palette, radius, spacing, typography} from '../../theme/theme';
+import {HanntoSession} from '../../printing/hannto/session';
+import {useSettings} from '../../store/settings';
+import {palette, spacing, typography} from '../../theme/theme';
+
+/** Что удалось узнать у принтера при проверке связи. */
+export interface PrinterCheck {
+  readonly model: string;
+  readonly firmware: string;
+  readonly state: string;
+  readonly battery: number | null;
+  readonly cleanRemain: number | null;
+}
 
 export function BluetoothScan() {
-  const [devices, setDevices] = useState<FoundDevice[]>([]);
-  const [profile, setProfile] = useState<DeviceProfile | null>(null);
-  const [busy, setBusy] = useState<'scan' | 'connect' | null>(null);
+  const address = useSettings(s => s.settings.printer.bluetoothAddress);
+  const updatePrinter = useSettings(s => s.updatePrinter);
+
+  const [devices, setDevices] = useState<PairedDevice[]>([]);
+  const [check, setCheck] = useState<PrinterCheck | null>(null);
+  const [busy, setBusy] = useState<'list' | 'check' | null>(null);
   const [note, setNote] = useState<string | null>(null);
 
-  const scan = useCallback(async () => {
-    setBusy('scan');
+  const refresh = useCallback(async () => {
+    setBusy('list');
     setNote(null);
-    setProfile(null);
     try {
       if (!(await isBluetoothOn())) {
         setNote('Bluetooth выключен — включите его в настройках устройства');
+        setDevices([]);
         return;
       }
-      const found = await scanForDevices();
-      setDevices(found);
-      if (found.length === 0) {
-        setNote('Рядом ничего не найдено. Принтер включён и не занят другим телефоном?');
+      const paired = await listPairedDevices();
+      setDevices(paired);
+      if (paired.length === 0) {
+        setNote(
+          'Сопряжённых устройств нет. Свяжите планшет с принтером в настройках Bluetooth — он подключается как обычная гарнитура.',
+        );
       }
     } catch (error) {
-      setNote(error instanceof Error ? error.message : 'Не удалось выполнить поиск');
+      setNote(error instanceof Error ? error.message : 'Не удалось получить список');
     } finally {
       setBusy(null);
     }
   }, []);
 
-  const connect = useCallback(async (device: FoundDevice) => {
-    setBusy('connect');
+  // Список нужен сразу при открытии раздела: оператор пришёл сюда именно
+  // за ним, лишнее нажатие тут ни к чему.
+  useEffect(() => {
+    void refresh();
+  }, [refresh]);
+
+  const verify = useCallback(async (device: PairedDevice) => {
+    setBusy('check');
     setNote(null);
+    setCheck(null);
     try {
-      setProfile(await describeDevice(device.id));
+      setCheck(await askPrinter(device.address));
     } catch (error) {
       setNote(
         error instanceof Error
-          ? `Не удалось подключиться: ${error.message}`
-          : 'Не удалось подключиться',
+          ? `Принтер не отвечает: ${error.message}`
+          : 'Принтер не отвечает',
       );
     } finally {
       setBusy(null);
@@ -70,113 +93,118 @@ export function BluetoothScan() {
   }, []);
 
   return (
-    <Section title="Bluetooth: разведка принтера">
+    <Section title="Принтер по Bluetooth">
       <Row
         label=""
-        value="Принтер Xiaomi 1S печатает только по Bluetooth. Здесь видно, из чего он состоит — это нужно, чтобы научить приложение печатать напрямую."
+        value="Свяжите планшет с принтером в настройках Bluetooth, затем выберите его здесь. Приложение подключается к нему само при каждой печати."
       />
 
       <View style={styles.buttonRow}>
         <AdminButton
-          label="Искать устройства"
+          label="Обновить список"
           tone="accent"
-          busy={busy === 'scan'}
-          onPress={() => void scan()}
+          busy={busy === 'list'}
+          onPress={() => void refresh()}
         />
+        <AdminButton label="Настройки Bluetooth" onPress={openBluetoothSettings} />
       </View>
 
       {note ? <Row label="" value={note} /> : null}
 
-      {devices.map(device => (
-        <View key={device.id} style={styles.deviceRow}>
-          <View style={styles.deviceInfo}>
-            <Text style={styles.deviceName}>
-              {device.name || 'без имени'}
-              {device.looksLikePrinter ? ' · похоже на принтер' : ''}
-            </Text>
-            <Text style={styles.deviceMeta}>
-              {device.id}
-              {device.rssi === null ? '' : ` · сигнал ${device.rssi} дБм`}
-            </Text>
+      {devices.map(device => {
+        const chosen = device.address === address;
+        return (
+          <View key={device.address} style={styles.deviceRow}>
+            <View style={styles.deviceInfo}>
+              <Text style={styles.deviceName}>
+                {device.name || 'без имени'}
+                {chosen ? ' · выбран' : device.looksLikePrinter ? ' · похоже на принтер' : ''}
+              </Text>
+              <Text style={styles.deviceMeta}>{device.address}</Text>
+            </View>
+            <View style={styles.deviceActions}>
+              <AdminButton
+                label={chosen ? 'Выбран' : 'Выбрать'}
+                tone={chosen ? 'accent' : undefined}
+                onPress={() =>
+                  updatePrinter({
+                    transport: 'bluetooth',
+                    bluetoothAddress: device.address,
+                    displayName: device.name,
+                  })
+                }
+              />
+              <AdminButton
+                label="Проверить связь"
+                busy={busy === 'check'}
+                onPress={() => void verify(device)}
+              />
+            </View>
           </View>
-          <AdminButton
-            label="Разведать"
-            busy={busy === 'connect'}
-            onPress={() => void connect(device)}
-          />
-        </View>
-      ))}
+        );
+      })}
 
-      {profile ? <Profile profile={profile} /> : null}
+      {check ? (
+        <>
+          <Row label="Модель" value={check.model} />
+          <Row label="Прошивка" value={check.firmware} />
+          <Row label="Состояние" value={describeState(check.state)} />
+          <Row
+            label="Заряд"
+            value={check.battery === null ? 'неизвестен' : `${check.battery}%`}
+          />
+          <Row
+            label="До чистки"
+            value={
+              check.cleanRemain === null
+                ? 'неизвестно'
+                : `${check.cleanRemain} отпечатков`
+            }
+          />
+        </>
+      ) : null}
     </Section>
   );
 }
 
-/** Состав подключённого устройства. */
-function Profile({profile}: {profile: DeviceProfile}) {
-  const text = describeAsText(profile);
-
-  return (
-    <>
-      <Row label="Устройство" value={profile.name || profile.id} />
-      <Row label="Размер пакета" value={`${profile.mtu} байт`} />
-      <Row label="Сервисов" value={String(profile.services.length)} />
-
-      <View style={styles.report}>
-        <ScrollView nestedScrollEnabled style={styles.reportScroll}>
-          <Text style={styles.reportText} selectable>
-            {text}
-          </Text>
-        </ScrollView>
-      </View>
-
-      <View style={styles.buttonRow}>
-        <AdminButton
-          label="Отправить разработчику"
-          tone="accent"
-          onPress={() => {
-            void Share.share({
-              title: 'Состав принтера по Bluetooth',
-              message: text,
-            });
-          }}
-        />
-      </View>
-    </>
-  );
+/**
+ * Подключается к принтеру и спрашивает, кто он и как себя чувствует.
+ *
+ * Соединение закрывается сразу: занятый принтер не примет ни печать из
+ * приложения, ни подключение с телефона оператора.
+ */
+export async function askPrinter(address: string): Promise<PrinterCheck> {
+  const connection = await connectToPrinter(address);
+  const session = new HanntoSession(connection, {timeoutMs: 15_000});
+  try {
+    await session.connect();
+    const info = await session.deviceInfo();
+    const status = await session.status();
+    return {
+      model: info.sku ?? 'неизвестна',
+      firmware: info.fw_ver ?? 'неизвестна',
+      state: status.category,
+      battery: status['battery-level'] ?? null,
+      cleanRemain: status.clean_remain ?? null,
+    };
+  } finally {
+    session.close();
+    await connection.close();
+  }
 }
 
-/**
- * Состав устройства текстом — в таком виде его можно переслать.
- *
- * Пометки рядом с характеристиками важнее их номеров: снимок уходит в ту,
- * что принимает запись, а состояние приходит из той, что шлёт уведомления.
- */
-export function describeAsText(profile: DeviceProfile): string {
-  const lines: string[] = [
-    `Устройство: ${profile.name || '(без имени)'}`,
-    `Идентификатор: ${profile.id}`,
-    `Размер пакета (MTU): ${profile.mtu}`,
-    '',
-  ];
-
-  for (const service of profile.services) {
-    lines.push(`Сервис ${service.uuid}`);
-    if (service.characteristics.length === 0) {
-      lines.push('  (характеристик нет)');
-    }
-    for (const c of service.characteristics) {
-      const marks = [
-        c.isReadable ? 'чтение' : null,
-        c.isWritable ? 'ЗАПИСЬ' : null,
-        c.isNotifiable ? 'уведомления' : null,
-      ].filter(Boolean);
-      lines.push(`  ${c.uuid} — ${marks.length > 0 ? marks.join(', ') : 'без доступа'}`);
-    }
-    lines.push('');
+/** Состояние принтера по-русски. */
+export function describeState(state: string): string {
+  switch (state) {
+    case 'idle':
+      return 'свободен';
+    case 'processing':
+      return 'печатает';
+    case 'error':
+      return 'неисправность';
+    default:
+      return state;
   }
-
-  return lines.join('\n');
 }
 
 const styles = StyleSheet.create({
@@ -194,6 +222,7 @@ const styles = StyleSheet.create({
     paddingVertical: spacing.sm,
   },
   deviceInfo: {flex: 1, gap: 2},
+  deviceActions: {flexDirection: 'row', gap: spacing.sm},
   deviceName: {
     color: palette.text,
     fontSize: typography.admin,
@@ -202,18 +231,5 @@ const styles = StyleSheet.create({
   deviceMeta: {
     color: palette.textMuted,
     fontSize: typography.admin - 2,
-  },
-  report: {
-    backgroundColor: palette.background,
-    borderRadius: radius.sm,
-    padding: spacing.sm,
-    marginTop: spacing.sm,
-    maxHeight: 260,
-  },
-  reportScroll: {maxHeight: 244},
-  reportText: {
-    color: palette.textMuted,
-    fontSize: typography.admin - 2,
-    fontFamily: 'monospace',
   },
 });
