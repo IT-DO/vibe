@@ -26,6 +26,7 @@ module.exports = {
       files: [
         'src/utils/bytes.ts',
         'src/utils/base64.ts',
+        'src/platform/base64.ts',
         'src/printing/**/*.ts',
         'src/imaging/composer.ts',
         'src/**/__tests__/**/*.ts',

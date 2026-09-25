@@ -70,6 +70,17 @@ describe('команды', () => {
     expect(info.did).toBe('4000430552');
   });
 
+  it('части, пришедшие не по порядку, собираются правильно', async () => {
+    // Разрежённый массив — ловушка: `every` пропускает дыры, и ответ, у
+    // которого последняя часть пришла раньше первой, собрался бы из
+    // пустоты, а не остался бы ждать недостающих.
+    const printer = new FakePrinter({splitAt: 32, reverseParts: true});
+    const session = await connected(printer);
+    const info = await session.deviceInfo();
+    expect(info.sku).toBe('BHR9974GL');
+    expect(info.did).toBe('4000430552');
+  });
+
   it('ошибку принтера не выдаём за результат', async () => {
     const session = await connected(new FakePrinter({failMethod: 'print_job'}));
     await expect(session.createJob(1000)).rejects.toThrow(/нет бумаги/);

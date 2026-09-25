@@ -67,13 +67,20 @@ jobs:
           distribution: temurin
           java-version: 17
 
+      # `packages: ''` обязателен. По умолчанию действие ставит пакет
+      # `tools`, которого в репозитории Google больше нет: sdkmanager
+      # отвечает «Failed to find package 'tools'» и выходит с ошибкой, а
+      # сборка APK падает, не начавшись. Всё нужное ставится следующим
+      # шагом явно и по версиям.
       - uses: android-actions/setup-android@v3
+        with:
+          packages: ''
 
       # Skia и VisionCamera компилируют свой C++, поэтому нужны NDK и CMake.
       # Версия NDK должна совпадать с android/build.gradle.
       - name: Установка NDK и CMake
         run: |
-          sdkmanager --install "ndk;26.1.10909125" "cmake;3.22.1" "platforms;android-35" "build-tools;35.0.0"
+          sdkmanager --install "platform-tools" "ndk;26.1.10909125" "cmake;3.22.1" "platforms;android-35" "build-tools;35.0.0"
 
       - run: npm ci
 

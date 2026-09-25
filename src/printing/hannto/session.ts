@@ -134,8 +134,8 @@ export class HanntoSession {
   private readonly pending = new Map<number, Pending>();
   /** Ожидание кадра рукопожатия: там `id` нет, сопоставляем по типу. */
   private handshakeWaiter: ((frame: Frame) => void) | null = null;
-  /** Незавершённые многочастные ответы. */
-  private readonly partial = new Map<number, Uint8Array[]>();
+  /** Незавершённые многочастные ответы: по номеру сообщения — его части. */
+  private readonly partial = new Map<number, (Uint8Array | undefined)[]>();
 
   constructor(link: HanntoLink, options: SessionOptions = {}) {
     this.link = link;
@@ -411,28 +411,36 @@ export class HanntoSession {
     waiter.resolve(message.result);
   }
 
-  /** Склеивает многочастный ответ; для обычного отдаёт тело как есть. */
+  /**
+   * Склеивает многочастный ответ; для обычного отдаёт тело как есть.
+   *
+   * Готовность считается перебором, а не через `every`: у разрежённого
+   * массива `every` пропускает дыры, и ответ, у которого последняя часть
+   * пришла раньше первой, был бы собран из пустоты.
+   */
   private assemble(frame: Frame): Uint8Array | null {
     if (frame.parts <= 1) {
       return frame.body;
     }
-    const collected = this.partial.get(frame.message) ?? [];
+    const collected = this.partial.get(frame.message) ?? new Array(frame.parts).fill(undefined);
     collected[frame.part - 1] = frame.body;
     this.partial.set(frame.message, collected);
 
-    const ready =
-      collected.length === frame.parts && collected.every(part => part !== undefined);
-    if (!ready) {
-      return null;
+    let total = 0;
+    for (let i = 0; i < frame.parts; i++) {
+      const part = collected[i];
+      if (part === undefined) {
+        return null; // ответ ещё не собран целиком
+      }
+      total += part.length;
     }
     this.partial.delete(frame.message);
 
-    const total = collected.reduce((sum, part) => sum + part.length, 0);
     const body = new Uint8Array(total);
     let offset = 0;
     for (const part of collected) {
-      body.set(part, offset);
-      offset += part.length;
+      body.set(part!, offset);
+      offset += part!.length;
     }
     return body;
   }

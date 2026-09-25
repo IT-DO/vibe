@@ -43,6 +43,8 @@ export interface FakePrinterOptions {
   failMethod?: string;
   /** Резать ответы на части такого размера — проверка сборки многочастных. */
   splitAt?: number;
+  /** Слать части задом наперёд — проверка сборки не по порядку. */
+  reverseParts?: boolean;
 }
 
 export class FakePrinter implements HanntoLink {
@@ -231,7 +233,11 @@ export class FakePrinter implements HanntoLink {
     this.message += 1;
     const message = this.message;
 
-    for (let i = 0; i < parts; i++) {
+    const order = [...Array(parts).keys()];
+    if (this.options.reverseParts) {
+      order.reverse();
+    }
+    for (const i of order) {
       const slice = bytes.subarray(i * limit, (i + 1) * limit);
       this.emit(
         buildFrame({
