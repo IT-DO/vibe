@@ -19,6 +19,7 @@ import {
   type SkTypeface,
 } from '@shopify/react-native-skia';
 
+import {trace} from '../platform/trace';
 import {
   bleedOffset,
   coverCrop,
@@ -88,6 +89,16 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
   const canvasSize = withBleed(sheet, options.bleedPercent);
   const offset = bleedOffset(sheet, canvasSize);
 
+  trace('сборка', 'начало', {
+    раскладка: options.layout.id,
+    кадров: options.shotPaths.length,
+    лист: `${sheet.width}×${sheet.height}`,
+    холст: `${canvasSize.width}×${canvasSize.height}`,
+    dpi: options.dpi,
+    шрифт: options.typeface ? 'есть' : 'нет',
+    подпись: options.caption?.title ?? '—',
+  });
+
   const surface = Skia.Surface.MakeOffscreen(canvasSize.width, canvasSize.height);
   if (!surface) {
     // Размер в сообщении не для красоты: если холст не создаётся, первое,
@@ -126,6 +137,7 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
     canvas.restore();
   }
 
+  trace('сборка', 'рисование закончено, кодируем');
   surface.flush();
   const snapshot = surface.makeImageSnapshot();
   const encoded = snapshot.encodeToBytes(ImageFormat.JPEG, options.jpegQuality);
@@ -135,6 +147,7 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
     );
   }
 
+  trace('сборка', 'лист готов', {байт: encoded.length});
   return {
     jpeg: encoded,
     size: canvasSize,
@@ -173,8 +186,14 @@ async function drawCells(
     const image = await loadImage(path);
     if (!image) {
       // Кадр не прочитался — ячейка останется фоном, но лист выйдет.
+      trace('сборка', 'кадр не прочитался', {кадр: shotIndex, путь: path});
       continue;
     }
+    trace('сборка', 'кадр прочитан', {
+      кадр: shotIndex,
+      размер: `${image.width()}×${image.height()}`,
+      ячеек: cells.length,
+    });
 
     try {
       const source: Size = {width: image.width(), height: image.height()};
@@ -336,7 +355,9 @@ export {TileMode};
  */
 async function stage<T>(name: string, run: () => Promise<T>): Promise<T> {
   try {
-    return await run();
+    const result = await run();
+    trace('сборка', `стадия «${name}» пройдена`);
+    return result;
   } catch (error) {
     const reason = error instanceof Error ? error.message : String(error);
     throw new Error(`Сборка листа, стадия «${name}»: ${reason}`);

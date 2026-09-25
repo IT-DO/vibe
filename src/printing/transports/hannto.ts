@@ -82,6 +82,7 @@ export class HanntoTransport implements PrinterTransport {
         this.options.minBatteryPercent ?? MIN_BATTERY,
       );
     } catch (error) {
+      this.options.log?.(`опрос принтера не удался — ${message(error)}`);
       await this.drop();
       // Недоступный принтер — это `blocked`, а не ошибка: очередь встанет
       // на паузу, задания сохранятся и напечатаются, как только оператор
@@ -95,16 +96,31 @@ export class HanntoTransport implements PrinterTransport {
   }
 
   async submit(document: PrintDocument): Promise<SubmittedJob> {
+    this.options.log?.('печать: подключаемся');
     const session = await this.connected();
     try {
+      this.options.log?.(
+        `печать: ставим задание, файл ${document.data.length} байт, копий ${document.copies}`,
+      );
       const jobId = await session.createJob(document.data.length, document.copies);
+      this.options.log?.(`печать: задание ${jobId}, отправляем файл`);
+
+      // Сообщаем не о каждом куске: их больше двух сотен, и по одной
+      // строке на кусок журнал перестал бы читаться.
+      let reported = 0;
       await session.sendFile(document.data, jobId, (sent, total) => {
-        this.options.log?.(`отправлено ${sent} из ${total} байт`);
+        const percent = Math.floor((sent / total) * 10) * 10;
+        if (percent > reported) {
+          reported = percent;
+          this.options.log?.(`печать: отправлено ${percent}% (${sent} из ${total})`);
+        }
       });
+      this.options.log?.(`печать: файл отправлен целиком, задание ${jobId}`);
       return {remoteId: jobId, submittedAt: Date.now()};
     } catch (error) {
       // Оборванная передача оставляет принтер с недописанным заданием.
       // Соединение проще открыть заново, чем вычищать его состояние.
+      this.options.log?.(`печать: сорвалась — ${message(error)}`);
       await this.drop();
       throw error;
     }
@@ -134,7 +150,9 @@ export class HanntoTransport implements PrinterTransport {
       return this.session;
     }
     await this.drop();
+    this.options.log?.('открываем соединение с принтером');
     this.session = await this.options.connector.open();
+    this.options.log?.('соединение открыто, ключ согласован');
     return this.session;
   }
 

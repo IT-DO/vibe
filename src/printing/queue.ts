@@ -95,6 +95,11 @@ export interface PrintQueueOptions {
   readonly pollIntervalMs?: number;
   /** Предел ожидания завершения печати одного задания. */
   readonly printTimeoutMs?: number;
+  /**
+   * Куда писать ход работы. Очередь — чистый слой и не знает, где журнал,
+   * поэтому получает запись снаружи.
+   */
+  readonly log?: (what: string, detail?: Record<string, unknown>) => void;
   /** Источник случайности для «дрожания» задержек. */
   readonly random?: () => number;
 }
@@ -132,6 +137,7 @@ export class PrintQueue {
       historyMs: options.historyMs ?? DEFAULTS.historyMs,
       pollIntervalMs: options.pollIntervalMs ?? DEFAULTS.pollIntervalMs,
       printTimeoutMs: options.printTimeoutMs ?? DEFAULTS.printTimeoutMs,
+      log: options.log ?? (() => {}),
       random: options.random ?? Math.random,
     };
   }
@@ -316,6 +322,11 @@ export class PrintQueue {
     // Перед отправкой спрашиваем принтер: не кончилась ли бумага. Дешевле
     // подождать, чем получить отказ и потратить попытку.
     const status = await this.checkPrinter();
+    this.opts.log('состояние принтера', {
+      состояние: status.health,
+      причина: status.blockingReason ?? '—',
+      заряд: status.suppliesPercent ?? '—',
+    });
     if (status.health === 'blocked') {
       this.paused = true;
       this.pausedReason = status.blockingReason ?? 'printer-stopped';
@@ -336,7 +347,9 @@ export class PrintQueue {
     this.emit();
 
     try {
+      this.opts.log('читаем лист с диска', {файл: job.filePath, попытка: job.attempts});
       const data = await this.opts.documents.read(job.filePath);
+      this.opts.log('отправляем на принтер', {байт: data.length, формат: job.format});
       const submitted = await this.opts.transport.submit({
         data,
         format: job.format,
@@ -347,12 +360,14 @@ export class PrintQueue {
 
       job.remoteId = submitted.remoteId;
       job.state = 'printing';
+      this.opts.log('принтер принял задание', {номер: submitted.remoteId ?? '—'});
       this.emit();
 
       if (this.opts.transport.canTrackJobs && this.opts.transport.trackJob) {
         await this.awaitCompletion(job, submitted.submittedAt);
       }
 
+      this.opts.log('задание напечатано', {id: job.id});
       job.state = 'done';
       job.finishedAt = this.opts.scheduler.now();
       await this.releaseFile(job);
@@ -373,6 +388,11 @@ export class PrintQueue {
 
     for (;;) {
       const progress = await transport.trackJob!({remoteId: job.remoteId, submittedAt});
+      this.opts.log('состояние задания', {
+        номер: job.remoteId ?? '—',
+        состояние: progress.state,
+        подробности: progress.reasons.join(', ') || '—',
+      });
       if (progress.state === 'done') {
         return;
       }
@@ -396,6 +416,11 @@ export class PrintQueue {
   private async handleFailure(job: QueuedJob, error: unknown): Promise<StepResult> {
     const disposition = classifyError(error);
     job.error = describeError(error);
+    this.opts.log('задание не прошло', {
+      решение: disposition,
+      причина: job.error,
+      попытка: job.attempts,
+    });
 
     if (disposition === 'blocked') {
       // Не тратим попытку: виноват не снимок, а принтер.

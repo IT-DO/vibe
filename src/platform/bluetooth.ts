@@ -24,6 +24,7 @@ import RNBluetoothClassic, {
 } from 'react-native-bluetooth-classic';
 import type {HanntoLink} from '../printing/hannto/session';
 import {fromBase64, toBase64} from './base64';
+import {trace, traceFailure} from './trace';
 
 /** Сопряжённое устройство, видимое приложению. */
 export interface PairedDevice {
@@ -175,8 +176,15 @@ export async function connectToPrinter(address: string): Promise<PrinterConnecti
     throw new Error('Bluetooth выключен');
   }
 
-  const device = await RNBluetoothClassic.connectToDevice(address, CONNECTION_OPTIONS);
-  return wrapDevice(device);
+  trace('bluetooth', 'подключаемся', {адрес: address});
+  try {
+    const device = await RNBluetoothClassic.connectToDevice(address, CONNECTION_OPTIONS);
+    trace('bluetooth', 'подключились', {имя: device.name ?? '—'});
+    return wrapDevice(device);
+  } catch (error) {
+    traceFailure('bluetooth', 'подключение', error);
+    throw error;
+  }
 }
 
 /**
@@ -195,6 +203,7 @@ export function wrapDevice(device: BluetoothDevice): PrinterConnection {
     if (bytes.length === 0) {
       return;
     }
+    trace('bluetooth', 'принято', {байт: bytes.length});
     for (const listener of [...listeners]) {
       listener(bytes);
     }
@@ -209,6 +218,7 @@ export function wrapDevice(device: BluetoothDevice): PrinterConnection {
       // байты: мост декодирует её обратно. Передавать текстом нельзя —
       // всё выше 0x7F исказится.
       const ok = await device.write(toBase64(data), 'base64');
+      trace('bluetooth', 'отправлено', {байт: data.length, принято: ok !== false});
       if (ok === false) {
         throw new Error('Принтер не принял данные');
       }

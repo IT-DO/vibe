@@ -50,6 +50,12 @@ jest.mock('../../../platform/crashlog', () => ({
   clearCrashLog: () => mockClearCrashLog(),
 }));
 
+const mockSetTraceEnabled = jest.fn((_on: boolean) => undefined);
+jest.mock('../../../platform/trace', () => ({
+  setTraceEnabled: (on: boolean) => mockSetTraceEnabled(on),
+  flushTrace: jest.fn(async () => undefined),
+}));
+
 jest.mock('../../../platform/files', () => ({
   usedBytes: jest.fn(async () => 12_300_000),
   purgeAll: jest.fn(async () => undefined),
@@ -259,4 +265,44 @@ describe('настройки мероприятия', () => {
     expect(useSettings.getState().settings.event.title).toBe('Юбилей');
   });
 
+});
+
+describe('отладка', () => {
+  it('по умолчанию выключена — на мероприятии она только копит файл', async () => {
+    await openAdmin();
+    expect(useSettings.getState().settings.verboseLog).toBe(false);
+  });
+
+  it('флажок включает подробную запись и запоминает это', async () => {
+    await openAdmin();
+    await act(async () => {
+      fireEvent(
+        screen.getByLabelText('Отладка: писать каждый шаг'),
+        'valueChange',
+        true,
+      );
+    });
+
+    expect(useSettings.getState().settings.verboseLog).toBe(true);
+    // Настройки мало: запись должна включиться прямо сейчас, а не после
+    // перезапуска — оператор включает её, чтобы тут же повторить сбой.
+    expect(mockSetTraceEnabled).toHaveBeenCalledWith(true);
+  });
+
+  it('повторное нажатие выключает', async () => {
+    useSettings.setState({
+      settings: {...DEFAULT_SETTINGS, adminPin: '2468', verboseLog: true},
+    });
+    await openAdmin();
+    await act(async () => {
+      fireEvent(
+        screen.getByLabelText('Отладка: писать каждый шаг'),
+        'valueChange',
+        false,
+      );
+    });
+
+    expect(useSettings.getState().settings.verboseLog).toBe(false);
+    expect(mockSetTraceEnabled).toHaveBeenCalledWith(false);
+  });
 });

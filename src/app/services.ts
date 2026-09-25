@@ -16,6 +16,7 @@ import {
 } from '../printing/transports';
 import {HanntoSession} from '../printing/hannto/session';
 import {connectToPrinter, type PrinterConnection} from '../platform/bluetooth';
+import {trace, traceFailure} from '../platform/trace';
 import type {PrinterTransport} from '../printing/types';
 import {Paths, ensureDirectories, fileDocuments} from '../platform/files';
 import type {PrinterSettings} from '../store/settings';
@@ -58,8 +59,16 @@ class BluetoothPrinterConnector implements PrinterConnector {
   async open(): Promise<HanntoSession> {
     await this.close();
     this.connection = await connectToPrinter(this.address);
-    const session = new HanntoSession(this.connection, {timeoutMs: 15_000});
-    await session.connect();
+    const session = new HanntoSession(this.connection, {
+      timeoutMs: 15_000,
+      log: message => trace('протокол', message),
+    });
+    try {
+      await session.connect();
+    } catch (error) {
+      traceFailure('протокол', 'рукопожатие', error);
+      throw error;
+    }
     return session;
   }
 
@@ -99,6 +108,7 @@ export const printQueue = new PrintQueue({
   storage: queueStorage,
   documents: fileDocuments,
   scheduler: realScheduler,
+  log: (what, detail) => trace('очередь', what, detail),
 });
 
 /** Текущий транспорт — для админки и диагностики. */
@@ -128,6 +138,7 @@ export async function applyPrinterSettings(settings: PrinterSettings): Promise<v
       settings.bluetoothAddress,
       settings.displayName || 'Фотопринтер',
     ),
+    log: message => trace('транспорт', message),
   });
 
   // Спрашиваем принтер сразу, а не при первом госте: оператор настраивает

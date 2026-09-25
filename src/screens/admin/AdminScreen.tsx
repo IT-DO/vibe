@@ -26,6 +26,7 @@ import {activeTransport, printQueue} from '../../app/services';
 import {describePrinterState, stringsFor} from '../../i18n/strings';
 import {LAYOUTS, type LayoutId} from '../../imaging/layouts';
 import {clearCrashLog, readCrashLog} from '../../platform/crashlog';
+import {flushTrace, setTraceEnabled} from '../../platform/trace';
 import {countEntries, lastEntries, tailForSharing} from '../../utils/crashlog-format';
 import {purgeAll, usedBytes} from '../../platform/files';
 import {enterKioskMode, exitKioskMode, supportsLockTask} from '../../platform/kiosk';
@@ -58,7 +59,7 @@ export function AdminScreen({onClose}: AdminScreenProps) {
       return;
     }
     void usedBytes().then(setDisk);
-    void readCrashLog().then(setCrashLog);
+    void flushTrace().then(() => readCrashLog().then(setCrashLog));
   }, [unlocked]);
 
   const confirmPurge = useCallback(() => {
@@ -329,6 +330,22 @@ export function AdminScreen({onClose}: AdminScreenProps) {
             <Row
               label="Отслеживание заданий"
               value={activeTransport().canTrackJobs ? 'да' : 'нет'}
+            />
+            {/*
+              Подробная запись. На мероприятии она не нужна и только копит
+              файл, а когда что-то не работает — это единственный способ
+              увидеть, до какого шага дошло дело, не подключая компьютер.
+            */}
+            <Toggle
+              label="Отладка: писать каждый шаг"
+              value={settings.verboseLog}
+              onChange={on => {
+                store.setVerboseLog(on);
+                setTraceEnabled(on);
+                // Журнал перечитываем сразу: оператор включил отладку и
+                // должен увидеть, что она заработала.
+                void flushTrace().then(() => readCrashLog().then(setCrashLog));
+              }}
             />
             <Toggle
               label="Хранить копии отпечатков"

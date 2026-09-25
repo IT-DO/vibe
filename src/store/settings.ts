@@ -69,6 +69,14 @@ export interface PrivacySettings {
 
 export interface Settings {
   readonly locale: Locale;
+  /**
+   * Подробная запись каждого шага в журнал.
+   *
+   * Выключена по умолчанию: на мероприятии она не нужна и только копит
+   * файл. Включается, когда что-то не работает, — по журналу видно, до
+   * какого шага дошло дело.
+   */
+  readonly verboseLog: boolean;
   readonly event: EventTheme;
   readonly printer: PrinterSettings;
   readonly capture: CaptureSettings;
@@ -82,6 +90,7 @@ export interface Settings {
 
 export const DEFAULT_SETTINGS: Settings = {
   locale: 'ru',
+  verboseLog: false,
   event: DEFAULT_EVENT_THEME,
   printer: {
     bluetoothAddress: '',
@@ -122,6 +131,7 @@ interface SettingsStore {
   updateCapture(patch: Partial<CaptureSettings>): void;
   updateFlow(patch: Partial<FlowSettings>): void;
   updatePrivacy(patch: Partial<PrivacySettings>): void;
+  setVerboseLog(on: boolean): void;
   setAdminPin(pin: string): void;
   setFramePath(path: string): void;
   reset(): void;
@@ -142,6 +152,7 @@ export const useSettings = create<SettingsStore>()(
         set(s => ({settings: {...s.settings, flow: {...s.settings.flow, ...patch}}})),
       updatePrivacy: patch =>
         set(s => ({settings: {...s.settings, privacy: {...s.settings.privacy, ...patch}}})),
+      setVerboseLog: verboseLog => set(s => ({settings: {...s.settings, verboseLog}})),
       setAdminPin: adminPin => set(s => ({settings: {...s.settings, adminPin}})),
       setFramePath: framePath => set(s => ({settings: {...s.settings, framePath}})),
       reset: () => set({settings: DEFAULT_SETTINGS}),

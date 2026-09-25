@@ -17,6 +17,7 @@ import {useKioskSession} from './useKioskSession';
 import {layoutById} from '../imaging/layouts';
 import {purgeOlderThan} from '../platform/files';
 import {installJsErrorHandler} from '../platform/crashlog';
+import {setTraceEnabled} from '../platform/trace';
 import type {QueueSnapshot} from '../printing/queue';
 import {PRINTER_NOT_CONFIGURED} from '../printing/transports';
 import {AdminScreen} from '../screens/admin/AdminScreen';
@@ -50,6 +51,9 @@ export default function App() {
   // и его место в админке.
   useEffect(() => {
     installJsErrorHandler();
+    // Отладку включаем до всего остального: иначе первые — и самые
+    // интересные — шаги запуска в журнал не попадут.
+    setTraceEnabled(settings.verboseLog);
     void (async () => {
       await bootstrap();
       await purgeOlderThan(settings.privacy.purgeAfterHours * 3_600_000);

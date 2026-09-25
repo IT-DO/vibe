@@ -30,6 +30,7 @@ import {
 import {Paths, newFilePath, removeFile, writeBytes} from '../platform/files';
 import {pickPhotoFromGallery} from '../platform/gallery';
 import {recordError} from '../platform/crashlog';
+import {trace, traceFailure} from '../platform/trace';
 import {haptic, playCue} from '../platform/feedback';
 import {mediaSizeOf, type Settings} from '../store/settings';
 import {useStats} from '../store/stats';
@@ -185,6 +186,13 @@ export function useKioskSession(
   /** Отправляет событие в автомат и выполняет его эффекты. */
   const send = useCallback((event: SessionEvent) => {
     const transition = reduce(stateRef.current, event, configRef.current);
+    if (transition.state.name !== stateRef.current.name) {
+      trace('сессия', 'переход', {
+        из: stateRef.current.name,
+        в: transition.state.name,
+        по: event.type,
+      });
+    }
     stateRef.current = transition.state;
     setState(transition.state);
     if (transition.effects.length > 0) {
@@ -297,6 +305,7 @@ export function useKioskSession(
           await dropComposedSheet();
         }
 
+        trace('печать', 'ставим в очередь', {файл: sheetPath, копий: settings.printer.copies});
         await printQueue.enqueue({
           filePath: sheetPath,
           format,
@@ -323,6 +332,7 @@ export function useKioskSession(
         // Гость видит короткое сообщение и уходит, а разбираться приходится
         // потом и без него. Поэтому подробности — в журнал: он остаётся на
         // устройстве и отправляется из админки одной кнопкой.
+        traceFailure('печать', 'постановка в очередь', error);
         void recordError('Печать', error);
         stats.countFailed();
         send({
@@ -378,6 +388,7 @@ export function useKioskSession(
         setPreviewUri(`file://${path}`);
       } catch (error) {
         // Без превью экран покажет заглушку — сценарий не рвётся.
+        traceFailure('сборка', 'превью листа', error);
         void recordError('Сборка превью', error);
       }
     })();
