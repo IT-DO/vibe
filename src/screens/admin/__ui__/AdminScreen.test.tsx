@@ -306,4 +306,25 @@ describe('настройки мероприятия', () => {
     fireEvent.press(screen.getByText('Демо'));
     expect(useSettings.getState().settings.printer.transport).toBe('mock');
   });
+
+  it('канал применяется сразу, а не при выходе из админки', async () => {
+    // Оператор переключает канал, чтобы тут же проверить печать.
+    // «Переключил, а ничего не изменилось» — худшее, что может случиться
+    // за пять минут до открытия.
+    await openAdmin();
+    await act(async () => {
+      fireEvent.press(screen.getByText('Демо'));
+    });
+    expect(mockApplyPrinterSettings).toHaveBeenCalledWith(
+      expect.objectContaining({transport: 'mock'}),
+    );
+  });
+
+  it('Bluetooth есть в списке каналов — иначе основной путь недоступен', async () => {
+    await openAdmin();
+    await act(async () => {
+      fireEvent.press(screen.getByText('Bluetooth'));
+    });
+    expect(useSettings.getState().settings.printer.transport).toBe('bluetooth');
+  });
 });

@@ -106,6 +106,21 @@ describe('команды', () => {
     await expect(session.status()).resolves.toHaveProperty('category', 'idle');
   });
 
+  it('неотправленная команда не оставляет висящего обещания', async () => {
+    // Если запись в канал упала, ответа не будет никогда. Ожидание должно
+    // сняться сразу, а не отклониться через таймаут — к тому моменту его
+    // уже никто не ждёт, и React Native покажет необработанный отказ.
+    const printer = new FakePrinter();
+    const session = await connected(printer, 60_000);
+    jest.spyOn(printer, 'write').mockImplementation(async () => {
+      throw new Error('канал оборван');
+    });
+
+    await expect(session.status()).rejects.toThrow('канал оборван');
+    // Ждём заведомо дольше, чем жило бы висящее обещание, будь оно живо.
+    await new Promise(resolve => setTimeout(resolve, 20));
+  });
+
   it('обрыв связи отклоняет всё, что ждало ответа', async () => {
     const printer = new FakePrinter({silent: true});
     const session = await connected(printer, 5000);

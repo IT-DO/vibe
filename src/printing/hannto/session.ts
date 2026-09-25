@@ -305,18 +305,39 @@ export class HanntoSession {
       });
     });
 
-    await this.link.write(
-      buildFrame({
-        channel: Channel.dataEncrypted,
-        interactive: Interactive.request,
-        encoding: Encoding.json,
-        sequence: id,
-        message: id,
-        body: encryptEcb(key, encodeUtf8(text)),
-        encrypted: true,
-      }),
-    );
+    try {
+      await this.link.write(
+        buildFrame({
+          channel: Channel.dataEncrypted,
+          interactive: Interactive.request,
+          encoding: Encoding.json,
+          sequence: id,
+          message: id,
+          body: encryptEcb(key, encodeUtf8(text)),
+          encrypted: true,
+        }),
+      );
+    } catch (error) {
+      // Если команда не ушла, ответа не будет никогда. Отклоняем само
+      // ожидание, а не бросаем отсюда: тогда у отказа есть тот, кто его
+      // ждёт. Бросить здесь значило бы оставить обещание ответа висеть и
+      // отклониться через таймаут уже без обработчика — в React Native это
+      // жёлтый экран на ровном месте, а причина (оборванный Bluetooth)
+      // потерялась бы.
+      this.settle(id, error);
+    }
     return answer;
+  }
+
+  /** Снимает ожидание ответа и отклоняет его. */
+  private settle(id: number, error: unknown): void {
+    const waiter = this.pending.get(id);
+    if (!waiter) {
+      return;
+    }
+    this.pending.delete(id);
+    clearTimeout(waiter.timer);
+    waiter.reject(error instanceof Error ? error : new HanntoError(String(error)));
   }
 
   private requireKey(): Uint8Array {

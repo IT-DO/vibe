@@ -156,11 +156,25 @@ export function AdminScreen({onClose}: AdminScreenProps) {
               <Row label={t.ribbonLeft!} value={`${printerStatus.suppliesPercent} %`} />
             ) : null}
 
+            {/*
+              Bluetooth первым: Xiaomi 1S печатает только так, остальные
+              каналы — для площадки, где рядом оказался сетевой принтер, и
+              для показа приложения без принтера вообще.
+
+              Смена канала применяется сразу, а не при выходе из админки:
+              оператор переключает его, чтобы тут же проверить печать, и
+              «переключил, а ничего не изменилось» — худшее, что может
+              случиться за пять минут до открытия.
+            */}
             <Choice
               label="Канал печати"
               value={settings.printer.transport}
-              onChange={transport => store.updatePrinter({transport})}
+              onChange={transport => {
+                store.updatePrinter({transport});
+                void applyPrinterSettings({...settings.printer, transport});
+              }}
               options={[
+                {value: 'bluetooth', label: 'Bluetooth'},
                 {value: 'ipp', label: 'Прямой IPP'},
                 {value: 'system', label: 'Системный'},
                 {value: 'mock', label: 'Демо'},
