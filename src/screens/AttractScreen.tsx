@@ -151,10 +151,17 @@ export function AttractScreen({
               <Text style={styles.hint}>{t.attract.hint}</Text>
               {/* Второй сценарий: напечатать уже готовый снимок. Кнопка
                   вторичная — основной путь всё-таки съёмка. */}
+              {/*
+                Запасной путь и выглядит запасным: главное здесь — снять
+                кадр, а не искать готовый в галерее. Раньше кнопка была
+                той же величины, что призыв, и спорила с ним за внимание,
+                да ещё обрывала подпись многоточием.
+              */}
               <BigButton
                 label={t.attract.pickPhoto}
                 icon="🖼"
                 variant="ghost"
+                weight="secondary"
                 onPress={onPickPhoto}
                 style={styles.pickButton}
               />
@@ -224,7 +231,6 @@ const styles = StyleSheet.create({
   },
   pickButton: {
     marginTop: spacing.sm,
-    minHeight: 84,
   },
   tapPill: {
     borderWidth: 3,

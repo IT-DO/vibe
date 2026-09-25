@@ -137,13 +137,21 @@ export async function composeSheet(options: ComposeOptions): Promise<ComposedShe
       await stage('рамка', () => drawFrame(canvas, options.framePath!, sheet));
     }
     if (options.caption && geometry.caption && options.typeface) {
-      // Шрифт обязателен: без него нативная часть Skia падает на самом
-      // конструкторе `Font`, унося с собой весь лист. Подпись — украшение,
-      // отпечаток — то, ради чего человек подошёл, поэтому при отсутствии
-      // шрифта лист выходит без подписи, а не не выходит вовсе.
-      await stage('подпись', async () =>
-        drawCaption(canvas, geometry, options.caption!, options.typeface!),
-      );
+      // Подпись — украшение, отпечаток — то, ради чего человек подошёл.
+      // Поэтому её сбой не уносит лист: без шрифта она не рисуется вовсе,
+      // а если рисование всё же сорвалось — лист выходит без неё.
+      //
+      // Так было задумано с самого начала, но отказ проходил насквозь и
+      // ронял сборку. Снаружи это выглядело избирательно: одиночный кадр
+      // печатался, а полароид и два кадра — нет. Подпись есть только у них.
+      try {
+        drawCaption(canvas, geometry, options.caption, options.typeface);
+        trace('сборка', 'подпись нарисована');
+      } catch (error) {
+        trace('сборка', 'подпись не нарисована, лист выйдет без неё', {
+          причина: error,
+        });
+      }
     }
   } finally {
     canvas.restore();

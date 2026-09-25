@@ -228,6 +228,74 @@ describe('сессия — камера не отвечает', () => {
   });
 });
 
+describe('превью принадлежит своим кадрам', () => {
+  it('следующий гость не видит снимок предыдущего', async () => {
+    // Превью держалось в состоянии по адресу файла и не сбрасывалось после
+    // печати. Следующая серия заставала его непустым, сборка не
+    // запускалась — и на экране просмотра висел чужой снимок. Гостю
+    // приходилось отменять печать и сниматься заново.
+    const camera = workingCamera();
+    const {result} = mount(camera);
+
+    act(() => result.current.start());
+    await reach(result, 'review');
+    await waitFor(() => expect(result.current.previewUri).toBeTruthy());
+
+    // Печатаем и возвращаемся к заставке.
+    act(() => result.current.print());
+    await reach(result, 'thanks');
+    await reach(result, 'attract');
+
+    // Новая серия — новый кадр.
+    (camera.current!.capture as jest.Mock).mockResolvedValue({
+      path: '/к/кадры/2.jpg',
+      width: 3024,
+      height: 4032,
+      isMirrored: true,
+    });
+    act(() => result.current.start());
+    await reach(result, 'review');
+
+    // Адреса листов в заглушке одинаковы, поэтому сверяем не их, а то,
+    // что сборка вообще запустилась заново — и именно для нового кадра.
+    await waitFor(() => {
+      expect(result.current.previewUri).toBeTruthy();
+      const paths = mockComposeSheet.mock.calls.map(
+        call => (call[0] as {shotPaths: string[]}).shotPaths[0],
+      );
+      expect(paths).toContain('/к/кадры/2.jpg');
+    });
+  });
+
+  it('пока новое превью собирается, старое не показывается', async () => {
+    // Чужой снимок на экране хуже пустой рамки: гость решит, что будка
+    // сфотографировала не его.
+    const camera = workingCamera();
+    const {result} = mount(camera);
+
+    act(() => result.current.start());
+    await reach(result, 'review');
+    await waitFor(() => expect(result.current.previewUri).toBeTruthy());
+
+    act(() => result.current.print());
+    await reach(result, 'thanks');
+    await reach(result, 'attract');
+
+    // Сборка следующего листа не завершается — превью обязано быть пустым.
+    mockComposeSheet.mockReturnValue(new Promise(() => {}));
+    (camera.current!.capture as jest.Mock).mockResolvedValue({
+      path: '/к/кадры/2.jpg',
+      width: 3024,
+      height: 4032,
+      isMirrored: true,
+    });
+    act(() => result.current.start());
+    await reach(result, 'review');
+
+    expect(result.current.previewUri).toBeNull();
+  });
+});
+
 describe('сессия — сборка листа', () => {
   it('превью не собралось — печать всё равно доступна', async () => {
     mockComposeSheet.mockRejectedValue(new Error('Skia недоступна'));

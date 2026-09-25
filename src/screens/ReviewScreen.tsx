@@ -24,6 +24,12 @@ export interface ReviewScreenProps {
   /** URI собранного листа для показа. */
   readonly previewUri: string | null;
   readonly secondsLeft: number;
+  /**
+   * Сколько всего секунд отведено на раздумье. Нужно, чтобы показать
+   * оставшееся долей, а не только числом: полоса понятнее цифры тому, кто
+   * на экран не всматривается.
+   */
+  readonly autoPrintSeconds?: number;
   readonly allowRetake: boolean;
   /** Снимок пришёл из галереи — «переснять» его нельзя, можно выбрать другой. */
   readonly fromGallery: boolean;
@@ -37,6 +43,7 @@ export function ReviewScreen({
   accent,
   previewUri,
   secondsLeft,
+  autoPrintSeconds,
   allowRetake,
   fromGallery,
   busy,
@@ -44,6 +51,13 @@ export function ReviewScreen({
   onRetake,
 }: ReviewScreenProps) {
   const t = stringsFor(locale);
+
+  // Полоса растёт по мере того, как время выходит. Пока срок не задан —
+  // полосы нет: будка ничего сама не сделает, и обещать этого не надо.
+  const autoPrintProgress =
+    autoPrintSeconds && autoPrintSeconds > 0 && secondsLeft > 0
+      ? 1 - Math.min(1, secondsLeft / autoPrintSeconds)
+      : null;
 
   return (
     <KioskScreen>
@@ -64,25 +78,35 @@ export function ReviewScreen({
         </View>
 
         <View style={styles.actions}>
-          {allowRetake ? (
-            <BigButton
-              label={fromGallery ? t.review.pickAnother : t.review.retake}
-              icon={fromGallery ? '🖼' : '↺'}
-              variant="ghost"
-              onPress={onRetake}
-              disabled={busy}
-            />
-          ) : null}
+          {/*
+            Главное действие идёт первым и крупнее: гость смотрит на свой
+            снимок и хочет его забрать, а не выбирать между двумя равными
+            кнопками. Полоса по кнопке показывает, сколько осталось до
+            того, как будка напечатает сама, — мелкая строчка внизу этого
+            не сообщала, и гость не понимал, почему печать вдруг началась.
+          */}
           <BigButton
             label={t.review.print}
             icon="🖨"
             accent={accent}
             onPress={onPrint}
             busy={busy}
+            style={styles.primaryAction}
+            {...(autoPrintProgress === null ? {} : {progress: autoPrintProgress})}
           />
+          {allowRetake ? (
+            <BigButton
+              label={fromGallery ? t.review.pickAnother : t.review.retake}
+              icon={fromGallery ? '🖼' : '↺'}
+              variant="ghost"
+              weight="secondary"
+              onPress={onRetake}
+              disabled={busy}
+            />
+          ) : null}
         </View>
 
-        {/* Таймер объясняет, что случится при бездействии. */}
+        {/* Словами — для тех, кто полосу не заметил. */}
         <Text style={styles.timer}>
           {secondsLeft > 0 ? t.review.autoPrintIn(secondsLeft) : ''}
         </Text>
@@ -119,10 +143,15 @@ const styles = StyleSheet.create({
     backgroundColor: palette.surface,
   },
   actions: {
-    flexDirection: 'row',
-    gap: spacing.lg,
-    flexWrap: 'wrap',
-    justifyContent: 'center',
+    // В столбец, а не в строку: на телефоне две кнопки в строку не
+    // помещались и переносились, становясь визуально равными.
+    alignItems: 'center',
+    gap: spacing.md,
+    alignSelf: 'stretch',
+    paddingHorizontal: spacing.lg,
+  },
+  primaryAction: {
+    alignSelf: 'stretch',
   },
   timer: {
     fontSize: typography.body,

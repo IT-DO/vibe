@@ -321,17 +321,21 @@ describe('ошибка сборки называет место', () => {
     }
   });
 
-  it('падение на подписи помечено стадией, а не теряется', async () => {
-    // Раньше отсюда приходило голое «Value is undefined, expected an
-    // Object» — по такому сообщению место происшествия не найти.
+  it('сорвавшаяся подпись не уносит лист', async () => {
+    // Снаружи это выглядело избирательно: одиночный кадр печатался, а
+    // полароид и два кадра — нет. Подпись есть только у них, и её отказ
+    // ронял всю сборку. Отпечаток без подписи лучше, чем его отсутствие.
     Object.assign(Skia as object, {
       Font: () => {
         throw new Error('Value is undefined, expected an Object');
       },
     });
-    await expect(compose('duo', {typeface: TYPEFACE})).rejects.toThrow(
-      /стадия «подпись»/,
-    );
+
+    const sheet = await compose('duo', {typeface: TYPEFACE});
+    expect(sheet.jpeg.length).toBeGreaterThan(0);
+    // Кадры при этом нарисованы — потерялась только подпись.
+    expect(canvas.drawImageRect).toHaveBeenCalled();
+    expect(canvas.drawText).not.toHaveBeenCalled();
   });
 });
 

@@ -165,6 +165,9 @@ export default function App() {
             accent={accent}
             previewUri={session.previewUri}
             secondsLeft={session.secondsLeft}
+            {...(settings.flow.autoPrintOnTimeout
+              ? {autoPrintSeconds: Math.round(settings.flow.reviewTimeoutMs / 1000)}
+              : {})}
             allowRetake={settings.flow.allowRetake}
             fromGallery={state.source === 'gallery'}
             busy={session.busy}

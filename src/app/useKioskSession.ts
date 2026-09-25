@@ -72,7 +72,15 @@ export function useKioskSession(
   camera: React.RefObject<CameraLayerHandle | null>,
 ): KioskSession {
   const [state, setState] = useState<SessionState>(initialState);
-  const [previewUri, setPreviewUri] = useState<string | null>(null);
+  /**
+   * Собранное превью вместе с приметой серии, из которой оно собрано.
+   *
+   * Одного адреса мало. Он оставался от прошлого гостя, и следующий видел
+   * на экране просмотра чужой снимок: сборка не запускалась, потому что
+   * превью «уже есть». Примета делает принадлежность явной — превью от
+   * другой серии просто не считается превью.
+   */
+  const [preview, setPreview] = useState<{uri: string; key: string} | null>(null);
   const [busy, setBusy] = useState(false);
   const [now, setNow] = useState(() => Date.now());
 
@@ -155,7 +163,7 @@ export function useKioskSession(
         case 'discardShots':
           await Promise.all(effect.shots.map(shot => removeFile(shot.path)));
           await dropComposedSheet();
-          setPreviewUri(null);
+          setPreview(null);
           break;
         case 'capture':
           await handleCapture();
@@ -366,11 +374,25 @@ export function useKioskSession(
     return () => clearInterval(timer);
   }, [state, send]);
 
+  /** Примета текущей серии; вне просмотра её нет. */
+  const currentKey = state.name === 'review' ? sheetKey(state.shots) : null;
+
+  /**
+   * Превью показывается, только если собрано из тех кадров, что на экране.
+   * Пока собирается новое, экран показывает заглушку, а не чужой снимок.
+   */
+  const previewUri = currentKey && preview?.key === currentKey ? preview.uri : null;
+
   // Превью листа собираем, как только набралась вся серия.
   useEffect(() => {
-    if (state.name !== 'review' || previewUri) {
+    if (state.name !== 'review') {
       return;
     }
+    const key = sheetKey(state.shots);
+    if (preview?.key === key) {
+      return; // уже собрано для этой серии
+    }
+
     let cancelled = false;
     void (async () => {
       try {
@@ -388,8 +410,11 @@ export function useKioskSession(
           await removeFile(path);
           return;
         }
-        composedSheet.current = {path, key: sheetKey(state.shots)};
-        setPreviewUri(`file://${path}`);
+        // Прежний лист больше не нужен: он от другой серии, и на диске
+        // ему оставаться незачем.
+        await dropComposedSheet();
+        composedSheet.current = {path, key};
+        setPreview({uri: `file://${path}`, key});
       } catch (error) {
         // Без превью экран покажет заглушку — сценарий не рвётся.
         traceFailure('сборка', 'превью листа', error);
@@ -399,7 +424,7 @@ export function useKioskSession(
     return () => {
       cancelled = true;
     };
-  }, [state, previewUri, composeOptionsFor]);
+  }, [state, preview, composeOptionsFor, dropComposedSheet]);
 
   const secondsLeft = useMemo(() => {
     const deadline = deadlineOf(state);
