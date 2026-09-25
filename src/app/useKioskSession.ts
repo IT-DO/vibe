@@ -235,6 +235,10 @@ export function useKioskSession(
       // Рукописная антиква подписи лежит в ассетах приложения и читается
       // один раз за запуск. Если файла не окажется, `loadTypeface` вернёт
       // системный шрифт или `null` — лист соберётся в любом случае.
+      trace('сборка', 'готовим настройки листа', {
+        кадров: shots.length,
+        раскладка: layoutId,
+      });
       const typeface = settings.event.title ? await loadTypeface('script') : null;
       return {
         shotPaths: shots.map(shot => shot.path),

@@ -20,6 +20,7 @@ import {
 } from '@shopify/react-native-skia';
 
 import {trace} from '../platform/trace';
+import {withTimeout} from '../utils/timeout';
 import {
   bleedOffset,
   coverCrop,
@@ -307,10 +308,23 @@ function drawCaption(
   }
 }
 
+/**
+ * Сколько ждать файл кадра.
+ *
+ * Снимок с камеры крупнее шрифта, поэтому срок больше. Он всё равно нужен:
+ * `Data.fromURI` при неудаче не отклоняет обещание, а молчит, и лист без
+ * срока не собрался бы никогда — ни с ошибкой, ни без.
+ */
+const IMAGE_TIMEOUT_MS = 10_000;
+
 /** Читает файл кадра в изображение Skia. */
 async function loadImage(path: string): Promise<SkImage | null> {
   const uri = path.startsWith('file://') || path.includes('://') ? path : `file://${path}`;
-  const data = await Skia.Data.fromURI(uri);
+  const data = await withTimeout(Skia.Data.fromURI(uri), IMAGE_TIMEOUT_MS, reason =>
+    trace('сборка', reason === 'timeout' ? 'кадр не дождались' : 'кадр не прочитался', {
+      адрес: uri,
+    }),
+  );
   if (!data) {
     return null;
   }

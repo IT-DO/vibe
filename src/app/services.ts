@@ -72,6 +72,10 @@ class BluetoothPrinterConnector implements PrinterConnector {
     return session;
   }
 
+  isAlive(): boolean {
+    return this.connection?.isOpen() ?? false;
+  }
+
   async close(): Promise<void> {
     const connection = this.connection;
     this.connection = null;

@@ -23,8 +23,19 @@ class TestConnector implements PrinterConnector {
     this.printer = new FakePrinter(options);
   }
 
+  /** Задержка открытия — нужна, чтобы столкнуть два подключения. */
+  openDelayMs = 0;
+  alive = false;
+
+  isAlive(): boolean {
+    return this.alive;
+  }
+
   async open(): Promise<HanntoSession> {
     this.opens += 1;
+    if (this.openDelayMs > 0) {
+      await new Promise(resolve => setTimeout(resolve, this.openDelayMs));
+    }
     if (this.failNextOpen) {
       const reason = this.failNextOpen;
       this.failNextOpen = null;
@@ -35,11 +46,13 @@ class TestConnector implements PrinterConnector {
     this.printer = new FakePrinter(this.options);
     const session = new HanntoSession(this.printer, {timeoutMs: 500});
     await session.connect();
+    this.alive = true;
     return session;
   }
 
   async close(): Promise<void> {
     this.closes += 1;
+    this.alive = false;
   }
 }
 
@@ -238,5 +251,42 @@ describe('свойства транспорта', () => {
     await transport.submit(document());
     await transport.dispose();
     expect(connector.closes).toBeGreaterThan(0);
+  });
+});
+
+describe('одно подключение за раз', () => {
+  it('одновременные обращения не открывают два соединения', async () => {
+    // Опрос состояния и отправка задания приходят из разных мест и могут
+    // совпасть. На устройстве это давало «Already attempting connection»,
+    // а хуже того — два рукопожатия: принтер держит один ключ, и первая
+    // сессия начинала получать в ответ мусор.
+    const connector = new TestConnector();
+    connector.openDelayMs = 20;
+    const transport = new HanntoTransport({connector});
+
+    await Promise.all([transport.checkStatus(), transport.submit(document())]);
+    expect(connector.opens).toBe(1);
+  });
+
+  it('соединение, закрытое снаружи, открывается заново', async () => {
+    // Админка проверяет связь и забирает принтер себе. Транспорт обязан
+    // это заметить, а не слать команды в закрытый канал.
+    const connector = new TestConnector();
+    const transport = new HanntoTransport({connector});
+    await transport.checkStatus();
+    expect(connector.opens).toBe(1);
+
+    await connector.close(); // кто-то другой занял принтер и отпустил
+    await transport.checkStatus();
+    expect(connector.opens).toBe(2);
+  });
+
+  it('пока соединение живо, второго не открывается', async () => {
+    const connector = new TestConnector();
+    const transport = new HanntoTransport({connector});
+    await transport.checkStatus();
+    await transport.checkStatus();
+    await transport.submit(document());
+    expect(connector.opens).toBe(1);
   });
 });

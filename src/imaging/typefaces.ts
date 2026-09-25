@@ -17,7 +17,19 @@
 
 import {FontStyle, Skia, type SkTypeface} from '@shopify/react-native-skia';
 
+import {trace} from '../platform/trace';
 import {fontAssetUri, type FontRole} from '../theme/fonts';
+import {withTimeout} from '../utils/timeout';
+
+/**
+ * Сколько ждать файл шрифта.
+ *
+ * Файл лежит в самом приложении, и три секунды на его чтение — срок с
+ * огромным запасом. Смысл не в том, чтобы уложиться, а в том, чтобы не
+ * ждать вечно: `Data.fromURI` при неудаче не отклоняет обещание, а молчит,
+ * и без срока вся сборка листа встаёт навсегда.
+ */
+const FONT_TIMEOUT_MS = 3_000;
 
 /**
  * Загруженные шрифты. Файл читается один раз за запуск: он лежит в APK,
@@ -38,21 +50,29 @@ export async function loadTypeface(role: FontRole): Promise<SkTypeface | null> {
     return cached;
   }
 
-  const typeface = (await fromAsset(role)) ?? fromSystem();
+  const own = await fromAsset(role);
+  const typeface = own ?? fromSystem();
+  trace('шрифт', own ? 'свой' : typeface ? 'системный' : 'нет', {роль: role});
   cache.set(role, typeface);
   return typeface;
 }
 
 /** Читает встроенный в приложение файл шрифта. */
 async function fromAsset(role: FontRole): Promise<SkTypeface | null> {
+  const uri = fontAssetUri(role);
+  const data = await withTimeout(Skia.Data.fromURI(uri), FONT_TIMEOUT_MS, reason =>
+    trace('шрифт', reason === 'timeout' ? 'файл не дождались' : 'файл не прочитался', {
+      адрес: uri,
+    }),
+  );
+  if (!data) {
+    return null;
+  }
   try {
-    const data = await Skia.Data.fromURI(fontAssetUri(role));
-    if (!data) {
-      return null;
-    }
     return Skia.Typeface.MakeFreeTypeFaceFromData(data) ?? null;
   } catch {
-    // Ассет не найден или повреждён — идём к системному шрифту.
+    // Файл прочитан, но это не шрифт — идём к системному.
+    trace('шрифт', 'файл не разобран как шрифт', {адрес: uri});
     return null;
   }
 }

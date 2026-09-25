@@ -288,7 +288,9 @@ describe('ошибка сборки называет место', () => {
     await expect(compose('single')).rejects.toThrow(/Не удалось создать холст \d+×\d+/);
   });
 
-  it('падение на кадрах помечено стадией', async () => {
+  it('нечитаемый кадр не роняет лист — ячейка остаётся фоном', async () => {
+    // Отпечаток без одного кадра лучше, чем отсутствие отпечатка: гость
+    // хотя бы что-то заберёт, а оператор увидит причину в журнале.
     Object.assign(Skia as object, {
       Data: {
         fromURI: async () => {
@@ -296,9 +298,27 @@ describe('ошибка сборки называет место', () => {
         },
       },
     });
-    await expect(compose('single')).rejects.toThrow(
-      /стадия «кадры»: файл не читается/,
-    );
+    const sheet = await compose('single');
+    expect(sheet.jpeg.length).toBeGreaterThan(0);
+  });
+
+  it('молчащее чтение кадра не останавливает лист навсегда', async () => {
+    // Нативная часть Skia при неудаче не отклоняет обещание, а молчит.
+    // Без срока ожидания сборка встала бы здесь и не вернулась никогда.
+    Object.assign(Skia as object, {
+      Data: {fromURI: () => new Promise(() => {})},
+    });
+
+    jest.useFakeTimers();
+    try {
+      const building = compose('single');
+      await jest.advanceTimersByTimeAsync(10_000);
+      const sheet = await building;
+      // Лист вышел: ячейка осталась фоном, но отпечаток есть.
+      expect(sheet.jpeg.length).toBeGreaterThan(0);
+    } finally {
+      jest.useRealTimers();
+    }
   });
 
   it('падение на подписи помечено стадией, а не теряется', async () => {

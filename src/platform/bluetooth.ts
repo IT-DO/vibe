@@ -164,8 +164,23 @@ export function looksLikePrinter(name: string): boolean {
 export interface PrinterConnection extends HanntoLink {
   readonly address: string;
   readonly name: string;
+  /** Живо ли соединение. Закрыть его может и не тот, кто открывал. */
+  isOpen(): boolean;
   close(): Promise<void>;
 }
+
+/**
+ * Открытые соединения по адресам.
+ *
+ * Принтер держит ровно один ключ шифрования — тот, что выработан последним
+ * рукопожатием. Два одновременных соединения означают два рукопожатия, и
+ * первое из них продолжает слать команды ключом, которого у принтера уже
+ * нет: в ответ приходит мусор, а приложение считает принтер сломанным.
+ *
+ * Поэтому соединение к адресу ровно одно. Новое закрывает прежнее — так
+ * поведение остаётся предсказуемым: работает тот, кто подключился позже.
+ */
+const openConnections = new Map<string, PrinterConnection>();
 
 /** Подключается к сопряжённому принтеру по его адресу. */
 export async function connectToPrinter(address: string): Promise<PrinterConnection> {
@@ -176,11 +191,20 @@ export async function connectToPrinter(address: string): Promise<PrinterConnecti
     throw new Error('Bluetooth выключен');
   }
 
+  const existing = openConnections.get(address);
+  if (existing) {
+    // Двух рукопожатий принтер не переживёт: ключ у него один.
+    trace('bluetooth', 'закрываем прежнее соединение', {адрес: address});
+    await existing.close();
+  }
+
   trace('bluetooth', 'подключаемся', {адрес: address});
   try {
     const device = await RNBluetoothClassic.connectToDevice(address, CONNECTION_OPTIONS);
     trace('bluetooth', 'подключились', {имя: device.name ?? '—'});
-    return wrapDevice(device);
+    const connection = wrapDevice(device);
+    openConnections.set(address, connection);
+    return connection;
   } catch (error) {
     traceFailure('bluetooth', 'подключение', error);
     throw error;
@@ -195,6 +219,7 @@ export async function connectToPrinter(address: string): Promise<PrinterConnecti
  */
 export function wrapDevice(device: BluetoothDevice): PrinterConnection {
   let listeners: ((data: Uint8Array) => void)[] = [];
+  let open = true;
 
   // Подписка на устройство одна на всё соединение: нативный модуль шлёт
   // прочитанное всем подписчикам сразу, и вторая подписка удвоила бы поток.
@@ -212,6 +237,10 @@ export function wrapDevice(device: BluetoothDevice): PrinterConnection {
   return {
     address: device.address,
     name: device.name ?? '',
+
+    isOpen(): boolean {
+      return open;
+    },
 
     async write(data: Uint8Array): Promise<void> {
       // Строка base64 с пометкой «base64» доходит до устройства как исходные
@@ -232,8 +261,12 @@ export function wrapDevice(device: BluetoothDevice): PrinterConnection {
     },
 
     async close(): Promise<void> {
+      open = false;
       listeners = [];
       subscription.remove();
+      if (openConnections.get(device.address) === (this as PrinterConnection)) {
+        openConnections.delete(device.address);
+      }
       try {
         await device.disconnect();
       } catch {

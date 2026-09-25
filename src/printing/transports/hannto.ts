@@ -28,6 +28,8 @@ import type {
 export interface PrinterConnector {
   /** Открывает соединение и делает рукопожатие. */
   open(): Promise<HanntoSession>;
+  /** Живо ли соединение; его мог закрыть не транспорт. */
+  isAlive?(): boolean;
   /** Закрывает соединение. */
   close(): Promise<void>;
   /** Имя принтера для админки. */
@@ -68,6 +70,16 @@ export class HanntoTransport implements PrinterTransport {
 
   private readonly options: HanntoTransportOptions;
   private session: HanntoSession | null = null;
+  /**
+   * Подключение, которое уже идёт.
+   *
+   * Опрос состояния и отправка задания приходят из разных мест и могут
+   * совпасть по времени. Без этого поля каждый начинал бы своё
+   * подключение, и второе падало бы с «Already attempting connection», а
+   * если бы не упало — принтер получил бы два рукопожатия и потерял ключ
+   * первого.
+   */
+  private connecting: Promise<HanntoSession> | null = null;
 
   constructor(options: HanntoTransportOptions) {
     this.options = options;
@@ -146,14 +158,29 @@ export class HanntoTransport implements PrinterTransport {
   }
 
   private async connected(): Promise<HanntoSession> {
-    if (this.session?.ready) {
+    const alive = this.options.connector.isAlive?.() ?? true;
+    if (this.session?.ready && alive) {
       return this.session;
     }
-    await this.drop();
-    this.options.log?.('открываем соединение с принтером');
-    this.session = await this.options.connector.open();
-    this.options.log?.('соединение открыто, ключ согласован');
-    return this.session;
+    // Подключение уже идёт — дожидаемся его, а не начинаем второе.
+    if (this.connecting) {
+      return this.connecting;
+    }
+
+    this.connecting = (async () => {
+      await this.drop();
+      this.options.log?.('открываем соединение с принтером');
+      const session = await this.options.connector.open();
+      this.options.log?.('соединение открыто, ключ согласован');
+      this.session = session;
+      return session;
+    })();
+
+    try {
+      return await this.connecting;
+    } finally {
+      this.connecting = null;
+    }
   }
 
   private async drop(): Promise<void> {

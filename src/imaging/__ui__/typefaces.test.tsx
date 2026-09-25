@@ -95,3 +95,43 @@ describe('когда своего шрифта нет', () => {
     expect(skia.Data.fromURI).toHaveBeenCalledTimes(1);
   });
 });
+
+describe('молчащее чтение файла', () => {
+  it('не останавливает сборку листа навсегда', async () => {
+    // Нативная часть Skia в `Data.fromURI` умеет только `resolve` —
+    // функции `reject` там нет вовсе. Файл, который не открылся, оставляет
+    // обещание висеть, и без срока ожидания лист не собирался никогда: ни
+    // с ошибкой, ни без. Снаружи это выглядело как чёрный прямоугольник
+    // вместо превью и «печать не удалась» через 45 секунд.
+    skia.Data.fromURI.mockReturnValue(new Promise(() => {}));
+
+    // Ждём поддельными часами: настоящие три секунды в прогоне тестов
+    // душат остальные наборы, а проверяем мы не длительность, а то, что
+    // ожидание вообще кончается.
+    jest.useFakeTimers();
+    try {
+      const loading = loadTypeface('script');
+      await jest.advanceTimersByTimeAsync(3_000);
+      // Свой шрифт не прочитался — берём системный, лист выйдет.
+      await expect(loading).resolves.not.toBeUndefined();
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+
+  it('после неудачи берётся системный шрифт, а не пустота', async () => {
+    skia.Data.fromURI.mockReturnValue(new Promise(() => {}));
+    skia.FontMgr.System.mockReturnValue({
+      matchFamilyStyle: () => ({__brand: 'системный'}),
+    });
+
+    jest.useFakeTimers();
+    try {
+      const loading = loadTypeface('script');
+      await jest.advanceTimersByTimeAsync(3_000);
+      await expect(loading).resolves.toMatchObject({__brand: 'системный'});
+    } finally {
+      jest.useRealTimers();
+    }
+  });
+});
