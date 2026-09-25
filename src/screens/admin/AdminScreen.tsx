@@ -25,6 +25,7 @@ import {PinGate} from './PinGate';
 import {activeTransport, printQueue} from '../../app/services';
 import {describePrinterState, stringsFor} from '../../i18n/strings';
 import {LAYOUTS, type LayoutId} from '../../imaging/layouts';
+import {ALBUM_NAME} from '../../platform/album';
 import {clearCrashLog, readCrashLog} from '../../platform/crashlog';
 import {flushTrace, setTraceEnabled} from '../../platform/trace';
 import {countEntries, lastEntries, tailForSharing} from '../../utils/crashlog-format';
@@ -347,11 +348,17 @@ export function AdminScreen({onClose}: AdminScreenProps) {
                 void flushTrace().then(() => readCrashLog().then(setCrashLog));
               }}
             />
+            {/*
+              Подпись называет место. Прежняя — «хранить копии» — обещала
+              то, чего не делала: файлы оседали во внутренней памяти
+              приложения, куда без компьютера не добраться.
+            */}
             <Toggle
-              label="Хранить копии отпечатков"
-              value={settings.privacy.keepArchive}
-              onChange={keepArchive => store.updatePrivacy({keepArchive})}
+              label="Сохранять отпечатки в галерею"
+              value={settings.privacy.saveToAlbum}
+              onChange={saveToAlbum => store.updatePrivacy({saveToAlbum})}
             />
+            <Row label="Альбом" value={ALBUM_NAME} />
             <Toggle
               label="QR цифровой копии"
               value={settings.privacy.showDigitalCopyQr}

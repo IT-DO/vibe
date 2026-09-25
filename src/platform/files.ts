@@ -23,15 +23,13 @@ export const Paths = {
   shots: `${ROOT}/shots`,
   /** Собранные листы, ожидающие печати. */
   sheets: `${ROOT}/sheets`,
-  /** Копии отпечатков для раздачи гостям, если включено сохранение. */
-  archive: `${ROOT}/archive`,
   /** Сохранённая очередь печати. */
   queueFile: `${ROOT}/queue.json`,
 } as const;
 
 /** Создаёт рабочие папки. Вызывать при старте приложения. */
 export async function ensureDirectories(): Promise<void> {
-  for (const dir of [Paths.root, Paths.shots, Paths.sheets, Paths.archive]) {
+  for (const dir of [Paths.root, Paths.shots, Paths.sheets]) {
     if (!(await RNFS.exists(dir))) {
       await RNFS.mkdir(dir);
     }
@@ -81,7 +79,7 @@ export async function purgeOlderThan(maxAgeMs: number): Promise<number> {
   const cutoff = Date.now() - maxAgeMs;
   let removed = 0;
 
-  for (const dir of [Paths.shots, Paths.sheets, Paths.archive]) {
+  for (const dir of [Paths.shots, Paths.sheets]) {
     let entries: RNFS.ReadDirItem[] = [];
     try {
       entries = await RNFS.readDir(dir);
@@ -101,7 +99,7 @@ export async function purgeOlderThan(maxAgeMs: number): Promise<number> {
 
 /** Полностью стирает съёмку — кнопка «очистить планшет» в админке. */
 export async function purgeAll(): Promise<void> {
-  for (const dir of [Paths.shots, Paths.sheets, Paths.archive]) {
+  for (const dir of [Paths.shots, Paths.sheets]) {
     try {
       await RNFS.unlink(dir);
     } catch {
@@ -114,7 +112,7 @@ export async function purgeAll(): Promise<void> {
 /** Сколько места занимают рабочие файлы — показываем в админке. */
 export async function usedBytes(): Promise<number> {
   let total = 0;
-  for (const dir of [Paths.shots, Paths.sheets, Paths.archive]) {
+  for (const dir of [Paths.shots, Paths.sheets]) {
     try {
       for (const entry of await RNFS.readDir(dir)) {
         total += Number(entry.size) || 0;

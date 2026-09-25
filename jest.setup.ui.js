@@ -111,6 +111,16 @@ jest.mock('react-native-bluetooth-classic', () => ({
   },
 }));
 
+// ── Галерея устройства ────────────────────────────────────────────────────
+// Отпечаток кладётся в альбом через MediaStore. В тестах проверяется не сама
+// запись, а поведение вокруг неё: что сохраняем до постановки в очередь (она
+// удалит файл после печати) и что неудача не рвёт сценарий гостя.
+jest.mock('@react-native-camera-roll/camera-roll', () => ({
+  CameraRoll: {
+    save: (...args) => globalThis.__albumMock.save(...args),
+  },
+}));
+
 // ── Векторная графика для QR ──────────────────────────────────────────────
 jest.mock('react-native-svg', () => {
   const React = require('react');
@@ -176,6 +186,9 @@ beforeEach(() => {
   };
   globalThis.__galleryMock = {
     launch: jest.fn(async () => ({didCancel: true})),
+  };
+  globalThis.__albumMock = {
+    save: jest.fn(async () => 'content://media/external/images/1'),
   };
   globalThis.__btMock = {
     isBluetoothEnabled: jest.fn(async () => true),

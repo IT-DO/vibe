@@ -25,6 +25,11 @@ declare global {
     launch: jest.Mock<Promise<unknown>, [unknown?]>;
   };
 
+  /** Заглушка галереи устройства: запись отпечатка в альбом. */
+  var __albumMock: {
+    save: jest.Mock<Promise<string>, [string, unknown?]>;
+  };
+
   /**
    * Заглушка классического Bluetooth: состояние адаптера, список
    * сопряжённых устройств и подключение.

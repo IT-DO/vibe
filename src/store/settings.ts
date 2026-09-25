@@ -57,8 +57,15 @@ export interface FlowSettings {
 }
 
 export interface PrivacySettings {
-  /** Хранить копии отпечатков (для отправки гостям после мероприятия). */
-  readonly keepArchive: boolean;
+  /**
+   * Класть готовый отпечаток в галерею телефона.
+   *
+   * Прежняя настройка называлась «хранить копии» и оставляла файлы во
+   * внутренней памяти приложения — туда без компьютера не добраться, и
+   * толку от неё не было. Теперь отпечаток попадает в галерею, откуда его
+   * видно сразу и можно отправить гостю.
+   */
+  readonly saveToAlbum: boolean;
   /** Через сколько часов автоматически стирать снимки. */
   readonly purgeAfterHours: number;
   /** Показывать ли QR для скачивания цифровой копии. */
@@ -114,7 +121,7 @@ export const DEFAULT_SETTINGS: Settings = {
     thanksMs: 6_000,
   },
   privacy: {
-    keepArchive: false,
+    saveToAlbum: false,
     purgeAfterHours: 24,
     showDigitalCopyQr: false,
     digitalCopyBaseUrl: '',

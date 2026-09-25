@@ -30,6 +30,7 @@ import {
 import {Paths, newFilePath, removeFile, writeBytes} from '../platform/files';
 import {pickPhotoFromGallery} from '../platform/gallery';
 import {recordError} from '../platform/crashlog';
+import {saveSheetToAlbum} from '../platform/album';
 import {trace, traceFailure} from '../platform/trace';
 import {haptic, playCue} from '../platform/feedback';
 import {mediaSizeOf, type Settings} from '../store/settings';
@@ -317,6 +318,17 @@ export function useKioskSession(
           await dropComposedSheet();
         }
 
+        // В галерею — до постановки в очередь: дальше файлом владеет
+        // очередь и удалит его сразу после печати.
+        if (settings.privacy.saveToAlbum) {
+          // Гарантия «не мешать печати» должна быть здесь, а не только
+          // внутри модуля галереи: гость пришёл за отпечатком, и терять
+          // его из-за неудачной записи в альбом недопустимо.
+          await saveSheetToAlbum(sheetPath).catch(error =>
+            traceFailure('галерея', 'сохранение отпечатка', error),
+          );
+        }
+
         trace('печать', 'ставим в очередь', {файл: sheetPath, копий: settings.printer.copies});
         await printQueue.enqueue({
           filePath: sheetPath,
@@ -325,13 +337,12 @@ export function useKioskSession(
           copies: settings.printer.copies,
         });
 
-        // Исходные кадры больше не нужны: в лист они уже вошли. Удаляем
-        // только свои: путь, пришедший из галереи, может указывать на
-        // собственную фотографию гостя, и восстановить её будет нечем.
-        if (!settings.privacy.keepArchive) {
-          const own = shots.filter(shot => shot.origin === 'camera');
-          await Promise.all(own.map(shot => removeFile(shot.path)));
-        }
+        // Исходные кадры больше не нужны: в лист они уже вошли, а он при
+        // необходимости сохранён в галерею. Удаляем только свои: путь,
+        // пришедший из галереи, указывает на собственную фотографию
+        // гостя, и восстановить её будет нечем.
+        const own = shots.filter(shot => shot.origin === 'camera');
+        await Promise.all(own.map(shot => removeFile(shot.path)));
 
         stats.countSession();
         stats.countPrinted(settings.printer.copies);

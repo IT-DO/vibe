@@ -68,6 +68,12 @@ jest.mock('../../imaging/typefaces', () => ({
   loadTypeface: (...args: unknown[]) => mockLoadTypeface(...(args as [])),
 }));
 
+const mockSaveToAlbum = jest.fn(async (_path: string) => 'content://медиа/1');
+jest.mock('../../platform/album', () => ({
+  saveSheetToAlbum: (path: string) => mockSaveToAlbum(path),
+  ALBUM_NAME: 'Фото на память',
+}));
+
 const mockRecordError = jest.fn(async () => undefined);
 jest.mock('../../platform/crashlog', () => ({
   recordError: (...args: unknown[]) => mockRecordError(...(args as [])),
@@ -174,7 +180,7 @@ describe('сессия — обычный путь', () => {
   it('не оставляет исходные кадры на диске', async () => {
     const camera = workingCamera();
     const {result} = mount(camera, {
-      privacy: {...DEFAULT_SETTINGS.privacy, keepArchive: false},
+      privacy: {...DEFAULT_SETTINGS.privacy, saveToAlbum: false},
     });
 
     act(() => result.current.start());
@@ -185,23 +191,55 @@ describe('сессия — обычный путь', () => {
     expect(mockRemoveFile).toHaveBeenCalledWith('/к/кадры/1.jpg');
   });
 
-  it('с включённым архивом кадры остаются', async () => {
+  it('готовый лист уходит в галерею до постановки в очередь', async () => {
+    // Порядок важен: дальше файлом владеет очередь и удаляет его сразу
+    // после печати. Сохранить его позже было бы уже нечего.
     const camera = workingCamera();
     const {result} = mount(camera, {
-      privacy: {...DEFAULT_SETTINGS.privacy, keepArchive: true},
+      privacy: {...DEFAULT_SETTINGS.privacy, saveToAlbum: true},
     });
 
     act(() => result.current.start());
     await reach(result, 'review');
-    mockRemoveFile.mockClear();
     act(() => result.current.print());
     await waitFor(() => expect(mockEnqueue).toHaveBeenCalled());
 
-    expect(mockRemoveFile).not.toHaveBeenCalledWith('/к/кадры/1.jpg');
+    expect(mockSaveToAlbum).toHaveBeenCalledWith('/к/листы/лист.jpg');
+    expect(mockSaveToAlbum.mock.invocationCallOrder[0]!).toBeLessThan(
+      mockEnqueue.mock.invocationCallOrder[0]!,
+    );
   });
-});
 
-describe('сессия — камера не отвечает', () => {
+  it('с выключенной настройкой в галерею ничего не уходит', async () => {
+    const camera = workingCamera();
+    const {result} = mount(camera, {
+      privacy: {...DEFAULT_SETTINGS.privacy, saveToAlbum: false},
+    });
+
+    act(() => result.current.start());
+    await reach(result, 'review');
+    act(() => result.current.print());
+    await waitFor(() => expect(mockEnqueue).toHaveBeenCalled());
+
+    expect(mockSaveToAlbum).not.toHaveBeenCalled();
+  });
+
+  it('неудача галереи не мешает напечатать', async () => {
+    // Сохранение — приятное дополнение, а не условие печати. Гость пришёл
+    // за отпечатком, и ронять его сценарий из-за галереи нельзя.
+    mockSaveToAlbum.mockRejectedValueOnce(new Error('нет места'));
+    const camera = workingCamera();
+    const {result} = mount(camera, {
+      privacy: {...DEFAULT_SETTINGS.privacy, saveToAlbum: true},
+    });
+
+    act(() => result.current.start());
+    await reach(result, 'review');
+    act(() => result.current.print());
+
+    await waitFor(() => expect(mockEnqueue).toHaveBeenCalled());
+  });
+
   it('не запирает гостя на экране съёмки', async () => {
     // Ровно это и видел владелец телефона: нажал — и ничего.
     const camera = {current: null};
@@ -382,7 +420,7 @@ describe('сессия — готовый снимок из галереи', () 
     } as never);
     const camera = workingCamera();
     const {result} = mount(camera, {
-      privacy: {...DEFAULT_SETTINGS.privacy, keepArchive: false},
+      privacy: {...DEFAULT_SETTINGS.privacy, saveToAlbum: false},
     });
 
     act(() => result.current.pickPhoto());

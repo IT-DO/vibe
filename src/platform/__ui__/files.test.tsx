@@ -146,15 +146,15 @@ describe('уборка по возрасту', () => {
       if (dir === Paths.shots) {
         throw new Error('Нет доступа');
       }
-      return dir === Paths.archive ? [entry('старый.jpg', 99 * 3_600_000)] : [];
+      return dir === Paths.sheets ? [entry('старый.jpg', 99 * 3_600_000)] : [];
     });
     expect(await purgeOlderThan(3_600_000)).toBe(1);
   });
 
-  it('обходит все три рабочих папки', async () => {
+  it('обходит обе рабочих папки', async () => {
     await purgeOlderThan(1);
     const visited = fs.readDir.mock.calls.map(call => call[0]);
-    expect(visited).toEqual([Paths.shots, Paths.sheets, Paths.archive]);
+    expect(visited).toEqual([Paths.shots, Paths.sheets]);
   });
 });
 
@@ -166,7 +166,7 @@ describe('полная очистка', () => {
 
     expect(fs.unlink).toHaveBeenCalledWith(Paths.shots);
     expect(fs.unlink).toHaveBeenCalledWith(Paths.sheets);
-    expect(fs.unlink).toHaveBeenCalledWith(Paths.archive);
+    expect(fs.unlink).toHaveBeenCalledWith(Paths.sheets);
     expect(fs.mkdir).toHaveBeenCalledWith(Paths.shots);
   });
 
@@ -179,7 +179,7 @@ describe('полная очистка', () => {
 describe('занятое место', () => {
   it('складывает размеры по всем папкам', async () => {
     fs.readDir.mockResolvedValue([entry('a.jpg', 0, 1_500), entry('b.jpg', 0, 2_500)]);
-    expect(await usedBytes()).toBe((1_500 + 2_500) * 3);
+    expect(await usedBytes()).toBe((1_500 + 2_500) * 2);
   });
 
   it('недоступная папка считается пустой, а не ломает подсчёт', async () => {
@@ -190,9 +190,9 @@ describe('занятое место', () => {
 
 describe('подготовка папок', () => {
   it('создаёт только недостающие', async () => {
-    fs.exists.mockImplementation(async (dir: string) => dir !== Paths.archive);
+    fs.exists.mockImplementation(async (dir: string) => dir !== Paths.sheets);
     await ensureDirectories();
     expect(fs.mkdir).toHaveBeenCalledTimes(1);
-    expect(fs.mkdir).toHaveBeenCalledWith(Paths.archive);
+    expect(fs.mkdir).toHaveBeenCalledWith(Paths.sheets);
   });
 });
